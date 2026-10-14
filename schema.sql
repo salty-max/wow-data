@@ -63,7 +63,9 @@ CREATE TABLE creature (
   pick_loot_id  INTEGER,
   kill_credit   TEXT,     -- the creature ids a kill of it counts as
   removed       INTEGER,  -- 1: Forever no longer has it (forever.db, when a source says so)
-  source        TEXT NOT NULL
+  source        TEXT NOT NULL,
+  trainer_type  INTEGER,  -- a trainer's kind: 0 class, 1 mounts, 2 trades, 3 pets (the Classic database's)
+  trainer_class INTEGER   -- a class trainer's class (ChrClasses id)
 );
 CREATE TABLE object (
   id         INTEGER PRIMARY KEY,  -- the gameobject id
@@ -127,7 +129,8 @@ CREATE TABLE item (
   start_quest_id  INTEGER,  -- an item that starts a quest
   display_id      INTEGER,
   removed         INTEGER,
-  source          TEXT NOT NULL  -- client where the client has it, else classicdb
+  source          TEXT NOT NULL,  -- client where the client has it, else classicdb
+  allowable_class INTEGER         -- the classes that may use it (ChrClasses mask; null: every class)
 );
 -- What drops or gives what: a creature's, an object's, an item's (a box), a
 -- fishing area's, skinning's, pickpocketing's.
@@ -167,7 +170,9 @@ CREATE TABLE quest (
   chain_root     INTEGER,  -- the first quest of its chain (computed)
   flags          INTEGER,
   removed        INTEGER,
-  source         TEXT NOT NULL
+  source         TEXT NOT NULL,
+  special_flags  INTEGER,  -- the Classic database's: 1 repeatable, 2 an event or an escort (no objective counts it)
+  exclusive_group INTEGER  -- one quest of the group only (Volcor's escape: stealth or force)
 );
 -- A quest's texts, per language (the Classic database's are English; Wowhead
 -- gives the objectives in its nine languages): details, objectives, request, reward, end.
@@ -214,7 +219,7 @@ CREATE TABLE quest_relation (
 CREATE INDEX quest_relation_entity ON quest_relation (kind, entity_id);
 CREATE TABLE quest_reward (
   quest_id INTEGER NOT NULL,
-  kind     TEXT NOT NULL,  -- item, choice, spell, cast, reputation
+  kind     TEXT NOT NULL,  -- item, choice, spell, cast, reputation, money (count: copper)
   ref_id   INTEGER NOT NULL,  -- an item, a spell or a faction id
   -- (count: an item's number, a reputation's value)
   count    INTEGER,
@@ -229,7 +234,8 @@ CREATE TABLE trainer_spell (
   level          INTEGER,
   skill_line_id  INTEGER,
   skill_value    INTEGER,
-  source         TEXT NOT NULL
+  source         TEXT NOT NULL,
+  req_spell_id   INTEGER   -- a spell it needs known first (a rank's earlier one, a talent)
 );
 
 -- ── what is written in the world ─────────────────────────────────────────────

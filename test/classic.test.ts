@@ -66,6 +66,20 @@ describe.skipIf(!built)("classic.db", () => {
       expect(cols).not.toContain("name");
     }
   });
+  test("what Hearthtale's audit reads: trainers, quests' flags and money, items' classes, what a spell teaches", () => {
+    // (Llane Beshere, Northshire's warrior trainer)
+    expect(one("SELECT trainer_type, trainer_class FROM creature WHERE id = 911")).toEqual({ trainer_type: 0, trainer_class: 1 });
+    // (Stonetalon Standstill: done by going there, no objective counts it)
+    expect(one("SELECT special_flags & 2 AS event FROM quest WHERE id = 25")).toEqual({ event: 2 });
+    expect(one("SELECT count > 0 AS paid FROM quest_reward WHERE quest_id = 7 AND kind = 'money'")).toEqual({ paid: 1 });
+    // (Breastplate of Might, a warrior's; plans any class may learn: no limit)
+    expect(one("SELECT allowable_class FROM item WHERE id = 16865")).toEqual({ allowable_class: 1 });
+    expect(one("SELECT allowable_class FROM item WHERE id = 12720")).toEqual({ allowable_class: null });
+    // (a warlock's lesson teaching Summon Imp)
+    expect(one("SELECT EffectTriggerSpell FROM client_SpellEffect WHERE SpellID = 1366 AND Effect = 36")).toEqual({
+      EffectTriggerSpell: 688,
+    });
+  });
   test("every row its source", () => {
     for (const table of ["creature", "spawn", "object", "item", "quest", "loot", "name", "path"]) {
       expect(one(`SELECT count(*) AS n FROM ${table} WHERE source IS NULL OR source = ''`)).toEqual({ n: 0 });

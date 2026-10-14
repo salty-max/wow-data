@@ -29,6 +29,7 @@ const CLIENT_TABLES = [
   "WorldMapOverlayTile",
   "DungeonEncounter",
   "SpellName",
+  "SpellEffect",
   "SkillLine",
   "SkillLineAbility",
   "TalentTab",
@@ -151,7 +152,8 @@ async function clientNames(db: Database, game: Game) {
 function clientItems(db: Database) {
   const n = db.run(`INSERT INTO item
     SELECT s.ID, i.ClassID, i.SubclassID, s.OverallQualityID, s.InventoryType, s.ItemLevel, s.RequiredLevel,
-           s.ContainerSlots, NULLIF(s.PageID, 0), NULLIF(s.StartQuestID, 0), NULL, NULL, 'client'
+           s.ContainerSlots, NULLIF(s.PageID, 0), NULLIF(s.StartQuestID, 0), NULL, NULL, 'client',
+           CASE WHEN s.AllowableClass > 0 AND (s.AllowableClass & 1503) <> 1503 THEN s.AllowableClass END
     FROM client_ItemSparse s LEFT JOIN client_Item i ON i.ID = s.ID`).changes;
   log(`item (client): ${n}`);
 }
@@ -371,12 +373,14 @@ async function classicDb(db: Database, q: QuestieData) {
   // creatures and their spawns
   const creatures = rows(sql, "creature_template");
   const insertCreature = db.prepare(
-    "INSERT INTO creature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb')",
+    "INSERT INTO creature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb', ?, ?)",
   );
   const creatureColumns = db.prepare(
     `UPDATE creature SET type_id = ?, family_id = ?, unit_class = ?, display_ids = ?, loot_id = ?,
-     skin_loot_id = ?, pick_loot_id = ?, kill_credit = ? WHERE id = ?`,
+     skin_loot_id = ?, pick_loot_id = ?, kill_credit = ?, trainer_type = ?, trainer_class = ? WHERE id = ?`,
   );
+  // (a trainer's kind, for a trainer only: TrainerType 0 is a class's, and every creature's default)
+  const trainer = (r: Row) => ((num(r.NpcFlags) ?? 0) & 16 ? num(r.TrainerType) : null);
   run("creature", () => {
     for (const r of creatures) {
       const models = [r.ModelId1, r.ModelId2, r.ModelId3, r.ModelId4].filter((m) => nz(m)).join(",");
@@ -391,6 +395,8 @@ async function classicDb(db: Database, q: QuestieData) {
           nz(r.SkinningLootId),
           nz(r.PickpocketLootId),
           credit || null,
+          trainer(r),
+          nz(r.TrainerClass),
           num(r.Entry),
         );
         if (r.Name) name.run("creature", num(r.Entry), r.Name);
@@ -411,6 +417,8 @@ async function classicDb(db: Database, q: QuestieData) {
         nz(r.SkinningLootId),
         nz(r.PickpocketLootId),
         credit || null,
+        trainer(r),
+        nz(r.TrainerClass),
       );
       if (r.Name) name.run("creature", num(r.Entry), r.Name);
       if (r.SubName) name.run("creature_subname", num(r.Entry), r.SubName);
@@ -463,8 +471,17 @@ async function classicDb(db: Database, q: QuestieData) {
 
   // items: the client's and Questie's first (their rows won), the database's for the rest
   const items = rows(sql, "item_template");
-  const insertItem = db.prepare("INSERT OR IGNORE INTO item VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb')");
+  const insertItem = db.prepare(
+    "INSERT OR IGNORE INTO item VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb', ?)",
+  );
   const display = db.prepare("UPDATE item SET display_id = ? WHERE id = ? AND display_id IS NULL");
+  const classes = db.prepare("UPDATE item SET allowable_class = ? WHERE id = ? AND allowable_class IS NULL");
+  // (a mask holding every class is no limit: -1, 32767, 2047 as sources write it;
+  // 1503 is the nine classes')
+  const allowed = (r: Row) => {
+    const mask = num(r.AllowableClass) ?? 0;
+    return mask > 0 && (mask & 1503) !== 1503 ? mask : null;
+  };
   run("item (database)", () => {
     let n = 0;
     for (const r of items) {
@@ -480,8 +497,10 @@ async function classicDb(db: Database, q: QuestieData) {
         nz(r.PageText),
         nz(r.startquest),
         nz(r.displayid),
+        allowed(r),
       ).changes;
       display.run(nz(r.displayid), num(r.entry));
+      if (allowed(r)) classes.run(allowed(r), num(r.entry));
       if (r.name) name.run("item", num(r.entry), r.name);
     }
     return n;
@@ -491,10 +510,13 @@ async function classicDb(db: Database, q: QuestieData) {
   const quests = rows(sql, "quest_template");
   const insertPrereq = db.prepare("INSERT OR IGNORE INTO quest_prereq VALUES (?, ?, 'all', 'classicdb')");
   const insertQuest = db.prepare(
-    "INSERT INTO quest VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, 'classicdb')",
+    "INSERT INTO quest VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, 'classicdb', ?, ?)",
   );
   const insertText = db.prepare("INSERT OR IGNORE INTO quest_text VALUES (?, 'enUS', ?, ?, 'classicdb')");
-  const questColumns = db.prepare("UPDATE quest SET type = ?, next_id = ? WHERE id = ?");
+  const questColumns = db.prepare(
+    "UPDATE quest SET type = ?, next_id = ?, special_flags = ?, exclusive_group = ? WHERE id = ?",
+  );
+  const exclusive = (r: Row) => ((num(r.ExclusiveGroup) ?? 0) > 0 ? num(r.ExclusiveGroup) : null);
   // (Questie's objectives carry no count: the database's, where it asks the same thing)
   const objectiveCount = db.prepare(
     "UPDATE quest_objective SET count = ? WHERE quest_id = ? AND kind = ? AND target_id = ? AND source = 'questie' AND count IS NULL",
@@ -519,7 +541,8 @@ async function classicDb(db: Database, q: QuestieData) {
       if (questieQuests.has(id!)) {
         // Questie's quest: the database's type, next quest, texts, rewards (not
         // reputation: Questie's), its objectives' counts
-        questColumns.run(nz(r.Type), nz(r.NextQuestId), id);
+        questColumns.run(nz(r.Type), nz(r.NextQuestId), nz(r.SpecialFlags), exclusive(r), id);
+        if ((num(r.RewOrReqMoney) ?? 0) > 0) insertReward.run(id, "money", 0, num(r.RewOrReqMoney));
         if (nz(r.PrevQuestId)) insertPrereq.run(id, num(r.PrevQuestId));
       if (r.Title) name.run("quest", id, r.Title);
         for (const [field, col] of TEXTS) if (r[col]) insertText.run(id, field, r[col]);
@@ -552,7 +575,10 @@ async function classicDb(db: Database, q: QuestieData) {
         nz(r.NextQuestId),
         nz(r.NextQuestInChain),
         num(r.QuestFlags),
+        nz(r.SpecialFlags),
+        exclusive(r),
       );
+      if ((num(r.RewOrReqMoney) ?? 0) > 0) insertReward.run(id, "money", 0, num(r.RewOrReqMoney));
       if (r.Title) name.run("quest", id, r.Title);
       for (const [field, col] of TEXTS) if (r[col]) insertText.run(id, field, r[col]);
       let creatures = 0,
@@ -695,9 +721,17 @@ async function classicDb(db: Database, q: QuestieData) {
     list.push(r);
     trainerTemplate.set(num(r.entry)!, list);
   }
-  const insertTrainer = db.prepare("INSERT INTO trainer_spell VALUES (?, ?, ?, ?, ?, ?, 'classicdb')");
+  const insertTrainer = db.prepare("INSERT INTO trainer_spell VALUES (?, ?, ?, ?, ?, ?, 'classicdb', ?)");
   const teach = (npc: number | null, r: Row) =>
-    insertTrainer.run(npc, num(r.spell), num(r.spellcost), num(r.reqlevel), nz(r.reqskill), nz(r.reqskillvalue));
+    insertTrainer.run(
+      npc,
+      num(r.spell),
+      num(r.spellcost),
+      num(r.reqlevel),
+      nz(r.reqskill),
+      nz(r.reqskillvalue),
+      nz(r.ReqAbility1),
+    );
   run("trainer_spell", () => {
     let n = 0;
     for (const r of rows(sql, "npc_trainer")) {
