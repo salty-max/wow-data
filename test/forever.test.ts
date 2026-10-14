@@ -102,4 +102,7 @@ describe.skipIf(!built)("forever.db", () => {
       for (const s of used) expect(sources).toContain(s);
     }
   });
+  test("no name is Wowhead's English in brackets (the client shows the English)", () => {
+    expect(one("SELECT count(*) AS n FROM name WHERE source = 'wowhead' AND name LIKE '[%]'")).toEqual({ n: 0 });
+  });
 });

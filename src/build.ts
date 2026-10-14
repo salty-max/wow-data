@@ -933,6 +933,9 @@ function wowheadNames(db: Database, game: Game) {
     db.transaction(() => {
       for (const [kind, byId] of Object.entries(names))
         for (const [id, name] of Object.entries(byId)) {
+          // (a name in brackets: Wowhead's English where the language's client has
+          // none; the client shows the English, which the name table has)
+          if (/^\[.*\]$/.test(name)) continue;
           const had = current.get(kind, Number(id), locale) as { name: string; source: string } | null;
           if (had && had.source === "questie" && fold(had.name) !== fold(name) && !/^\[|<PH>|\bUNUSED\b/i.test(name)) {
             const en = (english.get(kind, Number(id)) as { name: string } | null)?.name;
