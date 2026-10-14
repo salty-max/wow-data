@@ -4,6 +4,9 @@ The game data the WoW addons are built from, pinned in one place and
 downloaded once (README.md). Build-time tooling only: nothing here ships in
 an addon. Bun and TypeScript.
 
+Where it is going: our own game database, one SQLite file per game that
+every addon queries (PLAN.md: the tables, Classic and Forever, the order).
+
 ## Layout
 
 - `pins.json`: the clients' builds on wago.tools (`builds.classic`: Classic
@@ -34,8 +37,9 @@ byte the same (the addon's own `--check`, and Hearthtale's golden check). An
 addon's daily job checks out wow-data's main beside it and builds its data
 again from the pins.
 
-Wowhead isn't here: it turns scripts away, so the translated names and texts
-taken from it stay a step done by hand in each addon.
+Wowhead: its tooltip service answers scripts (names in every language,
+fetched slowly, PLAN.md step 3); its pages don't, so its book texts are
+imported by hand from a browser into a snapshot committed here.
 
 ## Conventions
 
