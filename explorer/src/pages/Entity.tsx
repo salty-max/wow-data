@@ -26,7 +26,7 @@ export function Entity({ kind, id }: { kind: string; id: number }) {
     <div className="flex flex-col gap-5">
       <Header e={e} />
       {(e.facts.length > 0 || e.names.length > 0) && (
-        <div className={`grid items-start gap-5 ${e.facts.length && e.names.length ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
+        <div className={`grid grid-cols-1 items-start gap-5 ${e.facts.length && e.names.length ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
           {e.facts.length > 0 && <Facts facts={e.facts} />}
           {e.names.length > 0 && <Names e={e} />}
         </div>
@@ -261,7 +261,7 @@ function Pages({ s }: { s: Extract<Section, { type: "pages" }> }) {
   const pages = s.pages[tab] ?? [];
   return (
     <Panel title={s.title} count={pages.length} action={locales.length > 1 && <Pills label="Language" value={tab} onChange={setTab} options={locales.map((l) => ({ id: l, label: l }))} />}>
-      <ol className="grid gap-3 md:grid-cols-2">
+      <ol className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {pages.map((p, i) => (
           <li key={i} className="relative rounded-lg border border-edge-gold/40 bg-[linear-gradient(180deg,rgb(236_227_207/0.04),rgb(236_227_207/0.015))] px-5 pt-4 pb-6">
             <GameText text={p} className="font-display text-[14px] leading-relaxed text-parchment/90 select-text" />
@@ -315,7 +315,7 @@ function EntitySkeleton() {
           <Skeleton className="h-4 w-40" />
         </div>
       </div>
-      <div className="grid gap-5 lg:grid-cols-[1fr_22rem]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Skeleton className="h-36" />
         <Skeleton className="h-36" />
       </div>

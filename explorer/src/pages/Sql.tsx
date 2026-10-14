@@ -120,7 +120,7 @@ export function Sql() {
         <h1 className="title text-2xl">SQL console</h1>
         <p className="mt-1.5 text-dim">Read only, SQLite. Tables and columns complete as you type, ⌘↵ runs. Ids in the results link to their pages.</p>
       </header>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
         <div className="flex min-w-0 flex-col gap-4">
           <section className="panel overflow-hidden">
             <div className="h-60 resize-y overflow-auto bg-black/25">

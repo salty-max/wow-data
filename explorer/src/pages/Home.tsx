@@ -50,7 +50,7 @@ export function Home() {
         </div>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {(info?.games ?? []).map((g) => (
           <a
             key={g.game}
@@ -84,7 +84,7 @@ export function Home() {
         {!info && [0, 1].map((i) => <Skeleton key={i} className="h-44" />)}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Panel title="Start somewhere" bodyClass="p-2">
           <ul className="grid grid-cols-2 gap-0.5">
             {TRY[game].map(([kind, id, name]) => (
