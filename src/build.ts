@@ -835,6 +835,26 @@ function wowheadRanks(db: Database, game: Game) {
   log(`ranks wowhead: ${n}`);
 }
 
+// ── Wowhead's points (data/wowhead/<game>/points.json) ────────────────────
+// Where Wowhead's players met a creature or an object, by zone (percent of
+// the zone's map), frozen by bin/wowhead-points.ts for what the addons need
+// (a roaming rare's haunts, a book's copies): spawns of source wowhead, in
+// Wowhead's order.
+function wowheadPoints(db: Database, game: Game) {
+  const file = path.join(ROOT, "data", "wowhead", game, "points.json");
+  if (!existsSync(file)) return;
+  const points = JSON.parse(readFileSync(file, "utf8")) as Record<string, Record<string, Record<string, [number, number][]>>>;
+  const insert = db.prepare("INSERT INTO spawn VALUES (?, NULL, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, 'wowhead')");
+  let n = 0;
+  db.transaction(() => {
+    for (const [kind, byId] of Object.entries(points))
+      for (const [id, byArea] of Object.entries(byId))
+        for (const [area, pts] of Object.entries(byArea))
+          for (const [x, y] of pts) n += insert.run(kind === "npc" ? "creature" : kind, Number(id), Number(area), x, y).changes;
+  })();
+  log(`spawns wowhead: ${n}`);
+}
+
 // ── Wowhead's book pages (data/wowhead/<game>/books-<locale>.json) ──────────
 // A text's pages in another language, saved from Wowhead's pages in a
 // browser (they don't answer scripts): { "o<object id>" | "i<item id>": [
@@ -939,6 +959,7 @@ export async function build(game: Game, file: string) {
   await classicDb(db, data);
   wowheadNames(db, game);
   wowheadRanks(db, game);
+  wowheadPoints(db, game);
   wowheadBooks(db, game);
   chains(db);
   db.exec("ANALYZE");

@@ -77,7 +77,8 @@ CREATE TABLE object (
 );
 -- Where a creature or an object stands: in the world's coordinates (the
 -- Classic database's, with its own spawn id) and/or on a zone's map (percent:
--- Questie's).
+-- Questie's, and Wowhead's players' sightings, frozen for what the addons
+-- need: source wowhead).
 CREATE TABLE spawn (
   kind      TEXT NOT NULL,  -- creature, object
   spawn_id  INTEGER,        -- the source's own id for this spawn (the Classic database's guid), if it has one

@@ -42,8 +42,12 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   doesn't translate: Forever's own content; and the clients' own where
   Questie's French lags them: "Sentinelle de Dolanaar", Classic's "Goulet
   des Warsong") and `books-<locale>.json` (book
-  pages saved from a browser). `bin/names.ts` fetched them once; it is a
-  hand tool now, run only when a translation is missing, never by a job.
+  pages saved from a browser), `ranks.json` (Forever's own creatures' ranks,
+  which Questie's traces don't give) and `points.json` (where Wowhead's
+  players met a creature or an object, by zone: the addons' cross-check and
+  a roaming rare's haunts, loaded as spawns of source wowhead).
+  `bin/names.ts` and `bin/wowhead-points.ts` fetched or seeded them once;
+  they are hand tools, run only when something is missing, never by a job.
 - `.github/workflows/db.yml`: both databases built, tested and published as
   the latest release; `bin/get.ts` downloads them.
 - `bin/latest.ts`: newer builds than the pins (`--write`, `--next FILE`,
