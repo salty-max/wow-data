@@ -28,7 +28,17 @@ bun run check                               # typecheck, tests
 `FACTS_DEV=1` signs Ravenpost in as a test account without Battle.net (never
 on Vercel). Ravenpost's development build sends to `http://localhost:3003`.
 
-## Setting it up on Vercel
+## Where it runs
+
+https://wow-data-facts.vercel.app: the Vercel project `wow-data-facts`
+(team jellycat), its private Blob store `wow-data-facts` (fra1), deployed from
+this folder with `vercel deploy --prod` (not from git). Its environment:
+`BLOB_READ_WRITE_TOKEN` (the store's), `FACTS_ORIGIN`, `FACTS_SECRET`,
+`FACTS_TOKEN`, and `BNET_CLIENT_ID` / `BNET_CLIENT_SECRET` once the
+Battle.net app exists. wow-data's `FACTS_SERVER` variable and `FACTS_TOKEN`
+secret, and Ravenpost's `FACTS_SERVER` variable, are set.
+
+## Setting it up again
 
 1. A Vercel project from this repository, root directory `server` (its
    `vercel.json` builds it), and a private Blob store connected to it
