@@ -42,7 +42,8 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   doesn't translate: Forever's own content; and the clients' own where
   Questie's French lags them: "Sentinelle de Dolanaar", Classic's "Goulet
   des Warsong") and `books-<locale>.json` (book
-  pages saved from a browser), `ranks.json` (Forever's own creatures' ranks,
+  pages saved from a browser: `books-enUS.json` the English of Forever's own
+  texts, which neither Questie nor the Classic database has), `ranks.json` (Forever's own creatures' ranks,
   which Questie's traces don't give) and `points.json` (where Wowhead's
   players met a creature or an object, by zone: the addons' cross-check and
   a roaming rare's haunts, loaded as spawns of source wowhead).
