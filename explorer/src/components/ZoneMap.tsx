@@ -70,7 +70,8 @@ export function ZoneMap({ maps, unplaced }: { maps: MapGroup[]; unplaced: number
               strokeDasharray="1 0.6"
             />
           ))}
-          {map.points.map((p, i) => (
+          {/* (Questie's on top: the Classic database often has the same spawn) */}
+          {[...map.points].sort((a, b) => Number(a.source === "questie") - Number(b.source === "questie")).map((p, i) => (
             <g key={i}>
               <circle cx={(p.x / 100) * W} cy={(p.y / 100) * H} r="1.7" fill={SOURCE_COLOR[p.source] ?? "var(--color-dim)"} opacity="0.22" />
               <circle
