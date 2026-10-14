@@ -53,6 +53,7 @@ const CLIENT_TABLES = [
   "EmotesText",
   "Languages",
   "QuestV2",
+  "GlobalStrings",
 ];
 // The client's tables that name things: kind, the id column, the name's (and a female form's).
 const NAMED: { table: string; kind: string; name: string; female?: string }[] = [
@@ -75,6 +76,15 @@ const NAMED: { table: string; kind: string; name: string; female?: string }[] = 
   { table: "QuestInfo", kind: "quest_info", name: "InfoName_lang" },
   { table: "Languages", kind: "language", name: "Name_lang" },
   { table: "ItemSparse", kind: "item", name: "Display_lang" },
+  // (the client's other words in every language, by the same ids: an item's
+  // flavour line, a spell's and its aura's description, a faction's, and the
+  // interface's own strings, their tags in client_GlobalStrings)
+  { table: "ItemSparse", kind: "item_description", name: "Description_lang" },
+  { table: "Spell", kind: "spell_description", name: "Description_lang" },
+  { table: "Spell", kind: "aura_description", name: "AuraDescription_lang" },
+  { table: "Spell", kind: "spell_subtext", name: "NameSubtext_lang" },
+  { table: "Faction", kind: "faction_description", name: "Description_lang" },
+  { table: "GlobalStrings", kind: "global_string", name: "TagText_lang" },
 ];
 
 const log = (s: string) => console.log(`  ${s}`);

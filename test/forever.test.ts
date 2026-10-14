@@ -105,4 +105,10 @@ describe.skipIf(!built)("forever.db", () => {
   test("no name is Wowhead's English in brackets (the client shows the English)", () => {
     expect(one("SELECT count(*) AS n FROM name WHERE source = 'wowhead' AND name LIKE '[%]'")).toEqual({ n: 0 });
   });
+  test("the client's other words in every language: the interface's strings, an item's flavour line", () => {
+    expect(
+      one("SELECT n.name FROM client_GlobalStrings g JOIN name n ON n.kind = 'global_string' AND n.id = g.ID AND n.locale = 'deDE' WHERE g.BaseTag = 'PVP_RANK_12_0'"),
+    ).toEqual({ name: "Zornbringer" });
+    expect(one("SELECT count(*) > 1000 AS ok FROM name WHERE kind = 'item_description' AND locale = 'frFR'")).toEqual({ ok: 1 });
+  });
 });

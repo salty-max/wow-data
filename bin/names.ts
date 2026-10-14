@@ -1,6 +1,6 @@
 // A game's names in a language from Wowhead, for what the client doesn't
-// name: every creature (and its title), quest, and the objects that matter (a
-// text, a quest's, a herb's or a vein's), into data/wowhead/<game>/<locale>.json.
+// name: every creature (and its title), quest, and object (every one the world
+// spawns, a text, a quest's, a herb's or a vein's), into data/wowhead/<game>/<locale>.json.
 // Resumable: what is fetched is cached, the file written as it goes.
 //   bun bin/names.ts <classic|forever> <locale> [--kinds creature,quest,object]
 //   bun bin/names.ts <classic|forever> <locale> --seed DIR...   tooltips an addon
@@ -52,7 +52,8 @@ const wanted: Record<NameKind, number[]> = {
     SELECT id FROM readable WHERE kind = 'object'
     UNION SELECT entity_id AS id FROM quest_relation WHERE kind = 'object'
     UNION SELECT target_id AS id FROM quest_objective WHERE kind = 'object'
-    UNION SELECT id FROM object WHERE lock_id IS NOT NULL) ORDER BY id`),
+    UNION SELECT id FROM object WHERE lock_id IS NOT NULL
+    UNION SELECT entity_id AS id FROM spawn WHERE kind = 'object') ORDER BY id`),
   item: [],
 };
 const titled = new Set(ids("SELECT id FROM name WHERE kind = 'creature_subname' AND locale = 'enUS'"));
