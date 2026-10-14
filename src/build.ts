@@ -17,6 +17,7 @@ type Row = Record<string, string | number | null>;
 const CLIENT_TABLES = [
   "AreaTable",
   "WMOAreaTable",
+  "AreaTrigger",
   "Map",
   "UiMap",
   "UiMapAssignment",
@@ -175,14 +176,19 @@ function questieWorld(db: Database, q: QuestieData) {
   };
   const name = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'questie')");
   const spawn = db.prepare("INSERT INTO spawn VALUES (?, NULL, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, 'questie')");
+  // a table by zone: { zone: ... }. (Lua can't tell { [1] = ... } from a
+  // list, so the export writes Dun Morogh's, zone 1, as an array: index i is
+  // zone i + 1)
+  const byZone = (v: unknown): [number, unknown][] =>
+    Array.isArray(v) ? v.map((x, i) => [i + 1, x]) : Object.entries((v ?? {}) as Record<string, unknown>).map(([k, x]) => [Number(k), x]);
   // (spawns: { zone: [[x, y], ...] })
   const spawns = (kind: string, id: number, r: QuestieRecord) => {
     let n = 0;
-    for (const [zone, points] of Object.entries((r.spawns ?? {}) as Record<string, unknown>))
+    for (const [zone, points] of byZone(r.spawns))
       for (const p of list(points)) {
         const [x, y] = p as number[];
         if (typeof x === "number" && typeof y === "number") {
-          spawn.run(kind, id, Number(zone), x, y);
+          spawn.run(kind, id, zone, x, y);
           n++;
         }
       }
@@ -205,7 +211,7 @@ function questieWorld(db: Database, q: QuestieData) {
       if (typeof r.subName === "string" && r.subName) name.run("creature_subname", id, "enUS", r.subName);
       spawns("creature", id, r);
       let pathId = 0;
-      for (const [zone, paths] of Object.entries((r.waypoints ?? {}) as Record<string, unknown>)) {
+      for (const [zone, paths] of byZone(r.waypoints)) {
         const all = list(paths);
         // (one path as points, or several)
         const ways = all.length && Array.isArray(all[0]) && typeof (all[0] as unknown[])[0] === "number" ? [all] : all;
@@ -213,7 +219,7 @@ function questieWorld(db: Database, q: QuestieData) {
           pathId++;
           list(way).forEach((p, i) => {
             const [x, y] = p as number[];
-            if (typeof x === "number") pathPoint.run(id, pathId, i + 1, Number(zone), x, y);
+            if (typeof x === "number") pathPoint.run(id, pathId, i + 1, zone, x, y);
           });
         }
       }
@@ -813,6 +819,22 @@ function wowheadNames(db: Database, game: Game) {
   }
 }
 
+// ── Wowhead's ranks (data/wowhead/<game>/ranks.json) ──────────────────────
+// A creature's rank where Questie gives none (Forever's own: its traces
+// don't tell a rare from the rest), from the frozen tooltips ("Niveau 10 Bête
+// (Rare)"). Questie's own ranks are never changed.
+function wowheadRanks(db: Database, game: Game) {
+  const file = path.join(ROOT, "data", "wowhead", game, "ranks.json");
+  if (!existsSync(file)) return;
+  const ranks = JSON.parse(readFileSync(file, "utf8")) as Record<string, number>;
+  const set = db.prepare("UPDATE creature SET rank = ? WHERE id = ? AND rank IS NULL");
+  let n = 0;
+  db.transaction(() => {
+    for (const [id, rank] of Object.entries(ranks)) n += set.run(rank, Number(id)).changes;
+  })();
+  log(`ranks wowhead: ${n}`);
+}
+
 // ── Wowhead's book pages (data/wowhead/<game>/books-<locale>.json) ──────────
 // A text's pages in another language, saved from Wowhead's pages in a
 // browser (they don't answer scripts): { "o<object id>" | "i<item id>": [
@@ -916,6 +938,7 @@ export async function build(game: Game, file: string) {
   console.log(`${game}: the Classic database (${c.commit.slice(0, 12)})`);
   await classicDb(db, data);
   wowheadNames(db, game);
+  wowheadRanks(db, game);
   wowheadBooks(db, game);
   chains(db);
   db.exec("ANALYZE");

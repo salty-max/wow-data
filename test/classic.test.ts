@@ -44,6 +44,9 @@ describe.skipIf(!built)("classic.db", () => {
     expect(name("quest", 182, "frFR")).toBe("La caverne des trolls");
     // (Classic Era's own French, kept English, over Questie's later one)
     expect(name("quest", 7782, "frFR")).toBe("Le seigneur de Blackrock");
+    // (Dun Morogh's spawns, zone 1: Questie's table keyed by 1 alone reads as a list)
+    expect(one("SELECT DISTINCT area_id FROM spawn WHERE kind = 'creature' AND entity_id = 1132 AND source = 'questie'")).toEqual({ area_id: 1 });
+    expect(one("SELECT count(*) AS n FROM spawn WHERE area_id = 0")).toEqual({ n: 0 });
     expect(one("SELECT count(*) AS n FROM name WHERE kind = 'creature_subname' AND locale = 'frFR' AND name LIKE '%(%)'")).toEqual({
       n: 0,
     });

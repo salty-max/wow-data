@@ -21,17 +21,17 @@
     "questiedb": {
       "repo": "Questie/QuestieDB",
       "commit": "7e87203312ef7ba309b96361fed90e492e145cff",
-      "legacy": "Hearthtale's own scripts only (scripts/forever-data.ts, audit-data.ts), until they read the database: the database doesn't use it"
+      "legacy": "Hearthtale's own scripts (scripts/forever-data.ts, audit-data.ts) and Yonder's expeditions.py, until they read the database: the database doesn't use it"
     },
     "allthethings": {
       "repo": "ATTWoWAddon/AllTheThings",
       "commit": "a21caf2a7ec636785505a7f4e7e4311d16ce28af",
-      "legacy": "Hearthtale's own scripts only (scripts/forever-data.ts, audit-data.ts), until they read the database: the database doesn't use it"
+      "legacy": "Hearthtale's own scripts (scripts/forever-data.ts, audit-data.ts) and Yonder's expeditions.py, until they read the database: the database doesn't use it"
     },
     "pfquest": {
       "repo": "shagu/pfQuest",
       "commit": "104f35678ca39ab1fb78b655f815cc7016f5e0c8",
-      "legacy": "Hearthtale's own scripts only (scripts/forever-data.ts, audit-data.ts), until they read the database: the database doesn't use it"
+      "legacy": "Hearthtale's own scripts (scripts/forever-data.ts, audit-data.ts) and Yonder's expeditions.py, until they read the database: the database doesn't use it"
     }
   }
 }

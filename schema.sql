@@ -266,7 +266,8 @@ CREATE TABLE rare_zone (
 -- for column, prefixed client_ (client_AreaTable, client_UiMap...): an addon
 -- reaches anything the client knows without a schema change. Their names in
 -- other languages go to `name`. The tables:
---   AreaTable, WMOAreaTable, Map, UiMap, UiMapAssignment, UiMapLink,
+--   AreaTable, WMOAreaTable, AreaTrigger (the quests' exploration
+--   triggers), Map, UiMap, UiMapAssignment, UiMapLink,
 --   UiMapXMapArt, UiMapArt, UiMapArtStyleLayer, UiMapArtTile (a map's
 --   art: its tiles' file ids), WorldMapOverlay, WorldMapOverlayTile (the
 --   explored areas painted over it), DungeonEncounter, SpellName, SkillLine,

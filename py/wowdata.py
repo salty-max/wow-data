@@ -22,3 +22,27 @@ def db(game):
             raise SystemExit(f"{path}: none yet (bun ../wow-data/bin/get.ts, or bun ../wow-data/bin/build.ts {game})")
         _dbs[game] = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     return _dbs[game]
+
+
+def client(game, table):
+    """a client table's rows (client_<table>, the pinned build's) as
+    wago.tools' CSV gives them: { column: text }, empty for nothing"""
+    cur = db(game).execute(f'SELECT * FROM "client_{table}" ORDER BY rowid')
+    cols = [c[0] for c in cur.description]
+    text = lambda v: "" if v is None else str(v)
+    return [{c: text(v) for c, v in zip(cols, row)} for row in cur]
+
+
+def path(*what):
+    """a pinned file's local path, downloaded first if need be (bin/path.ts:
+    "classicdb", the Classic database's dump; "wago", game, table...)"""
+    import subprocess
+    run = subprocess.run(["bun", os.path.join(ROOT, "bin", "path.ts"), *what], capture_output=True, text=True)
+    if run.returncode:
+        raise SystemExit(run.stderr.strip())
+    return run.stdout.strip()
+
+
+def tree(name):
+    """a pinned repository's files (bin/path.ts tree)"""
+    return path("tree", name).splitlines()

@@ -70,6 +70,8 @@ describe.skipIf(!built)("forever.db", () => {
       source: "wowhead",
     });
     expect(name("quest", 182, "frFR")).toBe("La caverne des trolls");
+    // (a rank Questie's traces don't give, Forever's own rare: the tooltips')
+    expect(one("SELECT rank FROM creature WHERE id = 276189")).toEqual({ rank: 4 });
     // (Forever's renames, its client's own, over Questie's lagging French)
     expect(one("SELECT name, source FROM name WHERE kind = 'creature' AND id = 3571 AND locale = 'frFR'")).toEqual({
       name: "Sentinelle de Dolanaar",

@@ -6,12 +6,15 @@
 //   bun bin/names.ts <classic|forever> <locale> --seed DIR...   tooltips an addon
 //     already fetched (npc-<id>-<locale>.json, object-<id>-<n>.json...) first
 //   --offline: the seeds alone, nothing fetched
+//   bun bin/names.ts <classic|forever> <locale> --ranks   the ranks Questie
+//     doesn't give (Forever's own creatures), from the cached tooltips'
+//     "Level 12 Humanoid (Rare)", into data/wowhead/<game>/ranks.json
 // The database must be built (bin/build.ts): it says which ids there are.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { CACHE } from "../src/cache";
 import { openDb } from "../src/db";
-import type { Game } from "../src/pins";
+import { type Game, ROOT } from "../src/pins";
 import {
   type NameKind,
   type Names,
@@ -35,6 +38,7 @@ const seeds = seedAt >= 0 ? rest.slice(seedAt + 1).filter((a) => !a.startsWith("
 // (--titles: every creature's title again, from the cached tooltips)
 const retitle = rest.includes("--titles");
 const offline = rest.includes("--offline");
+const ranks = rest.includes("--ranks");
 
 const db = openDb(game);
 const names: Names = readNames(game, locale);
@@ -106,8 +110,33 @@ if (retitle) {
   console.log(`titles again: ${Object.keys(names.creature_subname).length}`);
 }
 
+// ── the ranks Questie doesn't give, from the cached tooltips ────────────────
+if (ranks) {
+  const RANK: Record<string, number> = {
+    standard: 0, normal: 0, élite: 1, elite: 1, "élite rare": 2, "rare elite": 2, "rare élite": 2, boss: 3, rare: 4,
+  };
+  const file = path.join(ROOT, "data", "wowhead", game, "ranks.json");
+  const out: Record<string, number> = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+  const dir = path.join(CACHE, "wowhead", game, "creature", locale);
+  let n = 0;
+  for (const id of ids("SELECT id FROM creature WHERE rank IS NULL ORDER BY id")) {
+    const f = path.join(dir, `${id}.json`);
+    if (!existsSync(f)) continue;
+    const t: Tooltip = JSON.parse(readFileSync(f, "utf8"));
+    const m = (t.tooltip ?? "").match(/(?:Niveau|Level|Stufe|Nivel|Уровень|Nível)[^<(]*\(([^)]+)\)/);
+    const rank = m ? RANK[m[1].trim().toLowerCase()] : undefined;
+    if (rank !== undefined) {
+      out[id] = rank;
+      n++;
+    }
+  }
+  const sorted = Object.fromEntries(Object.entries(out).sort((a, b) => Number(a[0]) - Number(b[0])));
+  writeFileSync(file, JSON.stringify(sorted, null, 1) + "\n");
+  console.log(`ranks: ${n} from the tooltips -> data/wowhead/${game}/ranks.json`);
+}
+
 // ── the rest, fetched: four at a time, a breath between ─────────────────────
-for (const kind of offline ? [] : kinds) {
+for (const kind of offline || ranks ? [] : kinds) {
   const todo = wanted[kind].filter((id) => !names[kind]?.[id]);
   console.log(`${game} ${locale} ${kind}: ${wanted[kind].length} wanted, ${todo.length} to fetch`);
   let done = 0,
