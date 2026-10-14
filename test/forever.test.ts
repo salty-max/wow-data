@@ -86,10 +86,18 @@ describe.skipIf(!built)("forever.db", () => {
     const page = one("SELECT text FROM readable_page WHERE kind = 'item' AND id = 745 AND locale = 'frFR' AND idx = 1");
     expect(String(page.text)).toStartWith("RAPPORT : Les kobolds");
   });
+  test("a quest's prerequisites: Questie's alternatives, AllTheThings' where it has none", () => {
+    // ("Call of Earth": one a side's)
+    expect(all("SELECT prev_id FROM quest_prereq WHERE quest_id = 92467 ORDER BY prev_id").map((r) => r.prev_id)).toEqual([1516, 1519, 92466]);
+    // (Westfall's new chain, which Questie doesn't link)
+    expect(one("SELECT source FROM quest_prereq WHERE quest_id = 92745 AND prev_id = 92744")).toEqual({ source: "allthethings" });
+  });
+
   test("every source accounted for", () => {
     const sources = all("SELECT name FROM source ORDER BY name").map((r) => r.name);
-    expect(sources).toEqual(["classicdb", "client", "questie", "wowhead"]);
-    for (const table of ["creature", "quest", "quest_objective", "quest_relation", "spawn", "loot", "name"]) {
+    // (allthethings: Forever's own quests' rewards and prerequisites, frozen)
+    expect(sources).toEqual(["allthethings", "classicdb", "client", "questie", "wowhead"]);
+    for (const table of ["creature", "quest", "quest_objective", "quest_relation", "quest_reward", "quest_prereq", "spawn", "loot", "name"]) {
       const used = all(`SELECT DISTINCT source FROM ${table}`).map((r) => r.source as string);
       for (const s of used) expect(sources).toContain(s);
     }

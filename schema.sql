@@ -11,7 +11,9 @@
 -- - Every row says where it comes from (`source`): client (the game's own
 --   tables), questie (QuestieDB: quests, NPCs, objects, their spawns, the
 --   translations), classicdb (the Classic database: what Questie lacks),
---   wowhead (names fetched once and frozen in data/wowhead).
+--   wowhead (names, ranks and points fetched once and frozen in
+--   data/wowhead), allthethings (Forever's own quests' rewards, frozen in
+--   data/allthethings).
 -- - One owner a table, never two sources for the same fact (PLAN.md).
 -- - forever.db is Classic's world plus Forever's: a row Forever removed is
 --   marked (`removed`), never dropped.
@@ -189,6 +191,17 @@ CREATE TABLE quest_objective (
   source    TEXT NOT NULL,
   PRIMARY KEY (quest_id, kind, idx, source)
 );
+-- What a quest needs done first: one of its `any` (Questie's alternatives,
+-- one a side's: "Call of Earth" after 1516, 1519 or 92466), every one of its
+-- `all`. quest.prev_id is the first of them.
+CREATE TABLE quest_prereq (
+  quest_id INTEGER NOT NULL,
+  prev_id  INTEGER NOT NULL,  -- negative: must be under way, not done (the Classic database's)
+  kind     TEXT NOT NULL,     -- any, all
+  source   TEXT NOT NULL,
+  PRIMARY KEY (quest_id, prev_id, source)
+);
+CREATE INDEX quest_prereq_prev ON quest_prereq (prev_id);
 -- Who or what starts and ends a quest.
 CREATE TABLE quest_relation (
   quest_id  INTEGER NOT NULL,

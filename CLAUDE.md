@@ -12,10 +12,10 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
 - `pins.json`: the clients' builds on wago.tools (`builds.classic`: Classic
   Era; `builds.forever`: Forever, whose beta wago files under
   `wow_classic_beta` beside Mists of Pandaria's) and the databases' commits
-  (`repos`: questie, classicdb; questiedb, allthethings and pfquest are
-  `legacy`: Hearthtale's old scripts only, until it reads the database, not
-  followed by `bin/latest.ts`). The one place a build or a database is
-  pinned: an addon never pins its own.
+  (`repos`: questie, classicdb). The one place a build or a database is
+  pinned: an addon never pins its own. What other sources alone had is
+  frozen in `data/` (Wowhead's, AllTheThings' rewards and prerequisites for
+  Forever's own quests), never fetched by a build or a job.
 - `src/pins.ts` (the pins, `wagoQuery`), `src/fetch.ts` (`fetchRetry`: a
   5xx or a dropped connection tried again three times, 10, 30, 60 s apart),
   `src/cache.ts` (`cached(url, rel)`: `.cache/<rel>`, once; `WOW_DATA_CACHE`

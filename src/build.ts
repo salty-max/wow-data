@@ -262,6 +262,7 @@ function questieWorld(db: Database, q: QuestieData) {
   const objective = db.prepare("INSERT OR IGNORE INTO quest_objective VALUES (?, ?, ?, ?, ?, ?, 'questie')");
   const relation = db.prepare("INSERT OR IGNORE INTO quest_relation VALUES (?, ?, ?, ?, 'questie')");
   const reward = db.prepare("INSERT INTO quest_reward VALUES (?, 'reputation', ?, ?, 'questie')");
+  const prereq = db.prepare("INSERT OR IGNORE INTO quest_prereq VALUES (?, ?, ?, 'questie')");
   const KINDS = ["creature", "object", "item"];
   run("quest (questie)", () => {
     let n = 0;
@@ -284,6 +285,8 @@ function questieWorld(db: Database, q: QuestieData) {
         nz(r.questFlags),
       );
       if (typeof r.name === "string") name.run("quest", id, "enUS", r.name);
+      for (const p of list(r.preQuestSingle)) if (typeof p === "number" && p) prereq.run(id, p, "any");
+      for (const p of list(r.preQuestGroup)) if (typeof p === "number" && p) prereq.run(id, p, "all");
       const lines = list(r.objectivesText) as string[];
       if (lines.length) text.run(id, "enUS", lines.join("\n"));
       // what it asks: creatures, objects, items ([id, text?]), reputation ([faction, value]),
@@ -486,6 +489,7 @@ async function classicDb(db: Database, q: QuestieData) {
 
   // quests: the quest, its texts, what it asks, who starts and ends it, what it gives
   const quests = rows(sql, "quest_template");
+  const insertPrereq = db.prepare("INSERT OR IGNORE INTO quest_prereq VALUES (?, ?, 'all', 'classicdb')");
   const insertQuest = db.prepare(
     "INSERT INTO quest VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, 'classicdb')",
   );
@@ -516,7 +520,8 @@ async function classicDb(db: Database, q: QuestieData) {
         // Questie's quest: the database's type, next quest, texts, rewards (not
         // reputation: Questie's), its objectives' counts
         questColumns.run(nz(r.Type), nz(r.NextQuestId), id);
-        if (r.Title) name.run("quest", id, r.Title);
+        if (nz(r.PrevQuestId)) insertPrereq.run(id, num(r.PrevQuestId));
+      if (r.Title) name.run("quest", id, r.Title);
         for (const [field, col] of TEXTS) if (r[col]) insertText.run(id, field, r[col]);
         for (let i = 1; i <= 4; i++) {
           const target = num(r[`ReqCreatureOrGOId${i}`]) ?? 0;
@@ -855,6 +860,55 @@ function wowheadPoints(db: Database, game: Game) {
   log(`spawns wowhead: ${n}`);
 }
 
+// ── AllTheThings' rewards (data/allthethings/<game>/rewards.json) ──────────
+// The items a quest rewards, for the quests no other source gives any to
+// (Forever's own: Questie keeps no rewards, the Classic database knows them
+// not): AllTheThings' Forever database (MIT), frozen at the commit in the
+// file's own source row, never fetched again.
+const ATT_COMMIT = "a21caf2a7ec636785505a7f4e7e4311d16ce28af";
+// AllTheThings' prerequisites (data/allthethings/<game>/prereqs.json): every
+// one of them needed first, for the quests no other source gives any to
+// (Forever's own chains Questie doesn't link: "Murloc Gills", then "The State
+// of the Mines"), frozen as its rewards.
+function attPrereqs(db: Database, game: Game) {
+  const file = path.join(ROOT, "data", "allthethings", game, "prereqs.json");
+  if (!existsSync(file)) return;
+  const prereqs = JSON.parse(readFileSync(file, "utf8")) as Record<string, number[]>;
+  const has = db.prepare("SELECT 1 FROM quest_prereq WHERE quest_id = ? LIMIT 1");
+  const known = db.prepare("SELECT prev_id FROM quest WHERE id = ?");
+  const insert = db.prepare("INSERT OR IGNORE INTO quest_prereq VALUES (?, ?, 'all', 'allthethings')");
+  const setPrev = db.prepare("UPDATE quest SET prev_id = ? WHERE id = ? AND prev_id IS NULL");
+  let n = 0;
+  db.transaction(() => {
+    for (const [id, prevs] of Object.entries(prereqs)) {
+      if (!known.get(Number(id)) || has.get(Number(id))) continue;
+      for (const p of prevs) n += insert.run(Number(id), p).changes;
+      if (prevs[0]) setPrev.run(prevs[0], Number(id));
+    }
+  })();
+  log(`prerequisites allthethings: ${n}`);
+}
+
+function attRewards(db: Database, game: Game) {
+  const file = path.join(ROOT, "data", "allthethings", game, "rewards.json");
+  if (!existsSync(file)) return;
+  const rewards = JSON.parse(readFileSync(file, "utf8")) as Record<string, number[]>;
+  const has = db.prepare("SELECT 1 FROM quest_reward WHERE quest_id = ? AND kind IN ('item', 'choice') LIMIT 1");
+  const known = db.prepare("SELECT 1 FROM quest WHERE id = ?");
+  const insert = db.prepare("INSERT INTO quest_reward VALUES (?, 'item', ?, NULL, 'allthethings')");
+  let n = 0;
+  db.transaction(() => {
+    for (const [id, items] of Object.entries(rewards)) {
+      if (!known.get(Number(id)) || has.get(Number(id))) continue;
+      for (const item of items) n += insert.run(Number(id), item).changes;
+    }
+  })();
+  db.prepare("INSERT OR REPLACE INTO source VALUES ('allthethings', ?, 'https://github.com/ATTWoWAddon/AllTheThings', 'MIT')").run(
+    `${ATT_COMMIT.slice(0, 12)} (frozen: data/allthethings)`,
+  );
+  log(`rewards allthethings: ${n}`);
+}
+
 // ── Wowhead's book pages (data/wowhead/<game>/books-<locale>.json) ──────────
 // A text's pages in another language, saved from Wowhead's pages in a
 // browser (they don't answer scripts): { "o<object id>" | "i<item id>": [
@@ -960,6 +1014,8 @@ export async function build(game: Game, file: string) {
   wowheadNames(db, game);
   wowheadRanks(db, game);
   wowheadPoints(db, game);
+  attRewards(db, game);
+  attPrereqs(db, game);
   wowheadBooks(db, game);
   chains(db);
   db.exec("ANALYZE");

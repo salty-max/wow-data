@@ -130,6 +130,8 @@ before Forever's launch on 4 November.
   they truly differ from Questie's, they are the client's and win.
 - **Three sources** (the client, QuestieDB, the Classic database), one owner
   a table: fewer sources, fewer errors, less dependence. AllTheThings,
-  pfQuest, QuestieDB's old traces and live Wowhead fetching are dropped from
-  the database (their pins kept `legacy` for Hearthtale's old scripts until
-  it reads the database).
+  pfQuest, QuestieDB's old traces and live Wowhead fetching are dropped (14
+  October 2026: every addon reads the databases, the legacy pins gone).
+  What only they had is frozen data, never fetched by a build or a job:
+  Wowhead's names, ranks, points and book pages; AllTheThings' rewards and
+  prerequisites for Forever's own quests, which Questie lacks.

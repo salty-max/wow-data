@@ -29,7 +29,8 @@ describe("csv", () => {
 describe("pins", () => {
   test("both games and the databases are pinned", () => {
     expect(Object.keys(PINS.builds).sort()).toEqual(["classic", "forever"]);
-    for (const name of ["allthethings", "questiedb", "pfquest", "classicdb"]) {
+    expect(Object.keys(PINS.repos).sort()).toEqual(["classicdb", "questie"]);
+    for (const name of ["questie", "classicdb"]) {
       expect(PINS.repos[name].commit).toMatch(/^[0-9a-f]{40}$/);
     }
     expect(wagoQuery(PINS.builds.classic)).toBe("product=wow_classic_era&build=1.15.9.70003");
