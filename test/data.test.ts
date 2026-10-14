@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { gamePage } from "../src/build";
 import { family, newer, newest } from "../src/builds";
 import { csv } from "../src/csv";
 import { PINS, wagoQuery } from "../src/pins";
@@ -13,6 +14,20 @@ describe("builds", () => {
     expect(newest(["5.5.0.62071", "1.60.1.70374", "1.60.1.70338"], "1.60.1.70291")).toBe("1.60.1.70374");
     expect(newest(["5.5.0.62071"], "1.60.1.70291")).toBe("1.60.1.70291");
     expect(family("1.60.1.70291")).toBe("1.60");
+  });
+});
+
+describe("books", () => {
+  test("Wowhead's markup turned back into the game's, in every language", () => {
+    expect(gamePage("Seid gegrüßt, &lt;Name&gt; der &lt;Klasse&gt;.<br />Hallo")).toBe("Seid gegrüßt, $N der $C.\nHallo");
+    expect(gamePage("Salut, &lt;nom&gt; le &lt;classe&gt;.")).toBe("Salut, $N le $C.");
+    expect(gamePage("dass &lt;ein Bruder/eine Schwester&gt; kommt")).toBe("dass $gein Bruder:eine Schwester; kommt");
+    expect(gamePage("an &lt;der Überbringer/die Überbringerin&gt;")).toBe("an $gder Überbringer:die Überbringerin;");
+  });
+  test("the game's own asides kept, never taken for markup", () => {
+    expect(gamePage("&lt;unleserlicher Text&gt;")).toBe("<unleserlicher Text>");
+    expect(gamePage("&lt;texte illisible&gt;")).toBe("<texte illisible>");
+    expect(gamePage("<p>&lt;Die Seiten sind mit alten Elfenrunen bedeckt.&gt;</p>")).toBe("<Die Seiten sind mit alten Elfenrunen bedeckt.>");
   });
 });
 

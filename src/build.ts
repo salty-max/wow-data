@@ -963,19 +963,27 @@ function attRewards(db: Database, game: Game) {
 // browser (they don't answer scripts): { "o<object id>" | "i<item id>": [
 // HTML pages ] }. Kept as the game writes them: its markup turned back into
 // the game's own (lines, $N $C $R, $gmale:female;), nothing else changed.
-const TOKENS: Record<string, string> = { nom: "$N", name: "$N", classe: "$C", class: "$C", race: "$R" };
+// Wowhead writes the reader's name, class and race in the page's language
+// (<nom>, <Klasse>) and a gendered word as <male/female> ("der
+// Überbringer/die Überbringerin"); any other <...> is the game's own aside
+// (<texte illisible>, <unleserlicher Text>), kept.
+const TOKENS: Record<string, string> = {
+  nom: "$N", name: "$N", nombre: "$N",
+  classe: "$C", class: "$C", klasse: "$C", clase: "$C",
+  race: "$R", rasse: "$R", volk: "$R", raza: "$R",
+};
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 export function gamePage(html: string): string {
   return html
-    .replace(/&lt;([^&]{1,24})&gt;/g, (_, t: string) => {
+    .replace(/&lt;([^&]{1,40})&gt;/g, (aside, t: string) => {
       const token = TOKENS[t.toLowerCase()];
       if (token) return token;
       const parts = t.split("/");
-      return parts.length === 2 ? `$g${parts[0]}:${parts[1]};` : `<${t}>`;
+      return parts.length === 2 && !/[.!?]/.test(t) ? `$g${parts[0]}:${parts[1]};` : aside;
     })
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|h\d)>/gi, "\n\n")
-    .replace(/<(?!texte|text)[^>]*>/g, "")
+    .replace(/<[^>]*>/g, "")
     .replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, e: string) =>
       e[0] === "#" ? String.fromCodePoint(e[1] === "x" ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : (ENTITIES[e] ?? m),
     )
