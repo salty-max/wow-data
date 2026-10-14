@@ -1,27 +1,28 @@
-// Players' facts (data/players/<game>.json, bin/players.ts): what the game
-// told the players who said yes to the addons' opt-in (the kit's collector),
-// sent by Ravenpost to hearthtale.app and pulled from there: quests' texts,
-// givers and enders, creatures' names, levels, ranks, types and where they
-// were met, what NPCs said, what a creature or an object gave. The live
-// game's own words, so new content is known without waiting for the other
-// sources. They fill gaps only: a fact any other source has stays its.
+// Players' facts (data/players/<game>/<locale>.json, bin/players.ts): what
+// the game told the players who said yes to the addons' opt-in (the kit's
+// collector), sent by Ravenpost to the facts inbox (server/) and merged from
+// there daily: quests' texts, givers and enders, creatures' names, levels,
+// ranks, types and where they were met, what NPCs said, what a creature or an
+// object gave. The live game's own words, so new content is known without
+// waiting for the other sources. They fill gaps only: a fact any other source
+// has stays its.
 //
-// A file: { facts: [[locale, kind, entity, field, value, build, seen], ...] },
-// seen the number of players who sent that value. Where players disagree on
+// A file: { facts: [[kind, entity, field, value, build, [who…]], …] }, `who`
+// the players who sent that value (each a hash). Where players disagree on
 // one value (a text, a giver), the one most of them saw wins, then the newest
 // build's; a level is the range of every one seen; lines and loot are kept
 // each.
 import type { Database } from "bun:sqlite";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { type Game, ROOT } from "./pins";
 
-/** One fact as the site exports it. */
+/** One fact, its language and how many players saw it. */
 export type PlayerFact = [locale: string, kind: string, entity: string, field: string, value: string, build: string | null, seen: number];
 
 // A fact one player alone sent is taken: the opt-in is new and its players
-// few. Raise it when they are many (anyone may send facts: the site can't
-// tell a game's from a forger's).
+// few. Each is a Battle.net account (the inbox signs them in), so agreement
+// can't be faked without accounts. Raise it when players are many.
 export const MIN_SEEN = 1;
 
 // UnitClassification's words, as creature.rank.
@@ -40,10 +41,17 @@ export function pick(facts: PlayerFact[]): PlayerFact {
 }
 
 export function loadPlayers(db: Database, game: Game) {
-  const file = path.join(ROOT, "data", "players", `${game}.json`);
-  if (!existsSync(file)) return;
-  const { facts } = JSON.parse(readFileSync(file, "utf8")) as { facts: PlayerFact[] };
-  db.prepare("INSERT OR IGNORE INTO source VALUES ('players', 'data/players (pulled)', 'https://hearthtale.app', 'the players'' own, through the addons'' opt-in')").run();
+  const dir = path.join(ROOT, "data", "players", game);
+  if (!existsSync(dir)) return;
+  const facts: PlayerFact[] = [];
+  for (const f of readdirSync(dir).filter((f) => /^[a-z]{2}[A-Z]{2}\.json$/.test(f))) {
+    const locale = f.slice(0, -5);
+    const { facts: lines } = JSON.parse(readFileSync(path.join(dir, f), "utf8")) as {
+      facts: [string, string, string, string, string | null, string[]][];
+    };
+    for (const [kind, entity, field, value, build, who] of lines) facts.push([locale, kind, entity, field, value, build, who.length]);
+  }
+  db.prepare("INSERT OR IGNORE INTO source VALUES ('players', 'data/players', 'https://github.com/salty-max/wow-data/tree/main/server', 'the players'' own, through the addons'' opt-in')").run();
   const told = players(db, facts);
   console.log(`  players: ${Object.entries(told).map(([k, n]) => `${n} ${k}`).join(", ") || "nothing new"}`);
 }

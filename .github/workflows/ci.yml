@@ -1,5 +1,5 @@
 # Every push and pull request: the kit typechecks and its tests pass, the
-# explorer typechecks and builds.
+# explorer typechecks and builds, the facts inbox typechecks and its tests pass.
 name: CI
 
 on:
@@ -20,3 +20,5 @@ jobs:
       - run: bun run check
       - run: bun install --cwd explorer --frozen-lockfile
       - run: bun run --cwd explorer check
+      - run: bun install --cwd server --frozen-lockfile
+      - run: bun run --cwd server check

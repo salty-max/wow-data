@@ -1,0 +1,21 @@
+{
+  "name": "wow-data-facts",
+  "private": true,
+  "description": "The addons' facts inbox: what the game told the players who said yes to the addons' opt-in, sent by Ravenpost, held until wow-data takes it",
+  "type": "module",
+  "scripts": {
+    "dev": "PORT=3003 bun --watch src/server.ts",
+    "start": "bun src/server.ts",
+    "check": "tsc --noEmit && bun test"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.3",
+    "@vercel/blob": "^2.8.2",
+    "hono": "^4.12.30"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/node": "^26.6.4",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,9 +1,11 @@
 # Every day, and by hand: players' facts (what the game told the players who
-# said yes to the addons' opt-in, sent by Ravenpost to hearthtale.app) pulled
-# into data/players (bin/players.ts). When they changed, a pull request, never
-# merged by itself: once merged, the databases are built again (db.yml) and
-# each addon's daily job takes them. Needs the secret OBSERVATIONS_TOKEN (the
-# site's export token, the same as on Vercel).
+# said yes to the addons' opt-in, sent by Ravenpost to the facts inbox,
+# server/) merged into data/players (bin/players.ts). When they changed, a
+# pull request, never merged by itself: once merged, the databases are built
+# again (db.yml) and each addon's daily job takes them. The pull request's
+# branch is merged into again while it waits, so nothing taken out of the
+# inbox is lost. Needs the variable FACTS_SERVER (the inbox's address) and the
+# secret FACTS_TOKEN (its token for wow-data, the same as on Vercel).
 name: Players
 
 on:
@@ -22,18 +24,23 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: Pull
+      - name: Merge
         id: pull
         env:
-          OBSERVATIONS_TOKEN: ${{ secrets.OBSERVATIONS_TOKEN }}
+          FACTS_SERVER: ${{ vars.FACTS_SERVER }}
+          FACTS_TOKEN: ${{ secrets.FACTS_TOKEN }}
         run: |
-          if [ -z "$OBSERVATIONS_TOKEN" ]; then
-            echo "No OBSERVATIONS_TOKEN secret: nothing pulled." >> "$GITHUB_STEP_SUMMARY"
+          if [ -z "$FACTS_SERVER" ] || [ -z "$FACTS_TOKEN" ]; then
+            echo "No FACTS_SERVER variable or FACTS_TOKEN secret: nothing merged." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          bun bin/players.ts all | tee "$RUNNER_TEMP/players.txt"
+          # (the pull request still waiting: its facts are the start)
+          if git fetch --depth=1 origin players 2>/dev/null; then
+            git checkout FETCH_HEAD -- data/players 2>/dev/null || true
+          fi
+          bun bin/players.ts pull all | tee "$RUNNER_TEMP/players.txt"
           {
-            echo "Players' facts as hearthtale.app has them:"
+            echo "Players' facts merged from the inbox:"
             echo
             sed 's/^/- /' "$RUNNER_TEMP/players.txt"
             echo
@@ -41,6 +48,8 @@ jobs:
           } > "$RUNNER_TEMP/body.md"
           cat "$RUNNER_TEMP/body.md" >> "$GITHUB_STEP_SUMMARY"
           echo "pulled=true" >> "$GITHUB_OUTPUT"
+      - run: bun run check
+        if: steps.pull.outputs.pulled == 'true'
       - name: Pull request
         if: steps.pull.outputs.pulled == 'true'
         uses: peter-evans/create-pull-request@v7
@@ -51,3 +60,10 @@ jobs:
           title: "chore: players' facts"
           body-path: ${{ runner.temp }}/body.md
           add-paths: data/players
+      # (out of the inbox only once they're in the pull request)
+      - name: Done
+        if: steps.pull.outputs.pulled == 'true'
+        env:
+          FACTS_SERVER: ${{ vars.FACTS_SERVER }}
+          FACTS_TOKEN: ${{ secrets.FACTS_TOKEN }}
+        run: bun bin/players.ts done

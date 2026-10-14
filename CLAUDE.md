@@ -51,18 +51,21 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   a roaming rare's haunts, loaded as spawns of source wowhead).
   `bin/names.ts` and `bin/wowhead-points.ts` fetched or seeded them once;
   they are hand tools, run only when something is missing, never by a job.
-- Players' facts, `data/players/<game>.json`: what the game told the players
-  who said yes to the addons' opt-in (the kit's `K.collect`: quests' texts,
-  givers and enders, creatures' names, levels, ranks, types and where they
-  were met, NPCs' lines, loot), sent by Ravenpost to hearthtale.app and
-  pulled by `bin/players.ts` (`OBSERVATIONS_TOKEN`, the site's export token;
-  `HEARTHTALE_SERVER` for a local one), daily by
-  `.github/workflows/players.yml` (a pull request, never merged by itself;
-  the secret `OBSERVATIONS_TOKEN`). `src/players.ts` loads them last, as
-  source `players`, where no other source has the fact: the value most
-  players saw (`MIN_SEEN`: one player is enough while they are few), a
-  level the range of all seen, NPCs' lines in `npc_line`, loot only for a
-  creature or an object no source gives any.
+- Players' facts, `data/players/<game>/<locale>.json`: what the game told
+  the players who said yes to the addons' opt-in (the kit's `K.collect`:
+  quests' texts, givers and enders, creatures' names, levels, ranks, types
+  and where they were met, NPCs' lines, loot), sent by Ravenpost to the facts
+  inbox (`server/`, README.md: its own Vercel project, a private Blob store,
+  no database; players link it with Battle.net, one account one voice) and
+  merged from it daily by `bin/players.ts` (`pull`, then `done` once the pull
+  request holds them; `FACTS_SERVER`, `FACTS_TOKEN`), run by
+  `.github/workflows/players.yml` (a pull request, never merged by itself,
+  its waiting branch merged into again). Each fact keeps who saw it, a hash
+  of the account and the fact (no one's facts tied together), 20 at most.
+  `src/players.ts` loads them last, as source `players`, where no other
+  source has the fact: the value most players saw (`MIN_SEEN`: one is
+  enough while they are few), a level the range of all seen, NPCs' lines in
+  `npc_line`, loot only for a creature or an object no source gives any.
 - `.github/workflows/db.yml`: both databases built, tested and published as
   the latest release (`db-<commit12>`, the last commit that changed them);
   `bin/get.ts` downloads them (`--tag`: one release's, which must be there).
