@@ -113,9 +113,12 @@ Codex's pages and unlocks, the translations we wrote (the Codex's
 
 ## Order
 
-1. **Schema and the Classic import.** The tables above, from the Classic
-   database and Classic Era's client tables; the tests. The schema goes to
-   the user before anything is imported.
+1. **Schema and the Classic import.** Done 14 October 2026, the schema
+   reviewed by the user first: `classic.db` (124 MB, 8 minutes from an
+   empty cache): 10,384 creatures, 66,310 creature and 47,827 object spawns,
+   4,245 quests, 24,567 items, 387 readables, 77,728 lines of speech, 67,051
+   path points, about 660,000 names (the client's, in every language); the
+   facts tested (`test/classic.test.ts`).
 2. **The Forever layer.** Forever's client tables, AllTheThings and
    QuestieDB's traces, Hearthtale's merge moved here.
 3. **Names in every language.** The client's, Wowhead's tooltips (cached,

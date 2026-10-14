@@ -77,6 +77,7 @@ CREATE TABLE object (
 -- QuestieDB's traces, AllTheThings').
 CREATE TABLE spawn (
   kind      TEXT NOT NULL,  -- creature, object
+  spawn_id  INTEGER,        -- the source's own id for this spawn (the Classic database's guid), if it has one
   entity_id INTEGER NOT NULL,
   map_id    INTEGER,        -- Map id (0 Eastern Kingdoms, 1 Kalimdor, an instance)
   x         REAL, y REAL, z REAL,
@@ -87,6 +88,22 @@ CREATE TABLE spawn (
 );
 CREATE INDEX spawn_entity ON spawn (kind, entity_id);
 CREATE INDEX spawn_area ON spawn (area_id);
+-- The way a creature walks: one spawn's own path (owner: spawn, its spawn_id)
+-- or every spawn of a creature's (owner: creature, its id; path_id when it has
+-- several), point by point. Yonder's quarries are tracked along them.
+CREATE TABLE path (
+  owner     TEXT NOT NULL,     -- spawn, creature
+  owner_id  INTEGER NOT NULL,  -- spawn.spawn_id, or creature.id
+  path_id   INTEGER NOT NULL DEFAULT 0,
+  point     INTEGER NOT NULL,
+  map_id    INTEGER,
+  x         REAL, y REAL, z REAL,
+  ui_map_id INTEGER,
+  ux        REAL, uy REAL,
+  wait_ms   INTEGER,
+  source    TEXT NOT NULL,
+  PRIMARY KEY (owner, owner_id, path_id, point, source)
+);
 
 -- ── items ────────────────────────────────────────────────────────────────────
 CREATE TABLE item (
@@ -158,7 +175,7 @@ CREATE TABLE quest_text (
 CREATE TABLE quest_objective (
   quest_id  INTEGER NOT NULL,
   idx       INTEGER NOT NULL,  -- 1-4 within its kind
-  kind      TEXT NOT NULL,     -- creature, object, item, source (an item given for it)
+  kind      TEXT NOT NULL,     -- creature, object, item, source (an item given for it), spell (one to cast)
   target_id INTEGER NOT NULL,  -- a creature, an object or an item id
   count     INTEGER,
   source    TEXT NOT NULL,
@@ -175,8 +192,9 @@ CREATE TABLE quest_relation (
 CREATE INDEX quest_relation_entity ON quest_relation (kind, entity_id);
 CREATE TABLE quest_reward (
   quest_id INTEGER NOT NULL,
-  kind     TEXT NOT NULL,  -- item, choice, spell, cast
-  ref_id   INTEGER NOT NULL,  -- an item or a spell id
+  kind     TEXT NOT NULL,  -- item, choice, spell, cast, reputation
+  ref_id   INTEGER NOT NULL,  -- an item, a spell or a faction id
+  -- (count: an item's number, a reputation's value)
   count    INTEGER,
   source   TEXT NOT NULL
 );
