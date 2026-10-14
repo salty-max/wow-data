@@ -50,9 +50,24 @@ describe.skipIf(!built)("forever.db", () => {
       female: "Guerrière",
     });
   });
+  test("Wowhead's names where the client has none, the client's own first", () => {
+    expect(one("SELECT name, source FROM name WHERE kind = 'creature' AND id = 706 AND locale = 'frFR'")).toEqual({
+      name: "Jeune troll Frostmane",
+      source: "wowhead",
+    });
+    expect(name("quest", 182, "frFR")).toBe("La caverne des trolls");
+    expect(one("SELECT name, source FROM name WHERE kind = 'area' AND id = 1537 AND locale = 'frFR'")).toEqual({
+      name: "Forgefer",
+      source: "client",
+    });
+  });
+  test("a book's pages in French, as the game writes them", () => {
+    const page = one("SELECT text FROM readable_page WHERE kind = 'item' AND id = 745 AND locale = 'frFR' AND idx = 1");
+    expect(String(page.text)).toStartWith("RAPPORT : Les kobolds");
+  });
   test("every source accounted for", () => {
     const sources = all("SELECT name FROM source ORDER BY name").map((r) => r.name);
-    expect(sources).toEqual(["allthethings", "classicdb", "client", "pfquest", "questiedb"]);
+    expect(sources).toEqual(["allthethings", "classicdb", "client", "pfquest", "questiedb", "wowhead"]);
     for (const table of ["creature", "quest", "quest_objective", "quest_relation", "spawn", "loot", "name"]) {
       const used = all(`SELECT DISTINCT source FROM ${table}`).map((r) => r.source as string);
       for (const s of used) expect(sources).toContain(s);

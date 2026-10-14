@@ -1,0 +1,63 @@
+# The databases (PLAN.md): built from the pins on every change of what makes
+# them, tested, and published as a release (db-<commit>, the latest), each
+# game's file gzipped. An addon's job downloads it (bin/get.ts) rather than
+# building it. The downloads are kept between runs, keyed on the pins.
+name: Databases
+
+on:
+  push:
+    branches: [main]
+    paths: [pins.json, schema.sql, "src/**", "bin/**", "data/**", ".github/workflows/db.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: databases
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: sudo apt-get install -y -qq luajit
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/wago
+            .cache/github
+            .cache/wowhead
+          key: sources-${{ hashFiles('pins.json') }}-${{ github.run_id }}
+          restore-keys: |
+            sources-${{ hashFiles('pins.json') }}-
+            sources-
+      - name: Build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bun bin/build.ts all
+      - name: Test
+        run: bun run check
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gzip -k -9 .cache/db/classic.db .cache/db/forever.db
+          tag="db-$(git rev-parse --short=12 HEAD)"
+          {
+            echo "The game databases built from pins.json at $(git rev-parse --short=12 HEAD)."
+            echo
+            echo '```json'
+            cat pins.json
+            echo '```'
+            echo
+            echo "Download with bun bin/get.ts, or by hand: each file gunzipped is a SQLite database (schema.sql)."
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$tag" .cache/db/classic.db.gz .cache/db/forever.db.gz \
+            --title "$tag" --notes-file "$RUNNER_TEMP/notes.md" --latest
+          # (the five latest kept)
+          gh release list --limit 100 --json tagName --jq '.[].tagName' | grep '^db-' | tail -n +6 |
+            while read -r old; do gh release delete "$old" --cleanup-tag --yes; done

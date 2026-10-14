@@ -39,6 +39,13 @@ describe.skipIf(!built)("classic.db", () => {
       female: "Guerrière",
     });
   });
+  test("Classic's own names: Ironforge stays Ironforge in French", () => {
+    expect(name("area", 1537, "frFR")).toBe("Ironforge");
+    expect(name("quest", 182, "frFR")).toBe("La caverne des trolls");
+    expect(one("SELECT count(*) AS n FROM name WHERE kind = 'creature_subname' AND locale = 'frFR' AND name LIKE '%(%)'")).toEqual({
+      n: 0,
+    });
+  });
   test("a book's pages: The Invasion of Draenor, ten", () => {
     expect(one("SELECT count(*) AS n FROM readable_page WHERE kind = 'object' AND id = 175747 AND locale = 'enUS'")).toEqual({
       n: 10,

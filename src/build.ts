@@ -2,7 +2,7 @@
 // the client's own tables whole, their names in every language, then the
 // Classic database's world, every link an id, every row its source.
 import { Database } from "bun:sqlite";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { foreverLayer } from "./forever";
@@ -500,6 +500,70 @@ async function classicDb(db: Database) {
   });
 }
 
+// ── Wowhead's names (data/wowhead/<game>/<locale>.json, bin/names.ts) ────────
+// where the client has none: its own win (inserted first)
+function wowheadNames(db: Database, game: Game) {
+  const dir = path.join(ROOT, "data", "wowhead", game);
+  if (!existsSync(dir)) return;
+  const insert = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'wowhead')");
+  for (const f of readdirSync(dir).filter((f) => /^[a-z]{2}[A-Z]{2}\.json$/.test(f))) {
+    const locale = f.slice(0, -5);
+    const names = JSON.parse(readFileSync(path.join(dir, f), "utf8")) as Record<string, Record<string, string>>;
+    let n = 0;
+    db.transaction(() => {
+      for (const [kind, byId] of Object.entries(names))
+        for (const [id, name] of Object.entries(byId)) n += insert.run(kind, Number(id), locale, name).changes;
+    })();
+    log(`names wowhead ${locale}: ${n}`);
+  }
+}
+
+// ── Wowhead's book pages (data/wowhead/<game>/books-<locale>.json) ──────────
+// A text's pages in another language, saved from Wowhead's pages in a
+// browser (they don't answer scripts): { "o<object id>" | "i<item id>": [
+// HTML pages ] }. Kept as the game writes them: its markup turned back into
+// the game's own (lines, $N $C $R, $gmale:female;), nothing else changed.
+const TOKENS: Record<string, string> = { nom: "$N", name: "$N", classe: "$C", class: "$C", race: "$R" };
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+export function gamePage(html: string): string {
+  return html
+    .replace(/&lt;([^&]{1,24})&gt;/g, (_, t: string) => {
+      const token = TOKENS[t.toLowerCase()];
+      if (token) return token;
+      const parts = t.split("/");
+      return parts.length === 2 ? `$g${parts[0]}:${parts[1]};` : `<${t}>`;
+    })
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|h\d)>/gi, "\n\n")
+    .replace(/<(?!texte|text)[^>]*>/g, "")
+    .replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, e: string) =>
+      e[0] === "#" ? String.fromCodePoint(e[1] === "x" ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : (ENTITIES[e] ?? m),
+    )
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+function wowheadBooks(db: Database, game: Game) {
+  const dir = path.join(ROOT, "data", "wowhead", game);
+  if (!existsSync(dir)) return;
+  const readable = db.prepare("INSERT OR IGNORE INTO readable VALUES (?, ?, NULL, NULL, 'wowhead')");
+  const page = db.prepare("INSERT OR IGNORE INTO readable_page VALUES (?, ?, ?, ?, ?, 'wowhead')");
+  for (const f of readdirSync(dir).filter((f) => /^books-[a-z]{2}[A-Z]{2}\.json$/.test(f))) {
+    const locale = f.slice(6, -5);
+    const books = JSON.parse(readFileSync(path.join(dir, f), "utf8")) as Record<string, string[]>;
+    let n = 0;
+    db.transaction(() => {
+      for (const [key, pages] of Object.entries(books)) {
+        const kind = key[0] === "o" ? "object" : "item",
+          id = Number(key.slice(1));
+        readable.run(kind, id);
+        pages.forEach((html, i) => (n += page.run(kind, id, locale, i + 1, gamePage(html)).changes));
+      }
+    })();
+    log(`readable pages wowhead ${locale}: ${n}`);
+  }
+}
+
 // ── a quest chain's first quest (Classic's and Forever's alike) ─────────────
 function chains(db: Database) {
   // (a chain's first quest: the previous quest's, else the one that leads in by NextQuestInChain)
@@ -545,6 +609,7 @@ export async function build(game: Game, file: string) {
   source.run("classicdb", c.commit, `https://github.com/${c.repo}`, "GPL-3.0");
   const pf = PINS.repos.pfquest;
   source.run("pfquest", pf.commit, `https://github.com/${pf.repo}`, "MIT");
+  source.run("wowhead", "data/wowhead (bin/names.ts)", "https://www.wowhead.com", "Wowhead's");
   if (game === "forever") {
     const att = PINS.repos.allthethings,
       qdb = PINS.repos.questiedb;
@@ -561,6 +626,8 @@ export async function build(game: Game, file: string) {
     console.log(`forever: Forever's own (AllTheThings ${PINS.repos.allthethings.commit.slice(0, 12)}, QuestieDB ${PINS.repos.questiedb.commit.slice(0, 12)})`);
     await foreverLayer(db);
   }
+  wowheadNames(db, game);
+  wowheadBooks(db, game);
   chains(db);
   db.exec("ANALYZE");
   db.close();

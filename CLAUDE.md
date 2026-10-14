@@ -32,6 +32,13 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   (`openDb(game)`, read only; `dbPath`). IDs everywhere, names only in
   `name`, every row its `source`. `test/classic.test.ts` and `test/forever.test.ts` check them against
   facts from the game (skipped where they aren't built).
+- Wowhead (`src/wowhead.ts`, `bin/names.ts <game> <locale>`): names for
+  what the client doesn't name (creatures and their titles, quests, the
+  objects that matter), kept in `data/wowhead/<game>/<locale>.json`; book
+  pages saved from a browser in `data/wowhead/<game>/books-<locale>.json`.
+  The build adds them where the client has no name (its own win).
+- `.github/workflows/db.yml`: both databases built, tested and published as
+  the latest release; `bin/get.ts` downloads them.
 - `bin/latest.ts`: newer builds than the pins (`--write`, `--next FILE`,
   `--summary FILE`); the databases' newer commits, told only. `bin/path.ts`:
   a cached file's path, for the addons' Python scripts.
@@ -47,9 +54,9 @@ byte the same (the addon's own `--check`, and Hearthtale's golden check). An
 addon's daily job checks out wow-data's main beside it and builds its data
 again from the pins.
 
-Wowhead: its tooltip service answers scripts (names in every language,
-fetched slowly, PLAN.md step 3); its pages don't, so its book texts are
-imported by hand from a browser into a snapshot committed here.
+Wowhead: its tooltip service answers scripts (bin/names.ts, fetched slowly);
+its pages don't, so its book texts are saved by hand from a browser into a
+snapshot committed here.
 
 ## Conventions
 

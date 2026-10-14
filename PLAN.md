@@ -131,9 +131,21 @@ Codex's pages and unlocks, the translations we wrote (the Codex's
    the traces' lists); an addon draws its own conclusions. Forever's changes
    to Classic's own quests are not merged yet (only its spawns and who
    starts and ends them, from the traces). Tested (`test/forever.test.ts`).
-3. **Names in every language.** The client's, Wowhead's tooltips (cached,
-   throttled, resumable), the book pages' snapshot.
-4. **Releases.** The workflow building and publishing both databases.
+3. **Names in every language.** Done 14 October 2026 for French, the one
+   language in progress: the client's own names in all eleven (built in),
+   and Wowhead's for what the client doesn't name (`bin/names.ts`, seeded
+   from the tooltips the addons had already fetched, then the rest at a
+   polite rate, kept in `data/wowhead/<game>/<locale>.json` so a build never
+   asks again): about 11,450 creatures, 4,890 quests, 1,100 objects and 2,510
+   titles on Forever, 10,380, 4,244, 1,080 and 2,091 on Classic. Another
+   language: `bun bin/names.ts <game> <locale>`, the day it is needed. The
+   French book pages saved from Wowhead's pages in a browser are in
+   `data/wowhead/forever/books-frFR.json` (365 texts, 1,164 pages), turned
+   back into the game's own text by the build.
+4. **Releases.** `.github/workflows/db.yml`: both databases built from the
+   pins on every change of what makes them, tested, and published as the
+   latest release (`db-<commit>`, gzipped, the five latest kept);
+   `bin/get.ts` downloads them.
 5. **The addons, one at a time:** the Codex, Hearthtale, the kit's glossary
    and subzones (queries now), then Yonder once its French branch is merged.
    Each one's generated files are compared before and after: the four old
