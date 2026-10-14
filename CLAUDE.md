@@ -46,7 +46,16 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   `--summary FILE`); the databases' newer commits, told only. `bin/path.ts`:
   a cached file's path, for the addons' Python scripts.
 - `.github/workflows/pins.yml`: daily, a pull request moving the pins (never
-  merged by itself); `ci.yml`: `bun run check`.
+  merged by itself); `ci.yml`: `bun run check`, and the explorer's.
+- `explorer/`: the databases in a browser (README.md), its own package
+  (`bun run explore`, `explore:dev`; `bun run --cwd explorer check`). The
+  server (`server.ts`, `api/`: search on a trigram index of `name`, a page's
+  data by kind in `entity.ts`, the console's queries in a worker, zone maps
+  from the client's tiles in `mapart.ts`, BLP decoded in `blp.ts`) reads
+  the databases read only; the page (`src/`) is Ravenpost's look (night
+  stone, gold, Cinzel, Inter). Its caches: `.cache/explorer/`. Render a page
+  and look at it before calling a change done (headless Chrome when the
+  browser pane is hidden).
 
 ## How the addons use it
 

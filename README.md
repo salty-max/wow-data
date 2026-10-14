@@ -47,6 +47,26 @@ db.query(`SELECT n.name FROM quest_objective o
 
 Python reads the same file with `sqlite3`.
 
+## The explorer
+
+The databases in a browser: any name in any of the eleven languages or an
+id, found as you type; a page for every quest, creature, item, object, zone,
+faction and spell, every other thing on it a link by its id; where things
+stand, drawn on the zone's own map from the client (every area explored,
+Forever's new zones too); every table to browse, filter and sort; and a
+read-only SQL console with the schema completed as you type and saved
+queries (`explorer/queries.json`, kept in the repository).
+
+```bash
+bun run explore              # http://localhost:4100
+bun run explore:dev          # hot reload while working on it (:4101)
+```
+
+It reads `.cache/db/` (build or get the databases first) and keeps what it
+makes beside them: the names' search index and the zone maps
+(`.cache/explorer/`, made once a build). React, Vite and Tailwind in
+`explorer/src`, a Bun server in `explorer/server.ts` and `explorer/api/`.
+
 ## Use
 
 The addons sit beside this folder (`~/code/wow-addons/<addon>` and

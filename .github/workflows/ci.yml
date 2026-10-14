@@ -1,4 +1,5 @@
-# Every push and pull request: the kit typechecks and its tests pass.
+# Every push and pull request: the kit typechecks and its tests pass, the
+# explorer typechecks and builds.
 name: CI
 
 on:
@@ -17,3 +18,5 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run check
+      - run: bun install --cwd explorer --frozen-lockfile
+      - run: bun run --cwd explorer check

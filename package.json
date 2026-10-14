@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "latest": "bun bin/latest.ts",
-    "check": "tsc --noEmit && bun test"
+    "check": "tsc --noEmit && bun test",
+    "explore": "bun install --cwd explorer --frozen-lockfile && bun run --cwd explorer start",
+    "explore:dev": "bun install --cwd explorer --frozen-lockfile && bun run --cwd explorer dev"
   },
   "devDependencies": {
     "@types/bun": "^1.3.0",

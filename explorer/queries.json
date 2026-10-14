@@ -1,0 +1,37 @@
+[
+  {
+    "id": "quests-in-zone",
+    "title": "A zone's quests, by level",
+    "sql": "SELECT q.id, n.name AS title, q.level, q.min_level\nFROM quest q\nJOIN name n ON n.kind = 'quest' AND n.id = q.id AND n.locale = 'enUS'\nWHERE q.zone_id = 12 -- Elwynn Forest\nORDER BY q.level, q.id"
+  },
+  {
+    "id": "names-every-language",
+    "title": "A creature's name in every language",
+    "sql": "SELECT locale, name, female, source\nFROM name\nWHERE kind = 'creature' AND id = 448 -- Hogger\nORDER BY locale"
+  },
+  {
+    "id": "rares-by-zone",
+    "title": "Rares and their zones",
+    "sql": "SELECT c.id, n.name, c.min_level, a.name AS zone, count(*) AS spawns\nFROM creature c\nJOIN name n ON n.kind = 'creature' AND n.id = c.id AND n.locale = 'enUS'\nJOIN spawn s ON s.kind = 'creature' AND s.entity_id = c.id AND s.area_id IS NOT NULL\nLEFT JOIN name a ON a.kind = 'area' AND a.id = s.area_id AND a.locale = 'enUS'\nWHERE c.rank IN (2, 4)\nGROUP BY c.id, s.area_id\nORDER BY c.min_level"
+  },
+  {
+    "id": "best-drops",
+    "title": "What drops an item, best odds first",
+    "sql": "SELECT l.kind, l.source_id, n.name AS dropped_by, l.chance, l.source\nFROM loot l\nLEFT JOIN creature c ON l.kind = 'creature' AND c.loot_id = l.source_id\nLEFT JOIN name n ON n.kind = 'creature' AND n.id = c.id AND n.locale = 'enUS'\nWHERE l.item_id = 2589 -- Linen Cloth\nORDER BY l.chance DESC\nLIMIT 50"
+  },
+  {
+    "id": "untranslated",
+    "title": "Quests without a French title",
+    "sql": "SELECT q.id, n.name\nFROM quest q\nJOIN name n ON n.kind = 'quest' AND n.id = q.id AND n.locale = 'enUS'\nWHERE NOT EXISTS (SELECT 1 FROM name f WHERE f.kind = 'quest' AND f.id = q.id AND f.locale = 'frFR')\nORDER BY q.id"
+  },
+  {
+    "id": "books",
+    "title": "Books and their pages",
+    "sql": "SELECT r.kind, r.id, n.name AS title, count(p.idx) AS pages\nFROM readable r\nLEFT JOIN name n ON n.kind = r.kind AND n.id = r.id AND n.locale = 'enUS'\nLEFT JOIN readable_page p ON p.kind = r.kind AND p.id = r.id AND p.locale = 'enUS'\nGROUP BY r.kind, r.id\nORDER BY pages DESC"
+  },
+  {
+    "id": "sources",
+    "title": "Where the rows come from",
+    "sql": "SELECT 'quest' AS tbl, source, count(*) AS n FROM quest GROUP BY source\nUNION ALL SELECT 'creature', source, count(*) FROM creature GROUP BY source\nUNION ALL SELECT 'object', source, count(*) FROM object GROUP BY source\nUNION ALL SELECT 'item', source, count(*) FROM item GROUP BY source\nUNION ALL SELECT 'spawn', source, count(*) FROM spawn GROUP BY source\nUNION ALL SELECT 'name', source, count(*) FROM name GROUP BY source\nORDER BY tbl, n DESC"
+  }
+]
