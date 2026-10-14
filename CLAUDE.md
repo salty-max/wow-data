@@ -64,8 +64,9 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
 ## How the addons use it
 
 They sit beside it (`~/code/wow-addons/<addon>`) and import
-`../../wow-data/src/...` from their `scripts/`, or call `bin/path.ts` from
-Python. Moving a script onto the kit must leave its generated files byte for
+`../../wow-data/src/...` from their `scripts/`; Python reads the databases
+through `py/wowdata.py` (`db(game)`, read only) or asks `bin/path.ts` for a
+file. Moving a script onto the kit must leave its generated files byte for
 byte the same (the addon's own `--check`, and Hearthtale's golden check). An
 addon's daily job checks out wow-data's main beside it and builds its data
 again from the pins.

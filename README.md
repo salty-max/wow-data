@@ -79,7 +79,15 @@ import { CLASSIC, FOREVER } from "../../wow-data/src/pins";
 const areas = await wago("forever", "AreaTable", "frFR");          // rows by column
 ```
 
-A Python script asks for a file's path:
+A Python script reads the databases with `py/wowdata.py`:
+
+```python
+sys.path.insert(0, os.path.join(ROOT, "..", "wow-data", "py"))
+from wowdata import db
+db("forever").execute("SELECT name FROM name WHERE kind = 'area' AND id = 12 AND locale = 'frFR'").fetchone()
+```
+
+or asks for a file's path:
 
 ```bash
 bun ../wow-data/bin/path.ts wago forever AreaTable frFR

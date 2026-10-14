@@ -12,16 +12,18 @@ import { CACHE } from "./cache";
 import { fetchRetry } from "./fetch";
 import { type Game, ROOT } from "./pins";
 
-// Wowhead's language numbers (no Italian, no Traditional Chinese)
+// Wowhead's language numbers, as its tooltips answer them (checked 14 Oct
+// 2026 against the cached tooltips: 7 is Russian, 8 Portuguese, 10
+// Traditional Chinese; no Italian, no Mexican Spanish of its own)
 export const WOWHEAD_LOCALES: Record<string, number> = {
   koKR: 1,
   frFR: 2,
   deDE: 3,
   zhCN: 4,
   esES: 6,
-  esMX: 7,
-  ruRU: 8,
-  ptBR: 10,
+  ruRU: 7,
+  ptBR: 8,
+  zhTW: 10,
 };
 // our kinds, Wowhead's
 export const WOWHEAD_KINDS = { creature: "npc", object: "object", quest: "quest", item: "item" } as const;

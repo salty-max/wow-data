@@ -5,6 +5,7 @@
 //   bun bin/names.ts <classic|forever> <locale> [--kinds creature,quest,object]
 //   bun bin/names.ts <classic|forever> <locale> --seed DIR...   tooltips an addon
 //     already fetched (npc-<id>-<locale>.json, object-<id>-<n>.json...) first
+//   --offline: the seeds alone, nothing fetched
 // The database must be built (bin/build.ts): it says which ids there are.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -33,6 +34,7 @@ const seedAt = rest.indexOf("--seed");
 const seeds = seedAt >= 0 ? rest.slice(seedAt + 1).filter((a) => !a.startsWith("--")) : [];
 // (--titles: every creature's title again, from the cached tooltips)
 const retitle = rest.includes("--titles");
+const offline = rest.includes("--offline");
 
 const db = openDb(game);
 const names: Names = readNames(game, locale);
@@ -105,7 +107,7 @@ if (retitle) {
 }
 
 // ── the rest, fetched: four at a time, a breath between ─────────────────────
-for (const kind of kinds) {
+for (const kind of offline ? [] : kinds) {
   const todo = wanted[kind].filter((id) => !names[kind]?.[id]);
   console.log(`${game} ${locale} ${kind}: ${wanted[kind].length} wanted, ${todo.length} to fetch`);
   let done = 0,
