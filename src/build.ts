@@ -5,7 +5,9 @@ import { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
+import { foreverLayer } from "./forever";
 import { classicDump } from "./github";
+import { pfSpawns } from "./pfquest";
 import { type Game, PINS, ROOT } from "./pins";
 import { rows } from "./sql";
 import { LOCALES, wago } from "./wago";
@@ -42,6 +44,7 @@ const CLIENT_TABLES = [
   "QuestInfo",
   "EmotesText",
   "Languages",
+  "QuestV2",
 ];
 // The client's tables that name things: kind, the id column, the name's (and a female form's).
 const NAMED: { table: string; kind: string; name: string; female?: string }[] = [
@@ -143,7 +146,11 @@ async function clientNames(db: Database, game: Game) {
 async function classicDb(db: Database) {
   const sql = gunzipSync(readFileSync(await classicDump())).toString("utf8");
   const name = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, 'enUS', ?, NULL, 'classicdb')");
-  const run = (label: string, fn: () => number) => log(`${label}: ${db.transaction(fn)()}`);
+  const run = (label: string, fn: () => number) => {
+    const t0 = performance.now();
+    const n = db.transaction(fn)();
+    log(`${label}: ${n} (${((performance.now() - t0) / 1000).toFixed(1)} s)`);
+  };
 
   // creatures and their spawns
   const creatures = rows(sql, "creature_template");
@@ -186,6 +193,19 @@ async function classicDb(db: Database) {
     run(`spawn ${kind}`, () => {
       for (const r of spawns)
         insertSpawn.run(kind, num(r.guid), num(r.id), num(r.map), num(r.position_x), num(r.position_y), num(r.position_z));
+      return spawns.length;
+    });
+  }
+
+  // pfQuest's spawns: a zone and a point on its map, for every creature and object
+  const insertPf = db.prepare("INSERT INTO spawn VALUES (?, NULL, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, 'pfquest')");
+  for (const [kind, file] of [
+    ["creature", "units"],
+    ["object", "objects"],
+  ] as const) {
+    const spawns = await pfSpawns(file);
+    run(`spawn ${kind} (pfquest)`, () => {
+      for (const s of spawns) insertPf.run(kind, s.id, s.zone, s.x, s.y);
       return spawns.length;
     });
   }
@@ -253,7 +273,7 @@ async function classicDb(db: Database) {
     "INSERT INTO quest VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, 'classicdb')",
   );
   const insertText = db.prepare("INSERT INTO quest_text VALUES (?, 'enUS', ?, ?, 'classicdb')");
-  const insertObjective = db.prepare("INSERT INTO quest_objective VALUES (?, ?, ?, ?, ?, 'classicdb')");
+  const insertObjective = db.prepare("INSERT INTO quest_objective VALUES (?, ?, ?, ?, ?, NULL, 'classicdb')");
   const insertReward = db.prepare("INSERT INTO quest_reward VALUES (?, ?, ?, ?, 'classicdb')");
   const TEXTS: [string, string][] = [
     ["details", "Details"],
@@ -332,30 +352,6 @@ async function classicDb(db: Database) {
       }
     return n;
   });
-  // (a chain's first quest: the previous quest's, else the one that leads in by NextQuestInChain)
-  run("quest chain_root", () => {
-    const all = db.query("SELECT id, prev_id, next_in_chain FROM quest").all() as {
-      id: number;
-      prev_id: number | null;
-      next_in_chain: number | null;
-    }[];
-    const parent = new Map<number, number>();
-    for (const q of all) if (q.prev_id && q.prev_id > 0) parent.set(q.id, q.prev_id);
-    for (const q of all) if (q.next_in_chain && !parent.has(q.next_in_chain)) parent.set(q.next_in_chain, q.id);
-    const update = db.prepare("UPDATE quest SET chain_root = ? WHERE id = ?");
-    let n = 0;
-    for (const q of all) {
-      let root = q.id;
-      const seen = new Set<number>([root]);
-      while (parent.has(root) && !seen.has(parent.get(root)!)) {
-        root = parent.get(root)!;
-        seen.add(root);
-      }
-      if (root !== q.id) n += update.run(root, q.id).changes;
-    }
-    return n;
-  });
-
   // loot, vendors, trainers
   const insertLoot = db.prepare("INSERT INTO loot VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'classicdb')");
   for (const [table, kind] of [
@@ -479,7 +475,7 @@ async function classicDb(db: Database) {
   });
 
   // the way creatures walk: one spawn's own path, a creature's
-  const insertPath = db.prepare("INSERT OR IGNORE INTO path VALUES (?, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, NULL, ?, 'classicdb')");
+  const insertPath = db.prepare("INSERT OR IGNORE INTO path VALUES (?, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, NULL, NULL, ?, 'classicdb')");
   const movement = rows(sql, "creature_movement");
   run("path spawn", () => {
     for (const r of movement)
@@ -504,6 +500,34 @@ async function classicDb(db: Database) {
   });
 }
 
+// ── a quest chain's first quest (Classic's and Forever's alike) ─────────────
+function chains(db: Database) {
+  // (a chain's first quest: the previous quest's, else the one that leads in by NextQuestInChain)
+  db.transaction(() => {
+    const all = db.query("SELECT id, prev_id, next_in_chain FROM quest").all() as {
+      id: number;
+      prev_id: number | null;
+      next_in_chain: number | null;
+    }[];
+    const parent = new Map<number, number>();
+    for (const q of all) if (q.prev_id && q.prev_id > 0) parent.set(q.id, q.prev_id);
+    for (const q of all) if (q.next_in_chain && !parent.has(q.next_in_chain)) parent.set(q.next_in_chain, q.id);
+    const update = db.prepare("UPDATE quest SET chain_root = ? WHERE id = ?");
+    let n = 0;
+    for (const q of all) {
+      let root = q.id;
+      const seen = new Set<number>([root]);
+      while (parent.has(root) && !seen.has(parent.get(root)!)) {
+        root = parent.get(root)!;
+        seen.add(root);
+      }
+      if (root !== q.id) n += update.run(root, q.id).changes;
+    }
+    log(`quest chain_root: ${n}`);
+  })();
+
+}
+
 // ── the whole build ──────────────────────────────────────────────────────────
 export async function build(game: Game, file: string) {
   const db = new Database(file, { create: true });
@@ -519,12 +543,25 @@ export async function build(game: Game, file: string) {
   source.run("client", `${b.product} ${b.build}`, "https://wago.tools", "Blizzard's");
   const c = PINS.repos.classicdb;
   source.run("classicdb", c.commit, `https://github.com/${c.repo}`, "GPL-3.0");
+  const pf = PINS.repos.pfquest;
+  source.run("pfquest", pf.commit, `https://github.com/${pf.repo}`, "MIT");
+  if (game === "forever") {
+    const att = PINS.repos.allthethings,
+      qdb = PINS.repos.questiedb;
+    source.run("allthethings", att.commit, `https://github.com/${att.repo}`, "MIT");
+    source.run("questiedb", qdb.commit, `https://github.com/${qdb.repo}`, "none stated (credited)");
+  }
   console.log(`${game}: the client's tables (${b.build})`);
   await clientTables(db, game);
   console.log(`${game}: names in every language`);
   await clientNames(db, game);
   console.log(`${game}: the Classic database (${c.commit.slice(0, 12)})`);
   await classicDb(db);
+  if (game === "forever") {
+    console.log(`forever: Forever's own (AllTheThings ${PINS.repos.allthethings.commit.slice(0, 12)}, QuestieDB ${PINS.repos.questiedb.commit.slice(0, 12)})`);
+    await foreverLayer(db);
+  }
+  chains(db);
   db.exec("ANALYZE");
   db.close();
 }

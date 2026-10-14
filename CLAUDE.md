@@ -25,10 +25,13 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
 - The database (PLAN.md, `schema.sql`): `bin/build.ts <classic|forever|all>`
   builds `.cache/db/<game>.db` from the pinned sources (`src/build.ts`: the
   client's tables whole as `client_<Table>`, their names in every language,
-  the Classic database's world through `src/sql.ts`); `src/db.ts`
+  the Classic database's world through `src/sql.ts`, pfQuest's spawns with
+  their zones (`src/pfquest.ts`), and for Forever its own content from
+  AllTheThings and QuestieDB's traces, `src/forever.ts` with
+  `bin/forever-read.lua`; facts only, each row its source); `src/db.ts`
   (`openDb(game)`, read only; `dbPath`). IDs everywhere, names only in
-  `name`, every row its `source`. `test/classic.test.ts` checks it against
-  facts from the game (skipped where it isn't built).
+  `name`, every row its `source`. `test/classic.test.ts` and `test/forever.test.ts` check them against
+  facts from the game (skipped where they aren't built).
 - `bin/latest.ts`: newer builds than the pins (`--write`, `--next FILE`,
   `--summary FILE`); the databases' newer commits, told only. `bin/path.ts`:
   a cached file's path, for the addons' Python scripts.

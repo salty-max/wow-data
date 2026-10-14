@@ -82,12 +82,13 @@ CREATE TABLE spawn (
   map_id    INTEGER,        -- Map id (0 Eastern Kingdoms, 1 Kalimdor, an instance)
   x         REAL, y REAL, z REAL,
   area_id   INTEGER,        -- AreaTable id, the zone (where a source gives it)
-  ui_map_id INTEGER,        -- UiMap id of the map the percent is on
-  ux        REAL, uy REAL,  -- 0-100 on that map
+  ui_map_id INTEGER,        -- UiMap id of the map the percent is on, where a source gives one
+  ux        REAL, uy REAL,  -- 0-100 on that map, else on the zone's map (area_id: pfQuest's, QuestieDB's)
   source    TEXT NOT NULL
 );
 CREATE INDEX spawn_entity ON spawn (kind, entity_id);
 CREATE INDEX spawn_area ON spawn (area_id);
+CREATE INDEX spawn_own ON spawn (kind, spawn_id);
 -- The way a creature walks: one spawn's own path (owner: spawn, its spawn_id)
 -- or every spawn of a creature's (owner: creature, its id; path_id when it has
 -- several), point by point. Yonder's quarries are tracked along them.
@@ -98,6 +99,7 @@ CREATE TABLE path (
   point     INTEGER NOT NULL,
   map_id    INTEGER,
   x         REAL, y REAL, z REAL,
+  area_id   INTEGER,  -- the zone whose map ux, uy are on (QuestieDB's waypoints)
   ui_map_id INTEGER,
   ux        REAL, uy REAL,
   wait_ms   INTEGER,
@@ -175,11 +177,13 @@ CREATE TABLE quest_text (
 CREATE TABLE quest_objective (
   quest_id  INTEGER NOT NULL,
   idx       INTEGER NOT NULL,  -- 1-4 within its kind
-  kind      TEXT NOT NULL,     -- creature, object, item, source (an item given for it), spell (one to cast)
-  target_id INTEGER NOT NULL,  -- a creature, an object or an item id
+  kind      TEXT NOT NULL,     -- creature, object, item, source (an item given for it), spell (one to cast),
+                               -- event (a task in the quest's own words: text)
+  target_id INTEGER NOT NULL,  -- a creature, an object, an item or a spell id (0: an event)
   count     INTEGER,
+  text      TEXT,              -- its line in the quest log, where a source gives it
   source    TEXT NOT NULL,
-  PRIMARY KEY (quest_id, kind, idx)
+  PRIMARY KEY (quest_id, kind, idx, source)
 );
 -- Who or what starts and ends a quest.
 CREATE TABLE quest_relation (
@@ -187,7 +191,8 @@ CREATE TABLE quest_relation (
   role      TEXT NOT NULL,  -- start, end
   kind      TEXT NOT NULL,  -- creature, object, item
   entity_id INTEGER NOT NULL,
-  source    TEXT NOT NULL
+  source    TEXT NOT NULL,
+  PRIMARY KEY (quest_id, role, kind, entity_id, source)
 );
 CREATE INDEX quest_relation_entity ON quest_relation (kind, entity_id);
 CREATE TABLE quest_reward (

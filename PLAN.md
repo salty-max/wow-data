@@ -114,13 +114,23 @@ Codex's pages and unlocks, the translations we wrote (the Codex's
 ## Order
 
 1. **Schema and the Classic import.** Done 14 October 2026, the schema
-   reviewed by the user first: `classic.db` (124 MB, 8 minutes from an
-   empty cache): 10,384 creatures, 66,310 creature and 47,827 object spawns,
-   4,245 quests, 24,567 items, 387 readables, 77,728 lines of speech, 67,051
-   path points, about 660,000 names (the client's, in every language); the
-   facts tested (`test/classic.test.ts`).
-2. **The Forever layer.** Forever's client tables, AllTheThings and
-   QuestieDB's traces, Hearthtale's merge moved here.
+   reviewed by the user first: `classic.db` (135 MB, 20 seconds once the
+   sources are cached; the first download takes minutes): 10,384 creatures,
+   66,310 creature and 47,827 object spawns from the Classic database and
+   124,764 from pfQuest (with their zone), 4,245 quests, 24,567 items, 387
+   readables, 77,728 lines of speech, 67,051 path points, about 660,000
+   names (the client's, in every language); the facts tested
+   (`test/classic.test.ts`).
+2. **The Forever layer.** Done 14 October 2026 (`src/forever.ts`,
+   `bin/forever-read.lua`, moved from Hearthtale): `forever.db` (143 MB, 12
+   seconds cached) is Classic's world, Forever's client tables, and
+   Forever's own from AllTheThings and QuestieDB's traces: 691 quests, 1,072
+   creatures, 97 objects, 138 items, 55,038 spawns, 1,673 starters and
+   enders, 2,605 drops. Facts only, each row its source: what a quest asks
+   as each source lists it (AllTheThings' quest log lines with their counts,
+   the traces' lists); an addon draws its own conclusions. Forever's changes
+   to Classic's own quests are not merged yet (only its spawns and who
+   starts and ends them, from the traces). Tested (`test/forever.test.ts`).
 3. **Names in every language.** The client's, Wowhead's tooltips (cached,
    throttled, resumable), the book pages' snapshot.
 4. **Releases.** The workflow building and publishing both databases.
