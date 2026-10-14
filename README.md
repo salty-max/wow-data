@@ -17,6 +17,31 @@ Lorekeeper's Codex, Yonder), pinned in one place and downloaded once.
 The pins live in `pins.json`. Every file downloads once into `.cache/`,
 under its build or commit, so the addons beside this folder share it.
 
+## The database
+
+Everything above becomes one SQLite file per game, `classic.db` and
+`forever.db` (`schema.sql`, PLAN.md): creatures, objects and where they
+stand, items, quests with what they ask and who gives them, loot, vendors,
+trainers, books and their pages, what NPCs say, the paths creatures walk,
+the client's own tables whole, and every name in every language. Every link
+is the game's id, every row says where it comes from. Forever's adds its own
+quests, creatures and objects from AllTheThings and QuestieDB's traces.
+
+```bash
+bun bin/get.ts               # the latest published databases (GitHub release)
+bun bin/build.ts all         # or build them from the pinned sources
+```
+
+```ts
+import { openDb } from "../../wow-data/src/db";
+const db = openDb("forever");
+db.query(`SELECT n.name FROM quest_objective o
+  JOIN name n ON n.kind = 'creature' AND n.id = o.target_id AND n.locale = 'frFR'
+  WHERE o.quest_id = 182 AND o.kind = 'creature'`).all();  // [{ name: "Jeune troll Frostmane" }]
+```
+
+Python reads the same file with `sqlite3`.
+
 ## Use
 
 The addons sit beside this folder (`~/code/wow-addons/<addon>` and
