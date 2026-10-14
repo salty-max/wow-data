@@ -30,6 +30,8 @@ app.get("/api/login", (c) => {
   // (on this computer only, FACTS_DEV=1: a test account, no Battle.net)
   if (process.env.FACTS_DEV === "1" && !process.env.VERCEL)
     return c.redirect(back(port!, { token: tokenFor({ sub: subOf("dev"), tag: "Tester#1234" }), nonce: nonce! }));
+  if (!process.env.BNET_CLIENT_ID || !process.env.BNET_CLIENT_SECRET)
+    return c.html(page("Ravenpost", "Signing in with Battle.net isn't open yet. Try again in a little while."), 503);
   return c.redirect(authorizeUrl(state));
 });
 
