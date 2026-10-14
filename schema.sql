@@ -13,7 +13,8 @@
 --   translations), classicdb (the Classic database: what Questie lacks),
 --   wowhead (names, ranks and points fetched once and frozen in
 --   data/wowhead), allthethings (Forever's own quests' rewards, frozen in
---   data/allthethings).
+--   data/allthethings), players (what the game told the players who said yes
+--   to the addons' opt-in, pulled into data/players: gaps only).
 -- - One owner a table, never two sources for the same fact (PLAN.md).
 -- - forever.db is Classic's world plus Forever's: a row Forever removed is
 --   marked (`removed`), never dropped.
@@ -328,6 +329,19 @@ CREATE TABLE speech (
   language_id INTEGER,           -- Languages id
   source      TEXT NOT NULL,
   PRIMARY KEY (id, locale)
+);
+
+-- What an npc was heard to say, by the npc: players' facts (the broadcast
+-- texts above know no speaker). kind: say, yell, emote, whisper, gossip (its
+-- window's text).
+CREATE TABLE npc_line (
+  npc_id INTEGER NOT NULL,
+  locale TEXT NOT NULL,
+  kind   TEXT NOT NULL,
+  text   TEXT NOT NULL,  -- the game's own ($N, $C, $R the player's name, class and race; $B a new line)
+  seen   INTEGER,        -- the players who heard it
+  source TEXT NOT NULL,
+  PRIMARY KEY (npc_id, locale, kind, text)
 );
 
 -- ── outside sources' own facts ───────────────────────────────────────────────

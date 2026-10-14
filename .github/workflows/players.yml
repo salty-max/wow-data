@@ -1,0 +1,53 @@
+# Every day, and by hand: players' facts (what the game told the players who
+# said yes to the addons' opt-in, sent by Ravenpost to hearthtale.app) pulled
+# into data/players (bin/players.ts). When they changed, a pull request, never
+# merged by itself: once merged, the databases are built again (db.yml) and
+# each addon's daily job takes them. Needs the secret OBSERVATIONS_TOKEN (the
+# site's export token, the same as on Vercel).
+name: Players
+
+on:
+  schedule:
+    - cron: "47 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  players:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Pull
+        id: pull
+        env:
+          OBSERVATIONS_TOKEN: ${{ secrets.OBSERVATIONS_TOKEN }}
+        run: |
+          if [ -z "$OBSERVATIONS_TOKEN" ]; then
+            echo "No OBSERVATIONS_TOKEN secret: nothing pulled." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          bun bin/players.ts all | tee "$RUNNER_TEMP/players.txt"
+          {
+            echo "Players' facts as hearthtale.app has them:"
+            echo
+            sed 's/^/- /' "$RUNNER_TEMP/players.txt"
+            echo
+            echo "Opened by .github/workflows/players.yml. They fill only what no other source has (src/players.ts). Once merged, the databases are built again and each addon's daily job takes them."
+          } > "$RUNNER_TEMP/body.md"
+          cat "$RUNNER_TEMP/body.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "pulled=true" >> "$GITHUB_OUTPUT"
+      - name: Pull request
+        if: steps.pull.outputs.pulled == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: players
+          delete-branch: true
+          commit-message: "chore: players' facts"
+          title: "chore: players' facts"
+          body-path: ${{ runner.temp }}/body.md
+          add-paths: data/players

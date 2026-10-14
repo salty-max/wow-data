@@ -7,6 +7,7 @@ import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { classicDump } from "./github";
 import { type Game, PINS, ROOT } from "./pins";
+import { loadPlayers } from "./players";
 import { questie, type QuestieData, type QuestieRecord } from "./questie";
 import { rows } from "./sql";
 import { LOCALES, wago } from "./wago";
@@ -1160,6 +1161,7 @@ export async function build(game: Game, file: string) {
   attRewards(db, game);
   attPrereqs(db, game);
   wowheadBooks(db, game);
+  loadPlayers(db, game);
   chains(db);
   db.exec("ANALYZE");
   db.close();

@@ -51,6 +51,18 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   a roaming rare's haunts, loaded as spawns of source wowhead).
   `bin/names.ts` and `bin/wowhead-points.ts` fetched or seeded them once;
   they are hand tools, run only when something is missing, never by a job.
+- Players' facts, `data/players/<game>.json`: what the game told the players
+  who said yes to the addons' opt-in (the kit's `K.collect`: quests' texts,
+  givers and enders, creatures' names, levels, ranks, types and where they
+  were met, NPCs' lines, loot), sent by Ravenpost to hearthtale.app and
+  pulled by `bin/players.ts` (`OBSERVATIONS_TOKEN`, the site's export token;
+  `HEARTHTALE_SERVER` for a local one), daily by
+  `.github/workflows/players.yml` (a pull request, never merged by itself;
+  the secret `OBSERVATIONS_TOKEN`). `src/players.ts` loads them last, as
+  source `players`, where no other source has the fact: the value most
+  players saw (`MIN_SEEN`: one player is enough while they are few), a
+  level the range of all seen, NPCs' lines in `npc_line`, loot only for a
+  creature or an object no source gives any.
 - `.github/workflows/db.yml`: both databases built, tested and published as
   the latest release (`db-<commit12>`, the last commit that changed them);
   `bin/get.ts` downloads them (`--tag`: one release's, which must be there).
@@ -89,7 +101,9 @@ again from the pins.
 
 Three sources (the user's call, 14 October 2026: fewer sources, fewer
 errors, less dependence): the client, Questie, the Classic database. Wowhead
-is frozen data, not a source a build or a job asks.
+is frozen data, not a source a build or a job asks. Players' facts (15
+October 2026) fill what none of them has, first of all Forever's new content
+before the others know it.
 
 ## Conventions
 
