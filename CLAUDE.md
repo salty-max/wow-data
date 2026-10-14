@@ -49,7 +49,16 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   `bin/names.ts` and `bin/wowhead-points.ts` fetched or seeded them once;
   they are hand tools, run only when something is missing, never by a job.
 - `.github/workflows/db.yml`: both databases built, tested and published as
-  the latest release; `bin/get.ts` downloads them.
+  the latest release (`db-<commit12>`, the last commit that changed them);
+  `bin/get.ts` downloads them (`--tag`: one release's, which must be there).
+- `.github/workflows/addon-data.yml`: an addon's game data built again,
+  called by each addon's daily `game-data.yml` (Hearthtale, the Codex,
+  Yonder, Second Wind) with its own generators (`generate`), the files a
+  pull request carries (`paths`), its checks (`check`), Hearthtale's
+  journals compared (`before`, `report`), addon-kit beside it (`kit`): the
+  databases of the wow-data checked out downloaded, a pull request only when
+  a generated file changes, never merged by itself. A caller needs "Allow
+  GitHub Actions to create and approve pull requests".
 - `bin/latest.ts`: newer builds than the pins (`--write`, `--next FILE`,
   `--summary FILE`); the databases' newer commits, told only. `bin/path.ts`:
   a cached file's path, for the addons' Python scripts.

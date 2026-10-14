@@ -1,0 +1,158 @@
+# An addon's game data built again from wow-data's pins: each addon's daily
+# job (.github/workflows/game-data.yml in hearthtale, lorekeepers-codex,
+# yonder, second-wind) calls this. wow-data checked out beside the addon (and
+# addon-kit, for its glossary.py and subzones.py), the databases built from
+# that wow-data downloaded (bin/get.ts: the release of the last commit that
+# changed them, which must be published), the addon's own generators run.
+# When a generated file changes: the addon's checks, then a pull request
+# (never merged by itself). A day without change ends after the generators.
+# The calling repository needs "Allow GitHub Actions to create and approve
+# pull requests" (Settings, Actions, General).
+name: Addon data
+
+on:
+  workflow_call:
+    inputs:
+      generate:
+        description: "the commands writing the generated files (in the addon's folder, one shell script)"
+        type: string
+        required: true
+      paths:
+        description: "the generated files a pull request carries, one a line (git pathspecs, globs allowed)"
+        type: string
+        required: true
+      check:
+        description: "the addon's checks, run when something changed"
+        type: string
+        default: bun run check
+      before:
+        description: "run before the generators (Hearthtale keeps its last journals aside)"
+        type: string
+        default: ""
+      report:
+        description: "markdown for the pull request's body, written to stdout after the generators (Hearthtale's journals compared)"
+        type: string
+        default: ""
+      kit:
+        description: "addon-kit checked out beside the addon too"
+        type: boolean
+        default: false
+      cache:
+        description: "more paths kept between runs, one a line (from the workspace: addon/.cache/audit)"
+        type: string
+        default: ""
+
+jobs:
+  data:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: addon
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: addon
+      - uses: actions/checkout@v7
+        with:
+          repository: salty-max/wow-data
+          path: wow-data
+          fetch-depth: 0
+      - uses: actions/checkout@v7
+        if: inputs.kit
+        with:
+          repository: salty-max/addon-kit
+          path: addon-kit
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile
+        working-directory: wow-data
+      # (the sources' downloads, kept: they change only when a pin moves)
+      - uses: actions/cache@v4
+        with:
+          path: |
+            wow-data/.cache/wago
+            wow-data/.cache/github
+            ${{ inputs.cache }}
+          key: addon-data-${{ hashFiles('wow-data/pins.json') }}-${{ github.run_id }}
+          restore-keys: |
+            addon-data-${{ hashFiles('wow-data/pins.json') }}-
+            addon-data-
+      - name: Lua (LuaJIT, StyLua, selene)
+        run: |
+          sudo apt-get install -y -qq luajit
+          mkdir -p "$HOME/bin" && cd "$HOME/bin"
+          curl -sSLo stylua.zip https://github.com/JohnnyMorganz/StyLua/releases/download/v2.5.2/stylua-linux-x86_64.zip
+          curl -sSLo selene.zip https://github.com/Kampfkarren/selene/releases/download/0.32.0/selene-0.32.0-linux.zip
+          unzip -qo stylua.zip && unzip -qo selene.zip && chmod +x stylua selene
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: wow-data's databases (built from the wow-data checked out)
+        working-directory: wow-data
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git log -1 --format=%H -- pins.json schema.sql src bin data .github/workflows/db.yml)
+          bun bin/get.ts all --tag "db-${sha:0:12}"
+          echo "WOW_DATA_AT=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_ENV"
+      - name: The data built again
+        id: data
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BEFORE: ${{ inputs.before }}
+          GENERATE: ${{ inputs.generate }}
+          PATHS: ${{ inputs.paths }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BEFORE" ]; then bash -euo pipefail -c "$BEFORE"; fi
+          bash -euo pipefail -c "$GENERATE"
+          set -f
+          mapfile -t specs < <(printf '%s\n' "$PATHS" | sed '/^\s*$/d')
+          if [ -z "$(git status --porcelain -- "${specs[@]}")" ]; then
+            echo "Nothing moved: the generated files are what wow-data's pins give (wow-data at $WOW_DATA_AT)." >> "$GITHUB_STEP_SUMMARY"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git status --porcelain -- "${specs[@]}" >> "$GITHUB_STEP_SUMMARY"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: The pull request's words
+        if: steps.data.outputs.changed == 'true'
+        env:
+          REPORT: ${{ inputs.report }}
+          PATHS: ${{ inputs.paths }}
+        run: |
+          set -euo pipefail
+          set -f
+          mapfile -t specs < <(printf '%s\n' "$PATHS" | sed '/^\s*$/d')
+          {
+            echo "The game data built again from [wow-data](https://github.com/salty-max/wow-data)'s pins (wow-data at $WOW_DATA_AT)."
+            echo
+            echo "### The generated files"
+            echo
+            echo '```'
+            git diff --stat -- "${specs[@]}"
+            git ls-files --others --exclude-standard -- "${specs[@]}" | sed 's/^/ (new) /'
+            echo '```'
+            if [ -n "$REPORT" ]; then
+              echo
+              bash -euo pipefail -c "$REPORT"
+            fi
+            echo
+            echo "Opened by the daily Game data job (wow-data's addon-data.yml). Read the differences, then merge by hand."
+          } > "$RUNNER_TEMP/body.md"
+          cat "$RUNNER_TEMP/body.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: The addon's checks
+        if: steps.data.outputs.changed == 'true'
+        env:
+          CHECK: ${{ inputs.check }}
+        run: bash -euo pipefail -c "$CHECK"
+      - name: Pull request
+        if: steps.data.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          path: addon
+          branch: game-data
+          delete-branch: true
+          commit-message: "chore: the game's data at wow-data's pins"
+          title: "chore: the game's data at wow-data's pins"
+          body-path: ${{ runner.temp }}/body.md
+          add-paths: ${{ inputs.paths }}
