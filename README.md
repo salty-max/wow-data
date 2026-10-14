@@ -5,14 +5,19 @@ Lorekeeper's Codex, Yonder), pinned in one place and downloaded once.
 
 - **The game client's own tables**, from [wago.tools](https://wago.tools):
   Classic Era and World of Warcraft: Forever, each at a pinned build, in
-  English and the other client languages.
-- **The community databases**, at pinned commits: the
-  [Classic database](https://github.com/cmangos/classic-db) (cmangos,
-  GPL-3.0), [AllTheThings](https://github.com/ATTWoWAddon/AllTheThings) and
-  [QuestieDB](https://github.com/Questie/QuestieDB) for Forever's own quests
-  and creatures, and [pfQuest](https://github.com/shagu/pfQuest) (MIT) for
-  where things stand. They hold what Blizzard never publishes: spawns, quest
-  objectives, loot.
+  every client language.
+- **[QuestieDB](https://github.com/Questie/QuestieDB)**, at a pinned commit:
+  the world as Questie keeps it, for both games (quests, who gives them and
+  what they ask, NPCs and objects and where they stand, Forever's own
+  content), merged by Questie's own engine, with its translations in nine
+  languages.
+- **The [Classic database](https://github.com/cmangos/classic-db)**
+  (cmangos, GPL-3.0), for what Questie lacks: books, what NPCs say, loot
+  odds, trainers, creature types and models, the world's coordinates.
+
+Three sources, one owner a table. Names Questie doesn't translate (Forever's
+own content) come from Wowhead, fetched once and frozen in `data/wowhead/`,
+as are the French book pages a browser saved from it.
 
 The pins live in `pins.json`. Every file downloads once into `.cache/`,
 under its build or commit, so the addons beside this folder share it.
@@ -24,8 +29,8 @@ Everything above becomes one SQLite file per game, `classic.db` and
 stand, items, quests with what they ask and who gives them, loot, vendors,
 trainers, books and their pages, what NPCs say, the paths creatures walk,
 the client's own tables whole, and every name in every language. Every link
-is the game's id, every row says where it comes from. Forever's adds its own
-quests, creatures and objects from AllTheThings and QuestieDB's traces.
+is the game's id, every row says where it comes from. Forever's is Questie's
+Forever: Classic's world and Forever's own quests, creatures and objects.
 
 ```bash
 bun bin/get.ts               # the latest published databases (GitHub release)

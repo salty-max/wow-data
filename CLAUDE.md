@@ -12,8 +12,10 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
 - `pins.json`: the clients' builds on wago.tools (`builds.classic`: Classic
   Era; `builds.forever`: Forever, whose beta wago files under
   `wow_classic_beta` beside Mists of Pandaria's) and the databases' commits
-  (`repos`: allthethings, questiedb, pfquest, classicdb). The one place a
-  build or a database is pinned: an addon never pins its own.
+  (`repos`: questie, classicdb; questiedb, allthethings and pfquest are
+  `legacy`: Hearthtale's old scripts only, until it reads the database, not
+  followed by `bin/latest.ts`). The one place a build or a database is
+  pinned: an addon never pins its own.
 - `src/pins.ts` (the pins, `wagoQuery`), `src/fetch.ts` (`fetchRetry`: a
   5xx or a dropped connection tried again three times, 10, 30, 60 s apart),
   `src/cache.ts` (`cached(url, rel)`: `.cache/<rel>`, once; `WOW_DATA_CACHE`
@@ -25,18 +27,19 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
 - The database (PLAN.md, `schema.sql`): `bin/build.ts <classic|forever|all>`
   builds `.cache/db/<game>.db` from the pinned sources (`src/build.ts`: the
   client's tables whole as `client_<Table>`, their names in every language,
-  the Classic database's world through `src/sql.ts`, pfQuest's spawns with
-  their zones (`src/pfquest.ts`), and for Forever its own content from
-  AllTheThings and QuestieDB's traces, `src/forever.ts` with
-  `bin/forever-read.lua`; facts only, each row its source); `src/db.ts`
+  then Questie's world (`src/questie.ts`: QuestieDB at its pin, whole, merged
+  by its own engine, `bin/questie-export.lua` run with real Lua 5.1, built
+  from lua.org's source into the cache on macOS), then the Classic
+  database for what Questie lacks (`src/sql.ts`), then the frozen Wowhead
+  names and books; one owner a table, names client > Questie > Classic
+  database > Wowhead); `src/db.ts`
   (`openDb(game)`, read only; `dbPath`). IDs everywhere, names only in
   `name`, every row its `source`. `test/classic.test.ts` and `test/forever.test.ts` check them against
   facts from the game (skipped where they aren't built).
-- Wowhead (`src/wowhead.ts`, `bin/names.ts <game> <locale>`): names for
-  what the client doesn't name (creatures and their titles, quests, the
-  objects that matter), kept in `data/wowhead/<game>/<locale>.json`; book
-  pages saved from a browser in `data/wowhead/<game>/books-<locale>.json`.
-  The build adds them where the client has no name (its own win).
+- Wowhead, frozen: `data/wowhead/<game>/<locale>.json` (names Questie
+  doesn't translate: Forever's own content) and `books-<locale>.json` (book
+  pages saved from a browser). `bin/names.ts` fetched them once; it is a
+  hand tool now, run only when a translation is missing, never by a job.
 - `.github/workflows/db.yml`: both databases built, tested and published as
   the latest release; `bin/get.ts` downloads them.
 - `bin/latest.ts`: newer builds than the pins (`--write`, `--next FILE`,
@@ -54,9 +57,9 @@ byte the same (the addon's own `--check`, and Hearthtale's golden check). An
 addon's daily job checks out wow-data's main beside it and builds its data
 again from the pins.
 
-Wowhead: its tooltip service answers scripts (bin/names.ts, fetched slowly);
-its pages don't, so its book texts are saved by hand from a browser into a
-snapshot committed here.
+Three sources (the user's call, 14 October 2026: fewer sources, fewer
+errors, less dependence): the client, Questie, the Classic database. Wowhead
+is frozen data, not a source a build or a job asks.
 
 ## Conventions
 

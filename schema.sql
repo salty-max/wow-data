@@ -8,8 +8,11 @@
 --   page, a quest, an npc, an item), never a name.
 -- - A thing's names live in `name` alone, by kind, id and language, English
 --   included: no entity table repeats one.
--- - Every row says where it comes from (`source`): classicdb, client,
---   allthethings, questiedb, pfquest, wowhead, wiki, manual.
+-- - Every row says where it comes from (`source`): client (the game's own
+--   tables), questie (QuestieDB: quests, NPCs, objects, their spawns, the
+--   translations), classicdb (the Classic database: what Questie lacks),
+--   wowhead (names fetched once and frozen in data/wowhead).
+-- - One owner a table, never two sources for the same fact (PLAN.md).
 -- - forever.db is Classic's world plus Forever's: a row Forever removed is
 --   marked (`removed`), never dropped.
 
@@ -19,7 +22,7 @@ CREATE TABLE meta (
   value TEXT NOT NULL
 );
 CREATE TABLE source (
-  name    TEXT PRIMARY KEY,  -- classicdb, client, allthethings, ...
+  name    TEXT PRIMARY KEY,  -- client, questie, classicdb, wowhead
   version TEXT NOT NULL,     -- the pinned build or commit
   url     TEXT,
   license TEXT
@@ -73,8 +76,8 @@ CREATE TABLE object (
   source     TEXT NOT NULL
 );
 -- Where a creature or an object stands: in the world's coordinates (the
--- Classic database's) and/or on a zone's map (UiMap id, percent: pfQuest's,
--- QuestieDB's traces, AllTheThings').
+-- Classic database's, with its own spawn id) and/or on a zone's map (percent:
+-- Questie's).
 CREATE TABLE spawn (
   kind      TEXT NOT NULL,  -- creature, object
   spawn_id  INTEGER,        -- the source's own id for this spawn (the Classic database's guid), if it has one
@@ -83,7 +86,7 @@ CREATE TABLE spawn (
   x         REAL, y REAL, z REAL,
   area_id   INTEGER,        -- AreaTable id, the zone (where a source gives it)
   ui_map_id INTEGER,        -- UiMap id of the map the percent is on, where a source gives one
-  ux        REAL, uy REAL,  -- 0-100 on that map, else on the zone's map (area_id: pfQuest's, QuestieDB's)
+  ux        REAL, uy REAL,  -- 0-100 on that map, else on the zone's map (area_id: Questie's)
   source    TEXT NOT NULL
 );
 CREATE INDEX spawn_entity ON spawn (kind, entity_id);
@@ -164,7 +167,7 @@ CREATE TABLE quest (
   source         TEXT NOT NULL
 );
 -- A quest's texts, per language (the Classic database's are English; Wowhead
--- and AllTheThings may give others): title, details, objectives, request, reward, end.
+-- gives the objectives in its nine languages): details, objectives, request, reward, end.
 CREATE TABLE quest_text (
   quest_id INTEGER NOT NULL,
   locale   TEXT NOT NULL,

@@ -24,13 +24,13 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: sudo apt-get install -y -qq luajit
       - uses: actions/cache@v4
         with:
           path: |
             .cache/wago
             .cache/github
-            .cache/wowhead
+            .cache/questie
+            .cache/tools
           key: sources-${{ hashFiles('pins.json') }}-${{ github.run_id }}
           restore-keys: |
             sources-${{ hashFiles('pins.json') }}-

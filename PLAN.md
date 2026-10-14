@@ -2,8 +2,8 @@
 
 14 October 2026. The user's goal: every bit of game or outside data an addon
 uses comes from here, built once, in one shape, for every addon to pick
-from. Today wow-data only pins and downloads the sources (phase 0, done);
-each addon still parses them its own way.
+from. The databases are built (steps 1 to 4 below); the addons still parse
+the sources their own way until each moves onto them (step 5).
 
 ## Why
 
@@ -30,65 +30,35 @@ One SQLite file per game: `classic.db` and `forever.db`. Bun reads SQLite
 natively (`bun:sqlite`) and so does Python (`sqlite3`), so every script,
 TypeScript or Python, queries the same tables with plain SQL.
 
-Every row says where it comes from (`source`: `classicdb`, `client`,
-`allthethings`, `questiedb`, `wowhead`, `pfquest`, `wiki`, `manual`), so a
-doubtful fact can be traced and a source's rows replaced whole.
+Every row says where it comes from (`source`: `client`, `questie`,
+`classicdb`, `wowhead`), so a doubtful fact can be traced and a source's
+rows replaced whole. The tables: `schema.sql`.
 
-### Tables (first draft, for review)
+### Three sources, one owner a table
 
-The world:
+The user's call, 14 October 2026: fewer sources, fewer errors, less
+dependence. A first build read six (adding AllTheThings, QuestieDB's beta
+traces, pfQuest and Wowhead's tooltips); it found QuestieDB keeping the
+world for both games, Forever's own content in its correction layers, with
+translations in nine languages.
 
-| Table | Columns | From |
-|---|---|---|
-| `creature` | id, name, subname, type, family, rank, min_level, max_level, model, faction, npc_flags | classicdb; Forever's additions from allthethings, questiedb |
-| `creature_spawn` | creature_id, map, x, y, zone_id, sub_id | classicdb, pfquest; Forever: questiedb traces |
-| `object` | id, name, type, page_id | classicdb; allthethings, questiedb |
-| `object_spawn` | object_id, map, x, y, zone_id, sub_id | classicdb; questiedb |
-| `item` | id, name, quality, class, subclass, inventory_type, page_id | client (ItemSparse, Item), classicdb for what the client lacks |
-| `quest` | id, title, details, objectives, level, min_level, races, classes, zone_id, prev_id, next_id, chain_root | classicdb; allthethings, questiedb |
-| `quest_objective` | quest_id, idx, kind (monster, item, object, event), target_id, count, text | classicdb; allthethings |
-| `quest_npc` | quest_id, role (starter, ender), kind (creature, object, item), npc_id | classicdb; allthethings, questiedb |
-| `loot` | source_kind, source_id, item_id, chance | classicdb |
-| `trainer_spell` | npc_id, spell_id, level, skill_id | classicdb |
-| `npc_text` | id, locale, text | classicdb (broadcast_text and its 66,624 translated lines) |
-| `readable` | kind (object, item), id, title | classicdb |
-| `readable_page` | kind, id, locale, idx, text | classicdb (English); Wowhead's pages (other languages) |
-
-The client's own tables (wago.tools, the pinned build):
-
-| Table | From |
+| Source | Owns |
 |---|---|
-| `area` (id, name, parent_id, map_id, zone_id), `wmo_area` | AreaTable, WMOAreaTable |
-| `ui_map`, `map_overlay`, `map` (instances), `encounter` | UiMap, UiMapAssignment, WorldMapOverlay, Map, DungeonEncounter |
-| `spell` (id, name), `skill_line`, `skill_ability`, `talent_tab`, `specialization` | SpellName, SkillLine, SkillLineAbility, TalentTab, ChrSpecialization |
-| `taxi_node`, `faction`, `creature_type`, `creature_family`, `display` | TaxiNodes, Faction, CreatureType, CreatureFamily, CreatureDisplayInfo(Extra) |
+| **The client** (wago.tools, the pinned builds) | its own tables, whole (`client_<Table>`); the names it gives (areas, maps, spells, skills, items, factions, flight masters...) in all eleven languages; items |
+| **QuestieDB** (the pinned commit) | quests (who starts and ends them, what they ask, their requirements, reputation rewards); NPCs and objects (levels, rank, flags, title, spawns by zone, paths); items the client lacks, and their drops and vendors where the Classic database has none; names and quests' objectives in nine languages |
+| **The Classic database** (cmangos) | what Questie lacks: a creature's type, family and models, an object's type, lock and first page, a quest's type, details and item rewards, its objectives' counts (merged into Questie's rows), loot odds, vendors, trainers, books, speech in seven languages, world coordinates (spawns with their own id, the paths they walk), anything Questie doesn't have |
+| **Wowhead, frozen** (`data/wowhead/`) | French names Questie doesn't translate (Forever's own content), fetched once; French book pages a browser saved. No job asks Wowhead |
 
-Names in every client language, one table for every kind:
+Names, by precedence: the client's, Questie's, the Classic database's, then
+the frozen Wowhead ones. Questie's objectives carry no counts: a Classic
+quest's come from the Classic database, Forever's own are in the
+objective's text ("Slay 8 Ursera Scavengers...").
 
-| Table | Columns | From |
-|---|---|---|
-| `name` | kind, id, locale, name | client tables where they carry names (areas, spells, skills, flight points, factions, families, items); Wowhead's tooltips for the rest (creatures, objects, quests) |
-
-The Classic database holds no translated names (its `locales_*` tables are
-empty). Wowhead turns scripts away from its pages but answers its tooltip
-service (`nether.wowhead.com`): names are fetched there, slowly, and cached.
-Its book pages open only in a browser: they are imported by hand (the
-routine used for the Codex on 14 October) into a snapshot committed here,
-`data/wowhead/`, since a cache can be lost and they can't be fetched again
-by a script.
-
-Also from outside sources: `rare_zone` (Yonder's rares by zone, the WoWWiki
-archive), and the game's interface textures (Gethe/wow-ui-textures, pinned)
-as files.
-
-### Classic and Forever
-
-`classic.db` is the original world: the Classic database and Classic Era's
-client tables. `forever.db` is the same world as Forever knows it: the
-Classic database, Forever's client tables (which replace Classic Era's),
-Forever's new quests, creatures and objects from AllTheThings and QuestieDB's
-traces (each row its source), and Forever's renames. Hearthtale's
-`forever-data.ts` already does this merge for itself; it moves here.
+Questie's data is merged by Questie's own engine (`generator/flavor.lua`:
+the raw base, every correction layer, the derived passes), run in a
+checkout of the pinned commit (`bin/questie-export.lua`, real Lua 5.1: on
+Linux Questie's bundled binary, on macOS one built from lua.org's source).
+Nothing of its layering is interpreted here.
 
 ### Building and shipping it
 
@@ -100,9 +70,8 @@ traces (each row its source), and Forever's renames. Hearthtale's
   for the current pins instead of parsing every source again. Locally,
   `src/db.ts` opens the database, built once from the shared cache.
 - Tests: known facts checked on every build (Hogger is creature 448, quest
-  182 asks for 14 of creature 706, the Frostwolf rows' names in French, a
-  Forever quest from AllTheThings present only in `forever.db`), and row
-  counts compared with the previous build.
+  182 asks for 14 of creature 706, Coldridge Valley in French and German, a
+  quest of Forever's own present only in `forever.db`).
 
 ### What stays in the addons
 
@@ -114,34 +83,18 @@ Codex's pages and unlocks, the translations we wrote (the Codex's
 ## Order
 
 1. **Schema and the Classic import.** Done 14 October 2026, the schema
-   reviewed by the user first: `classic.db` (135 MB, 20 seconds once the
-   sources are cached; the first download takes minutes): 10,384 creatures,
-   66,310 creature and 47,827 object spawns from the Classic database and
-   124,764 from pfQuest (with their zone), 4,245 quests, 24,567 items, 387
-   readables, 77,728 lines of speech, 67,051 path points, about 660,000
-   names (the client's, in every language); the facts tested
-   (`test/classic.test.ts`).
-2. **The Forever layer.** Done 14 October 2026 (`src/forever.ts`,
-   `bin/forever-read.lua`, moved from Hearthtale): `forever.db` (143 MB, 12
-   seconds cached) is Classic's world, Forever's client tables, and
-   Forever's own from AllTheThings and QuestieDB's traces: 691 quests, 1,072
-   creatures, 97 objects, 138 items, 55,038 spawns, 1,673 starters and
-   enders, 2,605 drops. Facts only, each row its source: what a quest asks
-   as each source lists it (AllTheThings' quest log lines with their counts,
-   the traces' lists); an addon draws its own conclusions. Forever's changes
-   to Classic's own quests are not merged yet (only its spawns and who
-   starts and ends them, from the traces). Tested (`test/forever.test.ts`).
-3. **Names in every language.** Done 14 October 2026 for French, the one
-   language in progress: the client's own names in all eleven (built in),
-   and Wowhead's for what the client doesn't name (`bin/names.ts`, seeded
-   from the tooltips the addons had already fetched, then the rest at a
-   polite rate, kept in `data/wowhead/<game>/<locale>.json` so a build never
-   asks again): about 11,450 creatures, 4,890 quests, 1,100 objects and 2,510
-   titles on Forever, 10,380, 4,244, 1,080 and 2,091 on Classic. Another
-   language: `bun bin/names.ts <game> <locale>`, the day it is needed. The
-   French book pages saved from Wowhead's pages in a browser are in
-   `data/wowhead/forever/books-frFR.json` (365 texts, 1,164 pages), turned
-   back into the game's own text by the build.
+   reviewed by the user first.
+2. **Forever and the three sources.** Done 14 October 2026: first with
+   AllTheThings, QuestieDB's traces and pfQuest, then reworked around the
+   three sources (the user's call). `classic.db`: Questie's Classic (10,122
+   NPCs, 4,257 quests), the Classic database for what it lacks; `forever.db`:
+   Questie's Forever (13,392 NPCs, 5,226 quests: Classic's and Forever's
+   own). About 40 and 20 seconds once the sources are cached. Tested
+   (`test/classic.test.ts`, `test/forever.test.ts`).
+3. **Names in every language.** Done: the client's in eleven languages,
+   Questie's in nine (about 245,000 names and quest texts a game), the
+   French Questie lacks from Wowhead, fetched once (`bin/names.ts`, a hand
+   tool now) and frozen in `data/wowhead/`, with the French book pages.
 4. **Releases.** `.github/workflows/db.yml`: both databases built from the
    pins on every change of what makes them, tested, and published as the
    latest release (`db-<commit>`, gzipped, the five latest kept);
@@ -170,6 +123,10 @@ before Forever's launch on 4 November.
   npc, an item), never a name. A thing's names live in one place, the
   `name` table, by kind, id and language, English included: no entity table
   repeats a name.
-- **The client wins on names.** Where the client's own tables name a thing,
-  that name; Wowhead's tooltips only for what the client doesn't name
-  (creatures, quests, objects). Wowhead's databases can lag the game.
+- **The client wins on names.** Then Questie's, the Classic database's, and
+  last the frozen Wowhead ones.
+- **Three sources** (the client, QuestieDB, the Classic database), one owner
+  a table: fewer sources, fewer errors, less dependence. AllTheThings,
+  pfQuest, QuestieDB's old traces and live Wowhead fetching are dropped from
+  the database (their pins kept `legacy` for Hearthtale's old scripts until
+  it reads the database).

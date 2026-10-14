@@ -1,7 +1,7 @@
 // A cached file's path, downloaded first if need be: for the addons' Python
 // scripts, which read the files rather than import the kit.
 //   bun ../wow-data/bin/path.ts wago <classic|forever> <Table> [locale]
-//   bun ../wow-data/bin/path.ts repo <allthethings|questiedb|pfquest|classicdb> <path in the repo>
+//   bun ../wow-data/bin/path.ts repo <questie|classicdb> <path in the repo>
 //   bun ../wow-data/bin/path.ts classicdb
 //   bun ../wow-data/bin/path.ts pin <classic|forever|repo name>   the pinned build or commit
 import { classicDump, repoFile } from "../src/github";

@@ -1,6 +1,6 @@
-// The Forever database: Classic's world kept, Forever's own added from
-// AllTheThings and QuestieDB's traces, each row its source (bun
-// bin/build.ts forever first; skipped where it isn't built).
+// The Forever database: Questie's Forever (Classic's world and Forever's
+// own), the Classic database for what Questie lacks, each row its source
+// (bun bin/build.ts forever first; skipped where it isn't built).
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { dbPath, openDb } from "../src/db";
@@ -20,16 +20,24 @@ describe.skipIf(!built)("forever.db", () => {
   test("a quest of Forever's own: Foul Matriarch, on Zephras Isle", () => {
     expect(name("quest", 92470)).toBe("Foul Matriarch");
     const q = one("SELECT zone_id, level, prev_id, source FROM quest WHERE id = 92470");
-    expect(q).toEqual({ zone_id: 16593, level: 5, prev_id: 92471, source: "questiedb" });
+    expect(q).toEqual({ zone_id: 16593, level: 5, prev_id: 92471, source: "questie" });
     expect(name("area", 16593)).toBe("Zephras Isle");
     expect(name("area", 16593, "frFR")).toBe("Île de Zéphras");
   });
-  test("what it asks, as each source lists it", () => {
-    expect(all("SELECT kind, target_id, count, text FROM quest_objective WHERE quest_id = 92470 AND source = 'allthethings' ORDER BY kind")).toEqual([
-      { kind: "creature", target_id: 250937, count: 8, text: "0/8 Ursera Scavenger slain" },
-      { kind: "item", target_id: 252665, count: 1, text: "0/1 Head of Urs'anah" },
+  test("what it asks, and what it gives", () => {
+    expect(all("SELECT kind, target_id, source FROM quest_objective WHERE quest_id = 92470 ORDER BY kind")).toEqual([
+      { kind: "creature", target_id: 250937, source: "questie" },
+      { kind: "item", target_id: 252665, source: "questie" },
     ]);
-    expect(one("SELECT count(*) AS n FROM quest_objective WHERE quest_id = 92470 AND source = 'questiedb'")).toEqual({ n: 2 });
+    expect(all("SELECT ref_id, count FROM quest_reward WHERE quest_id = 92470 AND kind = 'reputation' ORDER BY ref_id")).toEqual([
+      { ref_id: 2778, count: 50 },
+      { ref_id: 2779, count: 50 },
+    ]);
+  });
+  test("a Classic quest's count, the Classic database's in Questie's row", () => {
+    expect(all("SELECT kind, target_id, count, source FROM quest_objective WHERE quest_id = 182")).toEqual([
+      { kind: "creature", target_id: 706, count: 14, source: "questie" },
+    ]);
   });
   test("its giver, named and placed", () => {
     expect(all("SELECT DISTINCT role FROM quest_relation WHERE quest_id = 92470 AND entity_id = 251366 ORDER BY role")).toEqual([
@@ -50,9 +58,15 @@ describe.skipIf(!built)("forever.db", () => {
       female: "Guerrière",
     });
   });
-  test("Wowhead's names where the client has none, the client's own first", () => {
+  test("names: the client's first, then Questie's, then the frozen Wowhead ones", () => {
     expect(one("SELECT name, source FROM name WHERE kind = 'creature' AND id = 706 AND locale = 'frFR'")).toEqual({
       name: "Jeune troll Frostmane",
+      source: "questie",
+    });
+    expect(name("creature", 706, "deDE")).toBe("Trollwelpe der Frostmane");
+    // (Forever's own, which Questie doesn't translate)
+    expect(one("SELECT name, source FROM name WHERE kind = 'quest' AND id = 92470 AND locale = 'frFR'")).toEqual({
+      name: "Matriarche ignoble",
       source: "wowhead",
     });
     expect(name("quest", 182, "frFR")).toBe("La caverne des trolls");
@@ -67,7 +81,7 @@ describe.skipIf(!built)("forever.db", () => {
   });
   test("every source accounted for", () => {
     const sources = all("SELECT name FROM source ORDER BY name").map((r) => r.name);
-    expect(sources).toEqual(["allthethings", "classicdb", "client", "pfquest", "questiedb", "wowhead"]);
+    expect(sources).toEqual(["classicdb", "client", "questie", "wowhead"]);
     for (const table of ["creature", "quest", "quest_objective", "quest_relation", "spawn", "loot", "name"]) {
       const used = all(`SELECT DISTINCT source FROM ${table}`).map((r) => r.source as string);
       for (const s of used) expect(sources).toContain(s);

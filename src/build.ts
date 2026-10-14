@@ -5,10 +5,9 @@ import { Database } from "bun:sqlite";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
-import { foreverLayer } from "./forever";
 import { classicDump } from "./github";
-import { pfSpawns } from "./pfquest";
 import { type Game, PINS, ROOT } from "./pins";
+import { questie, type QuestieData, type QuestieRecord } from "./questie";
 import { rows } from "./sql";
 import { LOCALES, wago } from "./wago";
 
@@ -142,9 +141,212 @@ async function clientNames(db: Database, game: Game) {
   }
 }
 
-// ── the Classic database's world ─────────────────────────────────────────────
-async function classicDb(db: Database) {
+// ── the client's items (its rows win) ───────────────────────────────────────
+function clientItems(db: Database) {
+  const n = db.run(`INSERT INTO item
+    SELECT s.ID, i.ClassID, i.SubclassID, s.OverallQualityID, s.InventoryType, s.ItemLevel, s.RequiredLevel,
+           s.ContainerSlots, NULLIF(s.PageID, 0), NULLIF(s.StartQuestID, 0), NULL, NULL, 'client'
+    FROM client_ItemSparse s LEFT JOIN client_Item i ON i.ID = s.ID`).changes;
+  log(`item (client): ${n}`);
+}
+
+// ── Questie's world ──────────────────────────────────────────────────────────
+// Quests (who starts and ends them, what they ask, their requirements),
+// NPCs and objects (levels, rank, flags, title, their spawns by zone and the
+// paths they walk), the items the client lacks, and every name and quest
+// text in its nine languages. Questie's own engine merged it (src/questie.ts).
+const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : v && typeof v === "object" ? Object.values(v) : []);
+const slot = (v: unknown, i: number): unknown[] => {
+  // (a Lua list with holes comes as an object: { "1": ..., "3": ... })
+  if (Array.isArray(v)) return list(v[i - 1]);
+  if (v && typeof v === "object") return list((v as Record<string, unknown>)[String(i)]);
+  return [];
+};
+function questieWorld(db: Database, q: QuestieData) {
+  const run = (label: string, fn: () => number) => {
+    const t0 = performance.now();
+    const n = db.transaction(fn)();
+    log(`${label}: ${n} (${((performance.now() - t0) / 1000).toFixed(1)} s)`);
+  };
+  const name = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'questie')");
+  const spawn = db.prepare("INSERT INTO spawn VALUES (?, NULL, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, 'questie')");
+  // (spawns: { zone: [[x, y], ...] })
+  const spawns = (kind: string, id: number, r: QuestieRecord) => {
+    let n = 0;
+    for (const [zone, points] of Object.entries((r.spawns ?? {}) as Record<string, unknown>))
+      for (const p of list(points)) {
+        const [x, y] = p as number[];
+        if (typeof x === "number" && typeof y === "number") {
+          spawn.run(kind, id, Number(zone), x, y);
+          n++;
+        }
+      }
+    return n;
+  };
+
+  // NPCs: their spawns by zone, the paths they walk ({ zone: [ [ [x, y], ... ], ... ] })
+  const creature = db.prepare(
+    "INSERT INTO creature (id, min_level, max_level, rank, faction_id, npc_flags, source) VALUES (?, ?, ?, ?, ?, ?, 'questie')",
+  );
+  const pathPoint = db.prepare(
+    "INSERT OR IGNORE INTO path VALUES ('creature', ?, ?, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, NULL, 'questie')",
+  );
+  run("creature (questie)", () => {
+    let n = 0;
+    for (const [sid, r] of Object.entries(q.npcs)) {
+      const id = Number(sid);
+      creature.run(id, num(r.minLevel), num(r.maxLevel), num(r.rank), nz(r.factionID), num(r.npcFlags));
+      if (typeof r.name === "string") name.run("creature", id, "enUS", r.name);
+      if (typeof r.subName === "string" && r.subName) name.run("creature_subname", id, "enUS", r.subName);
+      spawns("creature", id, r);
+      let pathId = 0;
+      for (const [zone, paths] of Object.entries((r.waypoints ?? {}) as Record<string, unknown>)) {
+        const all = list(paths);
+        // (one path as points, or several)
+        const ways = all.length && Array.isArray(all[0]) && typeof (all[0] as unknown[])[0] === "number" ? [all] : all;
+        for (const way of ways) {
+          pathId++;
+          list(way).forEach((p, i) => {
+            const [x, y] = p as number[];
+            if (typeof x === "number") pathPoint.run(id, pathId, i + 1, Number(zone), x, y);
+          });
+        }
+      }
+      n++;
+    }
+    return n;
+  });
+  const object = db.prepare("INSERT INTO object (id, source) VALUES (?, 'questie')");
+  run("object (questie)", () => {
+    let n = 0;
+    for (const [sid, r] of Object.entries(q.objects)) {
+      const id = Number(sid);
+      object.run(id);
+      if (typeof r.name === "string") name.run("object", id, "enUS", r.name);
+      spawns("object", id, r);
+      n++;
+    }
+    return n;
+  });
+  // items the client lacks (its rows won: inserted first)
+  const item = db.prepare(
+    "INSERT OR IGNORE INTO item (id, class_id, subclass_id, item_level, required_level, start_quest_id, source) VALUES (?, ?, ?, ?, ?, ?, 'questie')",
+  );
+  run("item (questie)", () => {
+    let n = 0;
+    for (const [sid, r] of Object.entries(q.items)) {
+      const id = Number(sid);
+      n += item.run(id, num(r.class), num(r.subClass), num(r.itemLevel), num(r.requiredLevel), nz(r.startQuest)).changes;
+      if (typeof r.name === "string") name.run("item", id, "enUS", r.name);
+    }
+    return n;
+  });
+
+  // quests
+  const quest = db.prepare(
+    `INSERT INTO quest (id, level, min_level, zone_id, sort_id, races, classes, skill_line_id, prev_id, next_in_chain, flags, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'questie')`,
+  );
+  const text = db.prepare("INSERT OR IGNORE INTO quest_text VALUES (?, ?, 'objectives', ?, 'questie')");
+  const objective = db.prepare("INSERT OR IGNORE INTO quest_objective VALUES (?, ?, ?, ?, ?, ?, 'questie')");
+  const relation = db.prepare("INSERT OR IGNORE INTO quest_relation VALUES (?, ?, ?, ?, 'questie')");
+  const reward = db.prepare("INSERT INTO quest_reward VALUES (?, 'reputation', ?, ?, 'questie')");
+  const KINDS = ["creature", "object", "item"];
+  run("quest (questie)", () => {
+    let n = 0;
+    for (const [sid, r] of Object.entries(q.quests)) {
+      const id = Number(sid);
+      const zone = num(r.zoneOrSort) ?? 0;
+      const skill = list(r.requiredSkill)[0];
+      const prev = list(r.preQuestSingle)[0] ?? list(r.preQuestGroup)[0];
+      quest.run(
+        id,
+        num(r.questLevel),
+        num(r.requiredLevel),
+        zone > 0 ? zone : null,
+        zone < 0 ? -zone : null,
+        nz(r.requiredRaces),
+        nz(r.requiredClasses),
+        nz(skill),
+        nz(prev),
+        nz(r.nextQuestInChain),
+        nz(r.questFlags),
+      );
+      if (typeof r.name === "string") name.run("quest", id, "enUS", r.name);
+      const lines = list(r.objectivesText) as string[];
+      if (lines.length) text.run(id, "enUS", lines.join("\n"));
+      // what it asks: creatures, objects, items ([id, text?]), reputation ([faction, value]),
+      // kill credits ([[ids], base creature, text]), spells ([spell, text, item]), items still needed
+      const objectives = r.objectives;
+      for (let k = 1; k <= 3; k++)
+        slot(objectives, k).forEach((o, i) => {
+          const [target, words] = list(o) as [number, string?];
+          if (typeof target === "number") objective.run(id, i + 1, KINDS[k - 1], target, null, words ?? null);
+        });
+      const rep = slot(objectives, 4) as number[];
+      if (typeof rep[0] === "number") objective.run(id, 1, "reputation", rep[0], rep[1] ?? null, null);
+      slot(objectives, 5).forEach((o, i) => {
+        const [, base, words] = list(o) as [unknown, number, string?];
+        if (typeof base === "number") objective.run(id, 100 + i, "creature", base, null, words ?? null);
+      });
+      slot(objectives, 6).forEach((o, i) => {
+        const [spell, words] = list(o) as [number, string?];
+        if (typeof spell === "number") objective.run(id, i + 1, "spell", spell, null, words ?? null);
+      });
+      list(r.requiredSourceItems).forEach((it, i) => {
+        if (typeof it === "number") objective.run(id, i + 1, "source", it, null, null);
+      });
+      // who starts it (creatures, objects, items) and ends it (creatures, objects)
+      for (let k = 1; k <= 3; k++) for (const e of slot(r.startedBy, k)) if (typeof e === "number") relation.run(id, "start", KINDS[k - 1], e);
+      for (let k = 1; k <= 2; k++) for (const e of slot(r.finishedBy, k)) if (typeof e === "number") relation.run(id, "end", KINDS[k - 1], e);
+      for (const rr of list(r.reputationReward)) {
+        const [faction, value] = list(rr) as number[];
+        if (typeof faction === "number") reward.run(id, faction, value ?? null);
+      }
+      n++;
+    }
+    return n;
+  });
+
+  // its nine languages: names, titles, quests' objectives
+  run("names (questie)", () => {
+    let n = 0;
+    for (const [locale, tables] of Object.entries(q.l10n)) {
+      for (const [sid, v] of Object.entries(tables.quests ?? {})) {
+        const [title, lines] = list(v) as [string, unknown];
+        if (typeof title === "string") n += name.run("quest", Number(sid), locale, title).changes;
+        const objectives = list(lines) as string[];
+        if (objectives.length) text.run(Number(sid), locale, objectives.join("\n"));
+      }
+      for (const [sid, v] of Object.entries(tables.npcs ?? {})) {
+        const [nm, title] = list(v) as [string, string?];
+        if (typeof nm === "string") n += name.run("creature", Number(sid), locale, nm).changes;
+        if (typeof title === "string" && title) name.run("creature_subname", Number(sid), locale, title);
+      }
+      for (const [kind, key] of [
+        ["object", "objects"],
+        ["item", "items"],
+      ] as const)
+        for (const [sid, v] of Object.entries(tables[key] ?? {}))
+          if (typeof v === "string") n += name.run(kind, Number(sid), locale, v).changes;
+    }
+    return n;
+  });
+}
+
+// ── the Classic database: what Questie lacks ─────────────────────────────────
+// Rows Questie owns get the Classic database's own columns only (a creature's
+// type, family and models; an object's type, lock and page; a quest's type,
+// next quest, details and rewards, its objectives' counts); a row Questie
+// lacks comes whole. Loot odds, vendors, trainers, books, speech and the
+// world's coordinates (spawns with their own id, paths) are its alone.
+async function classicDb(db: Database, q: QuestieData) {
   const sql = gunzipSync(readFileSync(await classicDump())).toString("utf8");
+  const owned = (table: string) =>
+    new Set((db.query(`SELECT id FROM ${table} WHERE source = 'questie'`).all() as { id: number }[]).map((r) => r.id));
+  const questieCreatures = owned("creature"),
+    questieObjects = owned("object"),
+    questieQuests = owned("quest");
   const name = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, 'enUS', ?, NULL, 'classicdb')");
   const run = (label: string, fn: () => number) => {
     const t0 = performance.now();
@@ -157,10 +359,29 @@ async function classicDb(db: Database) {
   const insertCreature = db.prepare(
     "INSERT INTO creature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb')",
   );
+  const creatureColumns = db.prepare(
+    `UPDATE creature SET type_id = ?, family_id = ?, unit_class = ?, display_ids = ?, loot_id = ?,
+     skin_loot_id = ?, pick_loot_id = ?, kill_credit = ? WHERE id = ?`,
+  );
   run("creature", () => {
     for (const r of creatures) {
       const models = [r.ModelId1, r.ModelId2, r.ModelId3, r.ModelId4].filter((m) => nz(m)).join(",");
       const credit = [r.KillCredit1, r.KillCredit2].filter((m) => nz(m)).join(",");
+      if (questieCreatures.has(num(r.Entry)!)) {
+        creatureColumns.run(
+          nz(r.CreatureType),
+          nz(r.Family),
+          nz(r.UnitClass),
+          models || null,
+          nz(r.LootId),
+          nz(r.SkinningLootId),
+          nz(r.PickpocketLootId),
+          credit || null,
+          num(r.Entry),
+        );
+        if (r.Name) name.run("creature", num(r.Entry), r.Name);
+        continue;
+      }
       insertCreature.run(
         num(r.Entry),
         num(r.MinLevel),
@@ -197,28 +418,21 @@ async function classicDb(db: Database) {
     });
   }
 
-  // pfQuest's spawns: a zone and a point on its map, for every creature and object
-  const insertPf = db.prepare("INSERT INTO spawn VALUES (?, NULL, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, 'pfquest')");
-  for (const [kind, file] of [
-    ["creature", "units"],
-    ["object", "objects"],
-  ] as const) {
-    const spawns = await pfSpawns(file);
-    run(`spawn ${kind} (pfquest)`, () => {
-      for (const s of spawns) insertPf.run(kind, s.id, s.zone, s.x, s.y);
-      return spawns.length;
-    });
-  }
-
   // objects (a text's first page, a node's lock, a chest's loot)
   const objects = rows(sql, "gameobject_template");
   const insertObject = db.prepare("INSERT INTO object VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb')");
+  const objectColumns = db.prepare(
+    "UPDATE object SET type = ?, display_id = ?, faction_id = ?, lock_id = ?, page_id = ?, loot_id = ?, data = ? WHERE id = ?",
+  );
   run("object", () => {
     for (const r of objects) {
       const type = num(r.type);
       const data: number[] = [];
       for (let i = 0; i <= 23; i++) data.push(Number(r[`data${i}`] ?? 0));
-      insertObject.run(
+      const insert = questieObjects.has(num(r.entry)!)
+        ? (...v: (number | string | null)[]) => objectColumns.run(...v.slice(1), v[0])
+        : (...v: (number | string | null)[]) => insertObject.run(...v);
+      insert(
         num(r.entry),
         type,
         nz(r.displayId),
@@ -233,15 +447,7 @@ async function classicDb(db: Database) {
     return objects.length;
   });
 
-  // items: the client's where it has them (its names won), the database's for the rest
-  run(
-    "item (client)",
-    () =>
-      db.run(`INSERT INTO item
-        SELECT s.ID, i.ClassID, i.SubclassID, s.OverallQualityID, s.InventoryType, s.ItemLevel, s.RequiredLevel,
-               s.ContainerSlots, NULLIF(s.PageID, 0), NULLIF(s.StartQuestID, 0), NULL, NULL, 'client'
-        FROM client_ItemSparse s LEFT JOIN client_Item i ON i.ID = s.ID`).changes,
-  );
+  // items: the client's and Questie's first (their rows won), the database's for the rest
   const items = rows(sql, "item_template");
   const insertItem = db.prepare("INSERT OR IGNORE INTO item VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb')");
   const display = db.prepare("UPDATE item SET display_id = ? WHERE id = ? AND display_id IS NULL");
@@ -272,7 +478,12 @@ async function classicDb(db: Database) {
   const insertQuest = db.prepare(
     "INSERT INTO quest VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, 'classicdb')",
   );
-  const insertText = db.prepare("INSERT INTO quest_text VALUES (?, 'enUS', ?, ?, 'classicdb')");
+  const insertText = db.prepare("INSERT OR IGNORE INTO quest_text VALUES (?, 'enUS', ?, ?, 'classicdb')");
+  const questColumns = db.prepare("UPDATE quest SET type = ?, next_id = ? WHERE id = ?");
+  // (Questie's objectives carry no count: the database's, where it asks the same thing)
+  const objectiveCount = db.prepare(
+    "UPDATE quest_objective SET count = ? WHERE quest_id = ? AND kind = ? AND target_id = ? AND source = 'questie' AND count IS NULL",
+  );
   const insertObjective = db.prepare("INSERT INTO quest_objective VALUES (?, ?, ?, ?, ?, NULL, 'classicdb')");
   const insertReward = db.prepare("INSERT INTO quest_reward VALUES (?, ?, ?, ?, 'classicdb')");
   const TEXTS: [string, string][] = [
@@ -290,6 +501,27 @@ async function classicDb(db: Database) {
     for (const r of quests) {
       const id = num(r.entry);
       const zone = num(r.ZoneOrSort) ?? 0;
+      if (questieQuests.has(id!)) {
+        // Questie's quest: the database's type, next quest, texts, rewards (not
+        // reputation: Questie's), its objectives' counts
+        questColumns.run(nz(r.Type), nz(r.NextQuestId), id);
+        if (r.Title) name.run("quest", id, r.Title);
+        for (const [field, col] of TEXTS) if (r[col]) insertText.run(id, field, r[col]);
+        for (let i = 1; i <= 4; i++) {
+          const target = num(r[`ReqCreatureOrGOId${i}`]) ?? 0;
+          if (target > 0) objectiveCount.run(num(r[`ReqCreatureOrGOCount${i}`]), id, "creature", target);
+          if (target < 0) objectiveCount.run(num(r[`ReqCreatureOrGOCount${i}`]), id, "object", -target);
+          if (nz(r[`ReqItemId${i}`])) objectiveCount.run(num(r[`ReqItemCount${i}`]), id, "item", num(r[`ReqItemId${i}`]));
+          if (nz(r[`ReqSourceId${i}`])) objectiveCount.run(num(r[`ReqSourceCount${i}`]), id, "source", num(r[`ReqSourceId${i}`]));
+          if (nz(r[`RewItemId${i}`])) insertReward.run(id, "item", num(r[`RewItemId${i}`]), num(r[`RewItemCount${i}`]));
+        }
+        for (let i = 1; i <= 6; i++)
+          if (nz(r[`RewChoiceItemId${i}`]))
+            insertReward.run(id, "choice", num(r[`RewChoiceItemId${i}`]), num(r[`RewChoiceItemCount${i}`]));
+        if (nz(r.RewSpell)) insertReward.run(id, "spell", num(r.RewSpell), null);
+        if (nz(r.RewSpellCast)) insertReward.run(id, "cast", num(r.RewSpellCast), null);
+        continue;
+      }
       insertQuest.run(
         id,
         num(r.QuestLevel),
@@ -338,15 +570,21 @@ async function classicDb(db: Database) {
     ["gameobject_involvedrelation", "end", "object"],
   ]) {
     const data = rows(sql, table);
+    // (who starts and ends a quest: Questie's, the database's only for a quest Questie lacks)
     run(`quest_relation ${table}`, () => {
-      for (const r of data) insertRelation.run(num(r.quest), role, kind, num(r.id));
-      return data.length;
+      let n = 0;
+      for (const r of data)
+        if (!questieQuests.has(num(r.quest)!)) {
+          insertRelation.run(num(r.quest), role, kind, num(r.id));
+          n++;
+        }
+      return n;
     });
   }
   run("quest_relation item", () => {
     let n = 0;
     for (const r of items)
-      if (nz(r.startquest)) {
+      if (nz(r.startquest) && !questieQuests.has(num(r.startquest)!)) {
         insertRelation.run(num(r.startquest), "start", "item", num(r.entry));
         n++;
       }
@@ -354,6 +592,7 @@ async function classicDb(db: Database) {
   });
   // loot, vendors, trainers
   const insertLoot = db.prepare("INSERT INTO loot VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'classicdb')");
+  const insertQuestieLoot = db.prepare("INSERT INTO loot VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, 'questie')");
   for (const [table, kind] of [
     ["creature_loot_template", "creature"],
     ["gameobject_loot_template", "object"],
@@ -382,6 +621,25 @@ async function classicDb(db: Database) {
       return data.length;
     });
   }
+  // (Questie's drops where the database has none for the item: Forever's own)
+  run("loot (questie)", () => {
+    const dropped = new Set((db.query("SELECT DISTINCT item_id AS id FROM loot WHERE item_id IS NOT NULL").all() as { id: number }[]).map((r) => r.id));
+    let n = 0;
+    for (const [sid, it] of Object.entries(q.items)) {
+      const id = Number(sid);
+      if (dropped.has(id)) continue;
+      for (const [field, kind] of [
+        ["npcDrops", "creature"],
+        ["objectDrops", "object"],
+        ["itemDrops", "item"],
+      ] as const)
+        for (const from of (it[field] ?? []) as number[]) {
+          insertQuestieLoot.run(kind, from, id);
+          n++;
+        }
+    }
+    return n;
+  });
   const vendorTemplate = new Map<number, number[]>();
   for (const r of rows(sql, "npc_vendor_template")) {
     const list = vendorTemplate.get(num(r.entry)!) ?? [];
@@ -400,6 +658,19 @@ async function classicDb(db: Database) {
         insertVendor.run(num(c.Entry), item);
         n++;
       }
+    return n;
+  });
+  // (Questie's vendors for an item the database sells nowhere)
+  const sold = new Set((db.query("SELECT DISTINCT item_id AS id FROM vendor").all() as { id: number }[]).map((r) => r.id));
+  const insertQuestieVendor = db.prepare("INSERT INTO vendor VALUES (?, ?, 'questie')");
+  run("vendor (questie)", () => {
+    let n = 0;
+    for (const [sid, it] of Object.entries(q.items))
+      if (!sold.has(Number(sid)))
+        for (const npc of (it.vendors ?? []) as number[]) {
+          insertQuestieVendor.run(npc, Number(sid));
+          n++;
+        }
     return n;
   });
   const trainerTemplate = new Map<number, Row[]>();
@@ -607,25 +878,19 @@ export async function build(game: Game, file: string) {
   source.run("client", `${b.product} ${b.build}`, "https://wago.tools", "Blizzard's");
   const c = PINS.repos.classicdb;
   source.run("classicdb", c.commit, `https://github.com/${c.repo}`, "GPL-3.0");
-  const pf = PINS.repos.pfquest;
-  source.run("pfquest", pf.commit, `https://github.com/${pf.repo}`, "MIT");
-  source.run("wowhead", "data/wowhead (bin/names.ts)", "https://www.wowhead.com", "Wowhead's");
-  if (game === "forever") {
-    const att = PINS.repos.allthethings,
-      qdb = PINS.repos.questiedb;
-    source.run("allthethings", att.commit, `https://github.com/${att.repo}`, "MIT");
-    source.run("questiedb", qdb.commit, `https://github.com/${qdb.repo}`, "none stated (credited)");
-  }
+  const qd = PINS.repos.questie;
+  source.run("questie", qd.commit, `https://github.com/${qd.repo}`, "none stated (credited)");
+  source.run("wowhead", "data/wowhead (frozen)", "https://www.wowhead.com", "Wowhead's");
   console.log(`${game}: the client's tables (${b.build})`);
   await clientTables(db, game);
   console.log(`${game}: names in every language`);
   await clientNames(db, game);
+  clientItems(db);
+  console.log(`${game}: Questie (${qd.commit.slice(0, 12)})`);
+  const data = await questie(game);
+  questieWorld(db, data);
   console.log(`${game}: the Classic database (${c.commit.slice(0, 12)})`);
-  await classicDb(db);
-  if (game === "forever") {
-    console.log(`forever: Forever's own (AllTheThings ${PINS.repos.allthethings.commit.slice(0, 12)}, QuestieDB ${PINS.repos.questiedb.commit.slice(0, 12)})`);
-    await foreverLayer(db);
-  }
+  await classicDb(db, data);
   wowheadNames(db, game);
   wowheadBooks(db, game);
   chains(db);

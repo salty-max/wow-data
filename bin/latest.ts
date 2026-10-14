@@ -56,6 +56,7 @@ for (const [game, pin] of Object.entries(pins.builds)) {
 const token = process.env.GITHUB_TOKEN;
 const repoLines: string[] = [];
 for (const [name, r] of Object.entries(pins.repos)) {
+  if ((r as { legacy?: string }).legacy) continue; // (a pin kept for an addon's old scripts: not followed)
   const head = await fetchRetry(`https://api.github.com/repos/${r.repo}/commits?per_page=1`, {
     headers: { Accept: "application/vnd.github+json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
@@ -79,7 +80,7 @@ const text = [
   "",
   "### The community databases",
   "",
-  "Forever's own new creatures and quests come from these, not from the client's tables.",
+  "The world (quests, creatures, objects) comes from these, not from the client's tables.",
   "",
   ...repoLines,
   "",
