@@ -172,7 +172,8 @@ CREATE TABLE quest (
   removed        INTEGER,
   source         TEXT NOT NULL,
   special_flags  INTEGER,  -- the Classic database's: 1 repeatable, 2 an event or an escort (no objective counts it)
-  exclusive_group INTEGER  -- one quest of the group only (Volcor's escape: stealth or force)
+  exclusive_group INTEGER, -- one quest of the group only (Volcor's escape: stealth or force)
+  src_item_id    INTEGER   -- an item the quest hands over at its start (Questie's, else the Classic database's)
 );
 -- A quest's texts, per language (the Classic database's are English; Wowhead
 -- gives the objectives in its nine languages): details, objectives, request, reward, end.

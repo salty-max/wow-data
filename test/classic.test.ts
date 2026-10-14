@@ -75,6 +75,11 @@ describe.skipIf(!built)("classic.db", () => {
     // (Breastplate of Might, a warrior's; plans any class may learn: no limit)
     expect(one("SELECT allowable_class FROM item WHERE id = 16865")).toEqual({ allowable_class: 1 });
     expect(one("SELECT allowable_class FROM item WHERE id = 12720")).toEqual({ allowable_class: null });
+    // (The Unsent Letter: the letter it gave you, to deliver, which Questie leaves out)
+    expect(one("SELECT target_id, source FROM quest_objective WHERE quest_id = 373 AND kind = 'item'")).toEqual({
+      target_id: 2874,
+      source: "classicdb",
+    });
     // (a warlock's lesson teaching Summon Imp)
     expect(one("SELECT EffectTriggerSpell FROM client_SpellEffect WHERE SpellID = 1366 AND Effect = 36")).toEqual({
       EffectTriggerSpell: 688,

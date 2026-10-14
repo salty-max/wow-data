@@ -30,6 +30,7 @@ const CLIENT_TABLES = [
   "DungeonEncounter",
   "SpellName",
   "SpellEffect",
+  "CharStartOutfit",
   "SkillLine",
   "SkillLineAbility",
   "TalentTab",
@@ -257,8 +258,8 @@ function questieWorld(db: Database, q: QuestieData) {
 
   // quests
   const quest = db.prepare(
-    `INSERT INTO quest (id, level, min_level, zone_id, sort_id, races, classes, skill_line_id, prev_id, next_in_chain, flags, source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'questie')`,
+    `INSERT INTO quest (id, level, min_level, zone_id, sort_id, races, classes, skill_line_id, prev_id, next_in_chain, flags, src_item_id, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'questie')`,
   );
   const text = db.prepare("INSERT OR IGNORE INTO quest_text VALUES (?, ?, 'objectives', ?, 'questie')");
   const objective = db.prepare("INSERT OR IGNORE INTO quest_objective VALUES (?, ?, ?, ?, ?, ?, 'questie')");
@@ -285,6 +286,7 @@ function questieWorld(db: Database, q: QuestieData) {
         nz(prev),
         nz(r.nextQuestInChain),
         nz(r.questFlags),
+        nz(r.sourceItemId),
       );
       if (typeof r.name === "string") name.run("quest", id, "enUS", r.name);
       for (const p of list(r.preQuestSingle)) if (typeof p === "number" && p) prereq.run(id, p, "any");
@@ -510,11 +512,11 @@ async function classicDb(db: Database, q: QuestieData) {
   const quests = rows(sql, "quest_template");
   const insertPrereq = db.prepare("INSERT OR IGNORE INTO quest_prereq VALUES (?, ?, 'all', 'classicdb')");
   const insertQuest = db.prepare(
-    "INSERT INTO quest VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, 'classicdb', ?, ?)",
+    "INSERT INTO quest VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, 'classicdb', ?, ?, ?)",
   );
   const insertText = db.prepare("INSERT OR IGNORE INTO quest_text VALUES (?, 'enUS', ?, ?, 'classicdb')");
   const questColumns = db.prepare(
-    "UPDATE quest SET type = ?, next_id = ?, special_flags = ?, exclusive_group = ? WHERE id = ?",
+    "UPDATE quest SET type = ?, next_id = ?, special_flags = ?, exclusive_group = ?, src_item_id = COALESCE(src_item_id, ?) WHERE id = ?",
   );
   const exclusive = (r: Row) => ((num(r.ExclusiveGroup) ?? 0) > 0 ? num(r.ExclusiveGroup) : null);
   // (Questie's objectives carry no count: the database's, where it asks the same thing)
@@ -534,6 +536,14 @@ async function classicDb(db: Database, q: QuestieData) {
     ["objective3", "ObjectiveText3"],
     ["objective4", "ObjectiveText4"],
   ];
+  // (the items Questie's objectives name: an item asked that Questie leaves out
+  // is the database's, a quest's own letter to deliver most of all: Questie
+  // doesn't list the item a quest gave you at its start)
+  const questieItems = new Set(
+    (db.query("SELECT quest_id || ':' || target_id AS k FROM quest_objective WHERE kind = 'item' AND source = 'questie'").all() as { k: string }[]).map(
+      (r) => r.k,
+    ),
+  );
   run("quest", () => {
     for (const r of quests) {
       const id = num(r.entry);
@@ -541,7 +551,7 @@ async function classicDb(db: Database, q: QuestieData) {
       if (questieQuests.has(id!)) {
         // Questie's quest: the database's type, next quest, texts, rewards (not
         // reputation: Questie's), its objectives' counts
-        questColumns.run(nz(r.Type), nz(r.NextQuestId), nz(r.SpecialFlags), exclusive(r), id);
+        questColumns.run(nz(r.Type), nz(r.NextQuestId), nz(r.SpecialFlags), exclusive(r), nz(r.SrcItemId), id);
         if ((num(r.RewOrReqMoney) ?? 0) > 0) insertReward.run(id, "money", 0, num(r.RewOrReqMoney));
         if (nz(r.PrevQuestId)) insertPrereq.run(id, num(r.PrevQuestId));
       if (r.Title) name.run("quest", id, r.Title);
@@ -550,7 +560,11 @@ async function classicDb(db: Database, q: QuestieData) {
           const target = num(r[`ReqCreatureOrGOId${i}`]) ?? 0;
           if (target > 0) objectiveCount.run(num(r[`ReqCreatureOrGOCount${i}`]), id, "creature", target);
           if (target < 0) objectiveCount.run(num(r[`ReqCreatureOrGOCount${i}`]), id, "object", -target);
-          if (nz(r[`ReqItemId${i}`])) objectiveCount.run(num(r[`ReqItemCount${i}`]), id, "item", num(r[`ReqItemId${i}`]));
+          if (nz(r[`ReqItemId${i}`])) {
+            objectiveCount.run(num(r[`ReqItemCount${i}`]), id, "item", num(r[`ReqItemId${i}`]));
+            if (!questieItems.has(`${id}:${num(r[`ReqItemId${i}`])}`))
+              insertObjective.run(id, i, "item", num(r[`ReqItemId${i}`]), num(r[`ReqItemCount${i}`]));
+          }
           if (nz(r[`ReqSourceId${i}`])) objectiveCount.run(num(r[`ReqSourceCount${i}`]), id, "source", num(r[`ReqSourceId${i}`]));
           if (nz(r[`RewItemId${i}`])) insertReward.run(id, "item", num(r[`RewItemId${i}`]), num(r[`RewItemCount${i}`]));
         }
@@ -577,6 +591,7 @@ async function classicDb(db: Database, q: QuestieData) {
         num(r.QuestFlags),
         nz(r.SpecialFlags),
         exclusive(r),
+        nz(r.SrcItemId),
       );
       if ((num(r.RewOrReqMoney) ?? 0) > 0) insertReward.run(id, "money", 0, num(r.RewOrReqMoney));
       if (r.Title) name.run("quest", id, r.Title);
