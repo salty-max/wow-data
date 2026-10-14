@@ -133,13 +133,18 @@ Codex's pages and unlocks, the translations we wrote (the Codex's
 About two days for steps 1 to 4, then half a day to a day per addon: done
 before Forever's launch on 4 November.
 
-## Open questions
+## Decisions (the user's, 14 October 2026)
 
-- SQLite, as proposed, or plain JSON files per table? SQLite: one file, SQL
-  from both languages, small. JSON: readable in a diff, but every script
-  loads whole tables.
-- Should `forever.db` keep Classic quests and creatures Forever removed? No
-  source lists the removals yet: kept, and marked once a source says so.
-- Wowhead's names for creatures and quests come from its Forever and Classic
-  databases, which may lag the game. Where the client itself names a thing,
-  the client wins.
+- **SQLite**, one file per game: SQL from TypeScript and Python alike.
+- **`forever.db` keeps Classic's content** that Forever may have removed:
+  no source lists the removals yet. A row is marked removed (`removed = 1`,
+  its source) once one does, never dropped.
+- **IDs everywhere** (the user's rule): if a thing has an id, the database
+  uses it. Every link between tables is an id (a zone, an area, a map, a
+  faction, a family, a type, a model, a spell, a skill, a page, a quest, an
+  npc, an item), never a name. A thing's names live in one place, the
+  `name` table, by kind, id and language, English included: no entity table
+  repeats a name.
+- **The client wins on names.** Where the client's own tables name a thing,
+  that name; Wowhead's tooltips only for what the client doesn't name
+  (creatures, quests, objects). Wowhead's databases can lag the game.
