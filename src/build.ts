@@ -782,15 +782,34 @@ function wowheadNames(db: Database, game: Game) {
   const dir = path.join(ROOT, "data", "wowhead", game);
   if (!existsSync(dir)) return;
   const insert = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'wowhead')");
+  // The game's own names (Wowhead mines them from each client), which win over
+  // Questie's where they truly differ: Questie's translations lag the
+  // clients' (Forever's "Sentinelle de Dolanaar", "Finkle Einhorn"; Classic
+  // Era's French keeps "Le seigneur de Blackrock", "Goulet des Warsong", where
+  // Questie has the later "Rochenoire", "Chanteguerres"). Not a placeholder,
+  // nor the English left in.
+  const current = db.prepare("SELECT name, source FROM name WHERE kind = ? AND id = ? AND locale = ?");
+  const english = db.prepare("SELECT name FROM name WHERE kind = ? AND id = ? AND locale = 'enUS'");
+  const replace = db.prepare("UPDATE name SET name = ?, source = 'wowhead' WHERE kind = ? AND id = ? AND locale = ?");
+  const fold = (s: string) => s.replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, " ").trim();
   for (const f of readdirSync(dir).filter((f) => /^[a-z]{2}[A-Z]{2}\.json$/.test(f))) {
     const locale = f.slice(0, -5);
     const names = JSON.parse(readFileSync(path.join(dir, f), "utf8")) as Record<string, Record<string, string>>;
-    let n = 0;
+    let n = 0,
+      renamed = 0;
     db.transaction(() => {
       for (const [kind, byId] of Object.entries(names))
-        for (const [id, name] of Object.entries(byId)) n += insert.run(kind, Number(id), locale, name).changes;
+        for (const [id, name] of Object.entries(byId)) {
+          const had = current.get(kind, Number(id), locale) as { name: string; source: string } | null;
+          if (had && had.source === "questie" && fold(had.name) !== fold(name) && !/^\[|<PH>|\bUNUSED\b/i.test(name)) {
+            const en = (english.get(kind, Number(id)) as { name: string } | null)?.name;
+            if (!en || fold(en) !== fold(name)) renamed += replace.run(name, kind, Number(id), locale).changes;
+            continue;
+          }
+          n += insert.run(kind, Number(id), locale, name).changes;
+        }
     })();
-    log(`names wowhead ${locale}: ${n}`);
+    log(`names wowhead ${locale}: ${n}${renamed ? `, ${renamed} of the game's own over Questie's` : ""}`);
   }
 }
 

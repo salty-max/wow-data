@@ -4,7 +4,8 @@
 // <kind>/<id>?locale=<n>. Fetched slowly, cached (.cache/wowhead/), and the
 // names kept in the repository (data/wowhead/<game>/<locale>.json), so a
 // build never asks Wowhead again. The client's own names win (the user's
-// call): the build adds these only where the client has none.
+// call): the build adds these where the client has none, and over Questie's
+// where the two truly differ (Wowhead's are mined from the client).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { CACHE } from "./cache";

@@ -47,10 +47,12 @@ translations in nine languages.
 | **The client** (wago.tools, the pinned builds) | its own tables, whole (`client_<Table>`); the names it gives (areas, maps, spells, skills, items, factions, flight masters...) in all eleven languages; items |
 | **QuestieDB** (the pinned commit) | quests (who starts and ends them, what they ask, their requirements, reputation rewards); NPCs and objects (levels, rank, flags, title, spawns by zone, paths); items the client lacks, and their drops and vendors where the Classic database has none; names and quests' objectives in nine languages |
 | **The Classic database** (cmangos) | what Questie lacks: a creature's type, family and models, an object's type, lock and first page, a quest's type, details and item rewards, its objectives' counts (merged into Questie's rows), loot odds, vendors, trainers, books, speech in seven languages, world coordinates (spawns with their own id, the paths they walk), anything Questie doesn't have |
-| **Wowhead, frozen** (`data/wowhead/`) | French names Questie doesn't translate (Forever's own content), fetched once; French book pages a browser saved. No job asks Wowhead |
+| **Wowhead, frozen** (`data/wowhead/`) | French names Questie doesn't translate (Forever's own content), and the clients' own where Questie's lag them (mined by Wowhead: 87 for Forever, 71 for Classic Era, 14 Oct), fetched once; French book pages a browser saved. No job asks Wowhead |
 
 Names, by precedence: the client's, Questie's, the Classic database's, then
-the frozen Wowhead ones. Questie's objectives carry no counts: a Classic
+the frozen Wowhead ones, which are the clients' own (mined) and so win over
+Questie's where the two truly differ (Questie's translations lag the clients'
+renames). Questie's objectives carry no counts: a Classic
 quest's come from the Classic database, Forever's own are in the
 objective's text ("Slay 8 Ursera Scavengers...").
 
@@ -124,7 +126,8 @@ before Forever's launch on 4 November.
   `name` table, by kind, id and language, English included: no entity table
   repeats a name.
 - **The client wins on names.** Then Questie's, the Classic database's, and
-  last the frozen Wowhead ones.
+  last the frozen Wowhead ones; but Wowhead's mine the clients, so where
+  they truly differ from Questie's, they are the client's and win.
 - **Three sources** (the client, QuestieDB, the Classic database), one owner
   a table: fewer sources, fewer errors, less dependence. AllTheThings,
   pfQuest, QuestieDB's old traces and live Wowhead fetching are dropped from

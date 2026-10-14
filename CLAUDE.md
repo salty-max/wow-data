@@ -32,12 +32,16 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   from lua.org's source into the cache on macOS), then the Classic
   database for what Questie lacks (`src/sql.ts`), then the frozen Wowhead
   names and books; one owner a table, names client > Questie > Classic
-  database > Wowhead); `src/db.ts`
+  database > Wowhead, except where Wowhead's (mined from each client) truly
+  differ from Questie's lagging translations: those are the game's own);
+  `src/db.ts`
   (`openDb(game)`, read only; `dbPath`). IDs everywhere, names only in
   `name`, every row its `source`. `test/classic.test.ts` and `test/forever.test.ts` check them against
   facts from the game (skipped where they aren't built).
 - Wowhead, frozen: `data/wowhead/<game>/<locale>.json` (names Questie
-  doesn't translate: Forever's own content) and `books-<locale>.json` (book
+  doesn't translate: Forever's own content; and the clients' own where
+  Questie's French lags them: "Sentinelle de Dolanaar", Classic's "Goulet
+  des Warsong") and `books-<locale>.json` (book
   pages saved from a browser). `bin/names.ts` fetched them once; it is a
   hand tool now, run only when a translation is missing, never by a job.
 - `.github/workflows/db.yml`: both databases built, tested and published as

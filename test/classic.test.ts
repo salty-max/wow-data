@@ -42,6 +42,8 @@ describe.skipIf(!built)("classic.db", () => {
   test("Classic's own names: Ironforge stays Ironforge in French", () => {
     expect(name("area", 1537, "frFR")).toBe("Ironforge");
     expect(name("quest", 182, "frFR")).toBe("La caverne des trolls");
+    // (Classic Era's own French, kept English, over Questie's later one)
+    expect(name("quest", 7782, "frFR")).toBe("Le seigneur de Blackrock");
     expect(one("SELECT count(*) AS n FROM name WHERE kind = 'creature_subname' AND locale = 'frFR' AND name LIKE '%(%)'")).toEqual({
       n: 0,
     });
