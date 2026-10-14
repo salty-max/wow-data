@@ -31,10 +31,15 @@ const order = (a: PlayerFact, b: PlayerFact) => {
 };
 
 for (const game of games) {
-  const res = await fetchRetry(`${server}/api/observations/export?game=${game}`, { headers: { authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error(`${game}: the site answered ${res.status}`);
-  const { facts } = (await res.json()) as { facts: Row[] };
-  const out: PlayerFact[] = facts.map((r) => [r.locale, r.kind, r.entity, r.field, r.value, r.build, Number(r.seen)]);
+  const out: PlayerFact[] = [];
+  // (a page at a time: the site answers a thousand facts a request)
+  for (let after: number | null = 0; after !== null; ) {
+    const res = await fetchRetry(`${server}/api/observations/export?game=${game}&after=${after}`, { headers: { authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`${game}: the site answered ${res.status}`);
+    const page = (await res.json()) as { facts: Row[]; next: number | null };
+    for (const r of page.facts) out.push([r.locale, r.kind, r.entity, r.field, r.value, r.build, Number(r.seen)]);
+    after = page.next;
+  }
   out.sort(order);
   const dest = path.join(ROOT, "data", "players", `${game}.json`);
   mkdirSync(path.dirname(dest), { recursive: true });
