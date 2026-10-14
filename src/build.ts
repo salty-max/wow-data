@@ -30,6 +30,7 @@ const CLIENT_TABLES = [
   "DungeonEncounter",
   "SpellName",
   "SpellEffect",
+  "SpellReagents",
   "CharStartOutfit",
   "SkillLine",
   "SkillLineAbility",
@@ -178,7 +179,7 @@ function questieWorld(db: Database, q: QuestieData) {
     log(`${label}: ${n} (${((performance.now() - t0) / 1000).toFixed(1)} s)`);
   };
   const name = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'questie')");
-  const spawn = db.prepare("INSERT INTO spawn VALUES (?, NULL, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, 'questie')");
+  const spawn = db.prepare("INSERT INTO spawn VALUES (?, NULL, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, 'questie', NULL, NULL)");
   // a table by zone: { zone: ... }. (Lua can't tell { [1] = ... } from a
   // list, so the export writes Dun Morogh's, zone 1, as an array: index i is
   // zone i + 1)
@@ -375,12 +376,18 @@ async function classicDb(db: Database, q: QuestieData) {
   // creatures and their spawns
   const creatures = rows(sql, "creature_template");
   const insertCreature = db.prepare(
-    "INSERT INTO creature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb', ?, ?)",
+    "INSERT INTO creature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb', ?, ?, ?)",
   );
   const creatureColumns = db.prepare(
     `UPDATE creature SET type_id = ?, family_id = ?, unit_class = ?, display_ids = ?, loot_id = ?,
-     skin_loot_id = ?, pick_loot_id = ?, kill_credit = ?, trainer_type = ?, trainer_class = ? WHERE id = ?`,
+     skin_loot_id = ?, pick_loot_id = ?, kill_credit = ?, trainer_type = ?, trainer_class = ?, unit_flags = ?,
+     faction_id = ?, npc_flags = ? WHERE id = ?`,
   );
+  // (a creature Questie has keeps Questie's row, but its server-side fields are
+  // the Classic database's, which a running server needs right: Questie's
+  // npc flags leave out vendors and trainers (Katie Hunter, Murak Winterborn)
+  // and its factions misplace some (Alterac Valley's miners under Orgrimmar's
+  // template); its levels and ranks stay)
   // (a trainer's kind, for a trainer only: TrainerType 0 is a class's, and every creature's default)
   const trainer = (r: Row) => ((num(r.NpcFlags) ?? 0) & 16 ? num(r.TrainerType) : null);
   run("creature", () => {
@@ -399,6 +406,9 @@ async function classicDb(db: Database, q: QuestieData) {
           credit || null,
           trainer(r),
           nz(r.TrainerClass),
+          num(r.UnitFlags),
+          nz(r.Faction),
+          num(r.NpcFlags),
           num(r.Entry),
         );
         if (r.Name) name.run("creature", num(r.Entry), r.Name);
@@ -421,6 +431,7 @@ async function classicDb(db: Database, q: QuestieData) {
         credit || null,
         trainer(r),
         nz(r.TrainerClass),
+        num(r.UnitFlags),
       );
       if (r.Name) name.run("creature", num(r.Entry), r.Name);
       if (r.SubName) name.run("creature_subname", num(r.Entry), r.SubName);
@@ -428,7 +439,7 @@ async function classicDb(db: Database, q: QuestieData) {
     return creatures.length;
   });
   const insertSpawn = db.prepare(
-    "INSERT INTO spawn VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'classicdb')",
+    "INSERT INTO spawn VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'classicdb', ?, ?)",
   );
   for (const [table, kind] of [
     ["creature", "creature"],
@@ -437,10 +448,68 @@ async function classicDb(db: Database, q: QuestieData) {
     const spawns = rows(sql, table);
     run(`spawn ${kind}`, () => {
       for (const r of spawns)
-        insertSpawn.run(kind, num(r.guid), num(r.id), num(r.map), num(r.position_x), num(r.position_y), num(r.position_z));
+        insertSpawn.run(
+          kind,
+          num(r.guid),
+          num(r.id),
+          num(r.map),
+          num(r.position_x),
+          num(r.position_y),
+          num(r.position_z),
+          kind === "creature" ? num(r.MovementType) : null,
+          kind === "creature" ? num(r.spawndist) : null,
+        );
       return spawns.length;
     });
   }
+
+  // the spawns another creature may take (a rare in an ordinary mob's place),
+  // and spawn groups, whose spawns share their entries
+  const spawnEntries = rows(sql, "creature_spawn_entry");
+  const insertSpawnEntry = db.prepare("INSERT OR IGNORE INTO spawn_entry VALUES ('creature', ?, ?, 'classicdb')");
+  run("spawn_entry", () => {
+    for (const r of spawnEntries) insertSpawnEntry.run(num(r.guid), num(r.entry));
+    return spawnEntries.length;
+  });
+  const groups = rows(sql, "spawn_group"),
+    groupEntries = rows(sql, "spawn_group_entry"),
+    groupSpawns = rows(sql, "spawn_group_spawn");
+  const insertGroup = db.prepare("INSERT INTO spawn_group VALUES (?, ?, 'classicdb')");
+  const insertGroupEntry = db.prepare("INSERT INTO spawn_group_entry VALUES (?, ?, 'classicdb')");
+  const insertGroupSpawn = db.prepare("INSERT INTO spawn_group_spawn VALUES (?, ?, 'classicdb')");
+  run("spawn_group", () => {
+    for (const r of groups) insertGroup.run(num(r.Id), num(r.Type) === 1 ? "object" : "creature");
+    for (const r of groupEntries) insertGroupEntry.run(num(r.Id), num(r.Entry));
+    for (const r of groupSpawns) insertGroupSpawn.run(num(r.Id), num(r.Guid));
+    return groups.length;
+  });
+
+  // a dungeon's encounters, what credits each (a boss's kill, most of them)
+  const encounters = rows(sql, "instance_encounters");
+  const insertEncounter = db.prepare("INSERT OR REPLACE INTO encounter VALUES (?, ?, ?, ?, 'classicdb')");
+  run("encounter", () => {
+    for (const r of encounters) insertEncounter.run(num(r.entry), num(r.creditType), num(r.creditEntry), nz(r.lastEncounterDungeon));
+    return encounters.length;
+  });
+  // the graveyards and other safe places, the game's events (their names in name)
+  const graves = rows(sql, "world_safe_locs");
+  const insertGrave = db.prepare("INSERT OR REPLACE INTO graveyard VALUES (?, ?, ?, ?, ?, 'classicdb')");
+  run("graveyard", () => {
+    for (const r of graves) {
+      insertGrave.run(num(r.id), num(r.map), num(r.x), num(r.y), num(r.z));
+      if (r.name) name.run("graveyard", num(r.id), r.name);
+    }
+    return graves.length;
+  });
+  const events = rows(sql, "game_event");
+  const insertEvent = db.prepare("INSERT OR REPLACE INTO game_event VALUES (?, ?, 'classicdb')");
+  run("game_event", () => {
+    for (const r of events) {
+      insertEvent.run(num(r.entry), nz(r.holiday));
+      if (r.description) name.run("game_event", num(r.entry), r.description);
+    }
+    return events.length;
+  });
 
   // objects (a text's first page, a node's lock, a chest's loot)
   const objects = rows(sql, "gameobject_template");
@@ -648,8 +717,11 @@ async function classicDb(db: Database, q: QuestieData) {
     return n;
   });
   // loot, vendors, trainers
-  const insertLoot = db.prepare("INSERT INTO loot VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'classicdb')");
-  const insertQuestieLoot = db.prepare("INSERT INTO loot VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, 'questie')");
+  const insertLoot = db.prepare("INSERT INTO loot VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'classicdb', ?)");
+  const insertQuestieLoot = db.prepare("INSERT INTO loot VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, 'questie', NULL)");
+  // (a condition of an active game event, type 12: the event; Winter or Summer Season Fishing)
+  const eventOf = new Map<number, number>();
+  for (const r of rows(sql, "conditions")) if (num(r.type) === 12) eventOf.set(num(r.condition_entry)!, num(r.value1)!);
   for (const [table, kind] of [
     ["creature_loot_template", "creature"],
     ["gameobject_loot_template", "object"],
@@ -673,6 +745,7 @@ async function classicDb(db: Database, q: QuestieData) {
           num(r.groupid),
           ref ? null : num(r.mincountOrRef),
           num(r.maxcount),
+          eventOf.get(num(r.condition_id) ?? 0) ?? null,
         );
       }
       return data.length;
@@ -898,7 +971,7 @@ function wowheadPoints(db: Database, game: Game) {
   const file = path.join(ROOT, "data", "wowhead", game, "points.json");
   if (!existsSync(file)) return;
   const points = JSON.parse(readFileSync(file, "utf8")) as Record<string, Record<string, Record<string, [number, number][]>>>;
-  const insert = db.prepare("INSERT INTO spawn VALUES (?, NULL, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, 'wowhead')");
+  const insert = db.prepare("INSERT INTO spawn VALUES (?, NULL, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, 'wowhead', NULL, NULL)");
   let n = 0;
   db.transaction(() => {
     for (const [kind, byId] of Object.entries(points))

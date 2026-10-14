@@ -65,7 +65,8 @@ CREATE TABLE creature (
   removed       INTEGER,  -- 1: Forever no longer has it (forever.db, when a source says so)
   source        TEXT NOT NULL,
   trainer_type  INTEGER,  -- a trainer's kind: 0 class, 1 mounts, 2 trades, 3 pets (the Classic database's)
-  trainer_class INTEGER   -- a class trainer's class (ChrClasses id)
+  trainer_class INTEGER,  -- a class trainer's class (ChrClasses id)
+  unit_flags    INTEGER   -- the Classic database's (0x02000000: not selectable, a helper)
 );
 CREATE TABLE object (
   id         INTEGER PRIMARY KEY,  -- the gameobject id
@@ -92,7 +93,9 @@ CREATE TABLE spawn (
   area_id   INTEGER,        -- AreaTable id, the zone (where a source gives it)
   ui_map_id INTEGER,        -- UiMap id of the map the percent is on, where a source gives one
   ux        REAL, uy REAL,  -- 0-100 on that map, else on the zone's map (area_id: Questie's)
-  source    TEXT NOT NULL
+  source    TEXT NOT NULL,
+  movement_type   INTEGER,  -- a creature's: 0 stands, 1 wanders, 2 walks its path (the Classic database's)
+  wander_distance REAL      -- how far it wanders from its spot, in yards
 );
 CREATE INDEX spawn_entity ON spawn (kind, entity_id);
 CREATE INDEX spawn_area ON spawn (area_id);
@@ -143,10 +146,59 @@ CREATE TABLE loot (
   group_id  INTEGER,
   min_count INTEGER,
   max_count INTEGER,
-  source    TEXT NOT NULL
+  source    TEXT NOT NULL,
+  event_id  INTEGER         -- a game event the row drops only during (the Classic database's conditions)
 );
 CREATE INDEX loot_source ON loot (kind, source_id);
 CREATE INDEX loot_item ON loot (item_id);
+-- The Classic database's: another creature that may stand at a spawn instead
+-- (a rare in an ordinary mob's place), and spawn groups, whose spawns share
+-- their entries
+CREATE TABLE spawn_entry (
+  kind      TEXT NOT NULL,     -- creature
+  spawn_id  INTEGER NOT NULL,  -- spawn.spawn_id
+  entity_id INTEGER NOT NULL,
+  source    TEXT NOT NULL,
+  PRIMARY KEY (kind, spawn_id, entity_id)
+);
+CREATE TABLE spawn_group (
+  id     INTEGER PRIMARY KEY,
+  kind   TEXT NOT NULL,  -- creature, object
+  source TEXT NOT NULL
+);
+CREATE TABLE spawn_group_entry (
+  group_id  INTEGER NOT NULL,
+  entity_id INTEGER NOT NULL,
+  source    TEXT NOT NULL
+);
+CREATE TABLE spawn_group_spawn (
+  group_id INTEGER NOT NULL,
+  spawn_id INTEGER NOT NULL,  -- spawn.spawn_id
+  source   TEXT NOT NULL
+);
+-- A dungeon's or a raid's encounters (the Classic database's): what credits one
+CREATE TABLE encounter (
+  id          INTEGER PRIMARY KEY,  -- DungeonEncounter id
+  credit_type INTEGER NOT NULL,     -- 0 a creature killed, 1 a spell cast
+  credit_id   INTEGER NOT NULL,     -- that creature or spell
+  last        INTEGER,              -- the dungeon it ends (lastEncounterDungeon), if any
+  source      TEXT NOT NULL
+);
+-- The graveyards and other safe places (WorldSafeLocs, the Classic
+-- database's), their names in name (kind graveyard)
+CREATE TABLE graveyard (
+  id     INTEGER PRIMARY KEY,
+  map_id INTEGER,
+  x      REAL, y REAL, z REAL,
+  source TEXT NOT NULL
+);
+-- The game's events (the Classic database's), their names in name (kind
+-- game_event: "Winter Season Fishing")
+CREATE TABLE game_event (
+  id      INTEGER PRIMARY KEY,
+  holiday INTEGER,  -- Holidays id
+  source  TEXT NOT NULL
+);
 CREATE TABLE vendor (
   npc_id  INTEGER NOT NULL,
   item_id INTEGER NOT NULL,

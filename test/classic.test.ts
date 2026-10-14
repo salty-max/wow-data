@@ -85,8 +85,25 @@ describe.skipIf(!built)("classic.db", () => {
       EffectTriggerSpell: 688,
     });
   });
+  test("what Yonder reads: who may stand at a spawn, bosses, graveyards, seasons, server flags", () => {
+    // (the dump's alternates: guid 804 is one of two creatures)
+    expect(all("SELECT entity_id FROM spawn_entry WHERE kind = 'creature' AND spawn_id = 804 ORDER BY entity_id")).toEqual([
+      { entity_id: 684 },
+      { entity_id: 772 },
+    ]);
+    expect(one("SELECT credit_type, credit_id FROM encounter WHERE credit_id = 11502")).toEqual({ credit_type: 0, credit_id: 11502 });
+    expect(one("SELECT count(*) AS n FROM graveyard")).toEqual({ n: 122 });
+    // (Winter Squid bites only in its season)
+    expect(one("SELECT n.name FROM loot l JOIN name n ON n.kind = 'game_event' AND n.id = l.event_id WHERE l.item_id = 13755")).toEqual({
+      name: "Winter Season Fishing",
+    });
+    // (the server's own: Katie Hunter sells, Alterac Valley's miners are the Stormpike's)
+    expect(one("SELECT faction_id, npc_flags FROM creature WHERE id = 384")).toEqual({ faction_id: 12, npc_flags: 135 });
+    expect(one("SELECT faction_id FROM creature WHERE id = 13099")).toEqual({ faction_id: 1214 });
+    expect(one("SELECT movement_type, wander_distance FROM spawn WHERE kind = 'creature' AND spawn_id = 1")).toBeTruthy();
+  });
   test("every row its source", () => {
-    for (const table of ["creature", "spawn", "object", "item", "quest", "loot", "name", "path"]) {
+    for (const table of ["creature", "spawn", "object", "item", "quest", "loot", "name", "path", "spawn_entry", "encounter", "graveyard", "game_event"]) {
       expect(one(`SELECT count(*) AS n FROM ${table} WHERE source IS NULL OR source = ''`)).toEqual({ n: 0 });
     }
   });

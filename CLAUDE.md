@@ -33,7 +33,9 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   database for what Questie lacks (`src/sql.ts`), then the frozen Wowhead
   names and books; one owner a table, names client > Questie > Classic
   database > Wowhead, except where Wowhead's (mined from each client) truly
-  differ from Questie's lagging translations: those are the game's own);
+  differ from Questie's lagging translations: those are the game's own; a
+  creature's server-side fields, faction, npc and unit flags, are the Classic
+  database's wherever it has the creature, which Questie's lack or misplace);
   `src/db.ts`
   (`openDb(game)`, read only; `dbPath`). IDs everywhere, names only in
   `name`, every row its `source`. `test/classic.test.ts` and `test/forever.test.ts` check them against
