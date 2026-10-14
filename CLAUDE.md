@@ -54,13 +54,12 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
 - Players' facts, `data/players/<game>/<locale>.json`: what the game told
   the players who said yes to the addons' opt-in (the kit's `K.collect`:
   quests' texts, givers and enders, creatures' names, levels, ranks, types
-  and where they were met, NPCs' lines, loot), sent by Ravenpost to the facts
-  inbox (`server/`, README.md: https://wow-data-facts.vercel.app, Vercel
-  project `wow-data-facts` on the jellycat team, private Blob store
-  `wow-data-facts` in fra1, no database, deployed with `vercel deploy --prod`
-  from `server/`; players link it with Battle.net, one account one voice) and
+  and where they were met, NPCs' lines, loot), sent by Ravenpost to its
+  inbox (salty-max/ravenpost's `inbox/`, its README.md:
+  https://ravenpost-inbox.vercel.app, a private Blob store, no database;
+  players link it with Battle.net from Ravenpost, one account one voice) and
   merged from it daily by `bin/players.ts` (`pull`, then `done` once the pull
-  request holds them; `FACTS_SERVER`, `FACTS_TOKEN`), run by
+  request holds them; `INBOX_URL`, `INBOX_TOKEN`), run by
   `.github/workflows/players.yml` (a pull request, never merged by itself,
   its waiting branch merged into again). Each fact keeps who saw it, a hash
   of the account and the fact (no one's facts tied together), 20 at most.

@@ -1,6 +1,6 @@
 // Players' facts (data/players/<game>/<locale>.json, bin/players.ts): what
 // the game told the players who said yes to the addons' opt-in (the kit's
-// collector), sent by Ravenpost to the facts inbox (server/) and merged from
+// collector), sent by Ravenpost to its inbox (salty-max/ravenpost, inbox/) and merged from
 // there daily: quests' texts, givers and enders, creatures' names, levels,
 // ranks, types and where they were met, what NPCs said, what a creature or an
 // object gave. The live game's own words, so new content is known without
@@ -51,7 +51,7 @@ export function loadPlayers(db: Database, game: Game) {
     };
     for (const [kind, entity, field, value, build, who] of lines) facts.push([locale, kind, entity, field, value, build, who.length]);
   }
-  db.prepare("INSERT OR IGNORE INTO source VALUES ('players', 'data/players', 'https://github.com/salty-max/wow-data/tree/main/server', 'the players'' own, through the addons'' opt-in')").run();
+  db.prepare("INSERT OR IGNORE INTO source VALUES ('players', 'data/players', 'https://github.com/salty-max/ravenpost/tree/main/inbox', 'the players'' own, through the addons'' opt-in')").run();
   const told = players(db, facts);
   console.log(`  players: ${Object.entries(told).map(([k, n]) => `${n} ${k}`).join(", ") || "nothing new"}`);
 }

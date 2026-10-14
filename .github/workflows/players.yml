@@ -1,11 +1,11 @@
 # Every day, and by hand: players' facts (what the game told the players who
-# said yes to the addons' opt-in, sent by Ravenpost to the facts inbox,
-# server/) merged into data/players (bin/players.ts). When they changed, a
+# said yes to the addons' opt-in, sent by Ravenpost to its inbox,
+# salty-max/ravenpost's inbox/) merged into data/players (bin/players.ts). When they changed, a
 # pull request, never merged by itself: once merged, the databases are built
 # again (db.yml) and each addon's daily job takes them. The pull request's
 # branch is merged into again while it waits, so nothing taken out of the
-# inbox is lost. Needs the variable FACTS_SERVER (the inbox's address) and the
-# secret FACTS_TOKEN (its token for wow-data, the same as on Vercel).
+# inbox is lost. Needs the variable INBOX_URL (the inbox's address) and the
+# secret INBOX_TOKEN (its token for wow-data, the same as on Vercel), both set.
 name: Players
 
 on:
@@ -27,11 +27,11 @@ jobs:
       - name: Merge
         id: pull
         env:
-          FACTS_SERVER: ${{ vars.FACTS_SERVER }}
-          FACTS_TOKEN: ${{ secrets.FACTS_TOKEN }}
+          INBOX_URL: ${{ vars.INBOX_URL }}
+          INBOX_TOKEN: ${{ secrets.INBOX_TOKEN }}
         run: |
-          if [ -z "$FACTS_SERVER" ] || [ -z "$FACTS_TOKEN" ]; then
-            echo "No FACTS_SERVER variable or FACTS_TOKEN secret: nothing merged." >> "$GITHUB_STEP_SUMMARY"
+          if [ -z "$INBOX_URL" ] || [ -z "$INBOX_TOKEN" ]; then
+            echo "No INBOX_URL variable or INBOX_TOKEN secret: nothing merged." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           # (the pull request still waiting: its facts are the start)
@@ -64,6 +64,6 @@ jobs:
       - name: Done
         if: steps.pull.outputs.pulled == 'true'
         env:
-          FACTS_SERVER: ${{ vars.FACTS_SERVER }}
-          FACTS_TOKEN: ${{ secrets.FACTS_TOKEN }}
+          INBOX_URL: ${{ vars.INBOX_URL }}
+          INBOX_TOKEN: ${{ secrets.INBOX_TOKEN }}
         run: bun bin/players.ts done

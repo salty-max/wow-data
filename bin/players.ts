@@ -1,10 +1,11 @@
-// Players' facts: the facts inbox's uploads (server/: what the game told the
+// Players' facts: Ravenpost's inbox (salty-max/ravenpost, inbox/: what the game told the
 // players who said yes to the addons' opt-in, sent by Ravenpost) merged into
 // data/players/<game>/<locale>.json, which the build loads (src/players.ts).
 //   bun bin/players.ts pull [classic|forever|all]   merge the inbox's uploads
 //   bun bin/players.ts done                          out of the inbox, once merged
-// FACTS_SERVER: the inbox (http://localhost:3003 for a local one);
-// FACTS_TOKEN: its token for wow-data. Run daily by
+// INBOX_URL: Ravenpost's inbox (https://ravenpost-inbox.vercel.app, or
+// http://localhost:3003 for a local one);
+// INBOX_TOKEN: its token for wow-data. Run daily by
 // .github/workflows/players.yml: pull, a pull request, then done.
 //
 // A file: { facts: [[kind, entity, field, value, build, [who…]], …] }, a fact
@@ -18,8 +19,8 @@ import { fetchRetry } from "../src/fetch";
 import { CACHE } from "../src/cache";
 import { type Game, ROOT } from "../src/pins";
 
-const server = (process.env.FACTS_SERVER ?? "").replace(/\/$/, "");
-const token = process.env.FACTS_TOKEN;
+const server = (process.env.INBOX_URL ?? "").replace(/\/$/, "");
+const token = process.env.INBOX_TOKEN;
 const MERGED = path.join(CACHE, "players-merged.json"); // (the uploads merged, for `done`)
 const KEEP = 20;
 const BATCH_BYTES = 3_000_000;
@@ -101,7 +102,7 @@ async function pull(game: Game): Promise<string[]> {
 
 const [command, which = "all"] = process.argv.slice(2);
 if (!server || !token) {
-  console.error("FACTS_SERVER and FACTS_TOKEN: the facts inbox and its token for wow-data");
+  console.error("INBOX_URL and INBOX_TOKEN: Ravenpost's inbox and its token for wow-data");
   process.exit(2);
 }
 if (command === "pull") {
