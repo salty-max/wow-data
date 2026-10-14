@@ -1,0 +1,47 @@
+# Every day, and by hand: have the game's builds moved past pins.json? If so,
+# a pull request moving them (bin/latest.ts), never merged by itself. The
+# addons' own daily jobs build their data again from the pins once merged.
+# Forever's builds under another product and the community databases' newer
+# commits are told in the run's summary and the pull request, never followed.
+name: Pins
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Newer builds?
+        id: pins
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          bun bin/latest.ts --write --summary "$RUNNER_TEMP/pins.md"
+          cat "$RUNNER_TEMP/pins.md" >> "$GITHUB_STEP_SUMMARY"
+          {
+            cat "$RUNNER_TEMP/pins.md"
+            echo
+            echo "Opened by .github/workflows/pins.yml. Once merged, each addon's daily job builds its data again from these pins and opens its own pull request."
+          } > "$RUNNER_TEMP/body.md"
+      - run: bun run check
+        if: steps.pins.outputs.moved == 'true'
+      - name: Pull request
+        if: steps.pins.outputs.moved == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: pins
+          delete-branch: true
+          commit-message: "chore: the game's builds moved"
+          title: "chore: the game's builds moved"
+          body-path: ${{ runner.temp }}/body.md
+          add-paths: pins.json

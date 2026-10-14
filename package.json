@@ -1,0 +1,15 @@
+{
+  "name": "wow-data",
+  "private": true,
+  "description": "The World of Warcraft game data the addons are built from: pinned client builds and community databases, downloaded once into one cache",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "latest": "bun bin/latest.ts",
+    "check": "tsc --noEmit && bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.0"
+  }
+}

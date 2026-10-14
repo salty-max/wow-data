@@ -1,0 +1,30 @@
+{
+  "builds": {
+    "classic": {
+      "product": "wow_classic_era",
+      "build": "1.15.9.70003"
+    },
+    "forever": {
+      "product": "wow_classic_beta",
+      "build": "1.60.1.70291"
+    }
+  },
+  "repos": {
+    "allthethings": {
+      "repo": "ATTWoWAddon/AllTheThings",
+      "commit": "a21caf2a7ec636785505a7f4e7e4311d16ce28af"
+    },
+    "questiedb": {
+      "repo": "Questie/QuestieDB",
+      "commit": "7e87203312ef7ba309b96361fed90e492e145cff"
+    },
+    "pfquest": {
+      "repo": "shagu/pfQuest",
+      "commit": "104f35678ca39ab1fb78b655f815cc7016f5e0c8"
+    },
+    "classicdb": {
+      "repo": "cmangos/classic-db",
+      "commit": "28ef6259c782928b08a8dc9cacf6bc02e64f2b29"
+    }
+  }
+}
