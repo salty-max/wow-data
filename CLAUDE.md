@@ -52,9 +52,10 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   `bin/names.ts` and `bin/wowhead-points.ts` fetched or seeded them once;
   they are hand tools, run only when something is missing, never by a job
   (`names.ts --gaps`: only what the database names in no way in that
-  language; Forever's new creatures in Spanish, Russian, Portuguese, Korean
-  and Chinese, 15 October 2026, and both games' in Italian and Mexican
-  Spanish). A name Wowhead gives in brackets is the English its client
+  language; `--readable`: of the objects, the texts read; `--ids`: these
+  alone. Forever's new creatures in Spanish, Russian, Portuguese, Korean
+  and Chinese, 15 October 2026, both games' in Italian and Mexican Spanish,
+  and the texts read and the riddles' objects in every language). A name Wowhead gives in brackets is the English its client
   shows where the language has none: the build records it as that
   language's name (the English one, of the source `english`: no
   translation, which a glossary leaves out), so every language names what

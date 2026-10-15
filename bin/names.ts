@@ -8,6 +8,8 @@
 //   --offline: the seeds alone, nothing fetched
 //   --gaps: only what the database names in no way in this language (a
 //     language whose names the other sources give, but for a game's own)
+//   --readable: of the objects, only the texts read (the readable table)
+//   --ids 1,2,3: only these ids
 //   bun bin/names.ts <classic|forever> <locale> --ranks   the ranks Questie
 //     doesn't give (Forever's own creatures), from the cached tooltips'
 //     "Level 12 Humanoid (Rare)", into data/wowhead/<game>/ranks.json
@@ -42,6 +44,9 @@ const retitle = rest.includes("--titles");
 const offline = rest.includes("--offline");
 const ranks = rest.includes("--ranks");
 const gaps = rest.includes("--gaps");
+const readableOnly = rest.includes("--readable");
+const idsAt = rest.indexOf("--ids");
+const only = idsAt >= 0 ? new Set(rest[idsAt + 1].split(",").map(Number)) : null;
 
 const db = openDb(game);
 const names: Names = readNames(game, locale);
@@ -59,6 +64,8 @@ const wanted: Record<NameKind, number[]> = {
     UNION SELECT entity_id AS id FROM spawn WHERE kind = 'object') ORDER BY id`),
   item: [],
 };
+if (readableOnly) wanted.object = ids("SELECT id FROM readable WHERE kind = 'object' ORDER BY id");
+if (only) for (const kind of ["creature", "quest", "object"] as const) wanted[kind] = wanted[kind].filter((id) => only.has(id));
 if (gaps) {
   const named = (kind: string) =>
     new Set(ids(`SELECT id FROM name WHERE kind = '${kind}' AND locale = '${locale}'`));
