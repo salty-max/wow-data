@@ -178,6 +178,11 @@
     const have = new Set(await W.keys("pages"));
     const todo = jobs.filter((k) => !have.has(k));
     let i = 0;
+    // (a page tried again comes twenty pages on, not behind every other
+    // language's: its group would wait hours at 99%; a dropped connection
+    // three times at most)
+    const tries = new Map();
+    const later = (key) => todo.splice(Math.min(i + 20, todo.length), 0, key);
     W.state.stop = false;
     W.state.fresh = 0;
     clearInterval(W.handTimer);
@@ -193,9 +198,9 @@
         try {
           const r = await fetch(path);
           if (r.status === 403) {
-            // (Wowhead's throttle: a minute's rest, the page again later)
+            // (Wowhead's throttle: a minute's rest, the page again soon)
             W.state.err.push(path + ":403");
-            todo.push(key);
+            later(key);
             await new Promise((s) => setTimeout(s, 60000));
             continue;
           }
@@ -206,7 +211,10 @@
           }
         } catch (e) {
           W.state.err.push(path + ":" + e);
+          tries.set(key, (tries.get(key) || 0) + 1);
+          if (tries.get(key) < 3) later(key);
           await new Promise((s) => setTimeout(s, 5000));
+          continue;
         }
         W.state.done++;
         await new Promise((s) => setTimeout(s, 1500));
