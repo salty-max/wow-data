@@ -13,6 +13,10 @@ describe.skipIf(!built)("forever.db", () => {
   const name = (kind: string, id: number, locale = "enUS") =>
     (one("SELECT name FROM name WHERE kind = ? AND id = ? AND locale = ?", kind, id, locale) ?? {}).name;
 
+  test("Classic's creatures at the game's levels (Morganth 27, Murloc Oracle 17-18)", () => {
+    expect(db.query("SELECT min_level, max_level FROM creature WHERE id = 397").get()).toEqual({ min_level: 27, max_level: 27 });
+    expect(db.query("SELECT min_level, max_level FROM creature WHERE id = 517").get()).toEqual({ min_level: 17, max_level: 18 });
+  });
   test("Classic's world kept: Hogger, The Troll Cave", () => {
     expect(name("creature", 448)).toBe("Hogger");
     expect(name("quest", 182)).toBe("The Troll Cave");

@@ -16,6 +16,12 @@ describe.skipIf(!built)("classic.db", () => {
     expect(name("creature", 448)).toBe("Hogger");
     expect(one("SELECT min_level, rank FROM creature WHERE id = 448")).toEqual({ min_level: 11, rank: 1 });
   });
+  test("a creature's levels as the game shows them, not Questie's (Riverpaw Overseer 19-20, Morganth 27, Infernal 50-60)", () => {
+    const levels = (id: number) => one("SELECT min_level, max_level FROM creature WHERE id = ?", id);
+    expect(levels(125)).toEqual({ min_level: 19, max_level: 20 });
+    expect(levels(397)).toEqual({ min_level: 27, max_level: 27 });
+    expect(levels(89)).toEqual({ min_level: 50, max_level: 60 });
+  });
   test("The Troll Cave: 14 of creature 706, from and back to Grelin Whitebeard", () => {
     expect(name("quest", 182)).toBe("The Troll Cave");
     expect(all("SELECT kind, target_id, count FROM quest_objective WHERE quest_id = 182")).toEqual([

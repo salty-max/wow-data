@@ -392,13 +392,15 @@ async function classicDb(db: Database, q: QuestieData) {
   const creatureColumns = db.prepare(
     `UPDATE creature SET type_id = ?, family_id = ?, unit_class = ?, display_ids = ?, loot_id = ?,
      skin_loot_id = ?, pick_loot_id = ?, kill_credit = ?, trainer_type = ?, trainer_class = ?, unit_flags = ?,
-     faction_id = ?, npc_flags = ? WHERE id = ?`,
+     faction_id = ?, npc_flags = ?, min_level = COALESCE(?, min_level), max_level = COALESCE(?, max_level) WHERE id = ?`,
   );
   // (a creature Questie has keeps Questie's row, but its server-side fields are
   // the Classic database's, which a running server needs right: Questie's
   // npc flags leave out vendors and trainers (Katie Hunter, Murak Winterborn)
   // and its factions misplace some (Alterac Valley's miners under Orgrimmar's
-  // template); its levels and ranks stay)
+  // template); its levels too, the game's own where Questie's are off (691
+  // creatures: Riverpaw Overseer 19-20, Morganth 27, as both games' tooltips
+  // show them; checked 15 October 2026); its ranks, which agree, stay)
   // (a trainer's kind, for a trainer only: TrainerType 0 is a class's, and every creature's default)
   const trainer = (r: Row) => ((num(r.NpcFlags) ?? 0) & 16 ? num(r.TrainerType) : null);
   run("creature", () => {
@@ -420,6 +422,8 @@ async function classicDb(db: Database, q: QuestieData) {
           num(r.UnitFlags),
           nz(r.Faction),
           num(r.NpcFlags),
+          nz(r.MinLevel),
+          nz(r.MaxLevel),
           num(r.Entry),
         );
         if (r.Name) name.run("creature", num(r.Entry), r.Name);
