@@ -1,6 +1,8 @@
 # Every day, and by hand: have the game's builds moved past pins.json? If so,
-# a pull request moving them (bin/latest.ts), never merged by itself. The
-# addons' own daily jobs build their data again from the pins once merged.
+# a pull request moving them (bin/latest.ts), rebased onto main by itself once
+# the checks pass, then the databases built again (db.yml, asked for: a merge
+# by the workflow's own token sets off no push workflow). The addons' own
+# daily jobs build their data again from the new databases.
 # Forever's builds under another product and the community databases' newer
 # commits are told in the run's summary and the pull request, never followed.
 name: Pins
@@ -13,10 +15,14 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   pins:
     runs-on: ubuntu-latest
+    env:
+      INBOX_URL: ${{ vars.INBOX_URL }}
+      INBOX_EVENTS_TOKEN: ${{ secrets.INBOX_EVENTS_TOKEN }}
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -27,15 +33,38 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           bun bin/latest.ts --write --summary "$RUNNER_TEMP/pins.md"
+          bun bin/describe-data.ts --pins > "$RUNNER_TEMP/words.json"
           cat "$RUNNER_TEMP/pins.md" >> "$GITHUB_STEP_SUMMARY"
           {
             cat "$RUNNER_TEMP/pins.md"
             echo
-            echo "Opened by .github/workflows/pins.yml. Once merged, each addon's daily job builds its data again from these pins and opens its own pull request."
+            echo "Opened by .github/workflows/pins.yml. Merged by itself when the databases build at these pins and pass their tests (else it waits here for a hand): they are then built and published again, and each addon's daily job builds its data from them."
           } > "$RUNNER_TEMP/body.md"
-      - run: bun run check
+      # (merged only if the new pins build and pass the databases' tests,
+      # as db.yml would; else the pull request waits for a hand)
+      - uses: actions/cache@v4
         if: steps.pins.outputs.moved == 'true'
+        with:
+          path: |
+            .cache/wago
+            .cache/github
+            .cache/questie
+            .cache/tools
+          key: sources-${{ hashFiles('pins.json') }}-${{ github.run_id }}
+          restore-keys: |
+            sources-${{ hashFiles('pins.json') }}-
+            sources-
+      - name: The databases at the new pins, tested
+        id: built
+        if: steps.pins.outputs.moved == 'true'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          bun bin/build.ts all
+          bun run check
       - name: Pull request
+        id: pr
         if: steps.pins.outputs.moved == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
@@ -45,3 +74,33 @@ jobs:
           title: "chore: the game's builds moved"
           body-path: ${{ runner.temp }}/body.md
           add-paths: pins.json
+      - name: Merge, then the databases
+        if: steps.pins.outputs.moved == 'true' && steps.built.outcome == 'success' && steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pr.outputs.pull-request-number }}
+          URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: |
+          for wait in 5 15 30 60; do
+            sleep "$wait"
+            if gh pr merge "$PR" -R "$GITHUB_REPOSITORY" --rebase --delete-branch; then
+              gh workflow run db.yml -R "$GITHUB_REPOSITORY" --ref main
+              echo "Merged #$PR, the databases asked for." >> "$GITHUB_STEP_SUMMARY"
+              bun bin/tell.ts --kind merged --repo wow-data --url "$URL" --from "$RUNNER_TEMP/words.json"
+              exit 0
+            fi
+          done
+          echo "#$PR could not be merged by itself: merge it by hand." >> "$GITHUB_STEP_SUMMARY"
+          bun bin/tell.ts --kind waiting --repo wow-data --url "$URL" --title "The game's builds moved, waiting for you" --body "Their pull request couldn't be merged by itself."
+      - name: Not merged
+        if: steps.pins.outputs.moved == 'true' && steps.built.outcome != 'success'
+        env:
+          URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: |
+          echo "The databases didn't build or pass their tests at the new pins: the pull request waits for a hand." >> "$GITHUB_STEP_SUMMARY"
+          bun bin/tell.ts --kind waiting --repo wow-data --url "$URL" --title "The game's builds moved, but the databases don't build" --body "$(jq -r .body "$RUNNER_TEMP/words.json") The pull request waits for you."
+      - name: Failed
+        if: failure()
+        env:
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bun bin/tell.ts --kind failed --repo wow-data --url "$URL" --title "wow-data's pins job failed" --body "It stopped on an error. The run says where."

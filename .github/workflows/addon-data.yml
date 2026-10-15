@@ -4,8 +4,11 @@
 # addon-kit, for its glossary.py and subzones.py), the databases built from
 # that wow-data downloaded (bin/get.ts: the release of the last commit that
 # changed them, which must be published), the addon's own generators run.
-# When a generated file changes: the addon's checks, then a pull request
-# (never merged by itself). A day without change ends after the generators.
+# When a generated file changes: the addon's checks, then a pull request,
+# rebased onto main by itself once they pass (`merge`, on unless a caller
+# says otherwise: nothing reaches the players before a release, which stays
+# by hand; the pull request stays the day's record). A day without change
+# ends after the generators.
 # The calling repository needs "Allow GitHub Actions to create and approve
 # pull requests" (Settings, Actions, General).
 name: Addon data
@@ -41,10 +44,22 @@ on:
         description: "more paths kept between runs, one a line (from the workspace: addon/.cache/audit)"
         type: string
         default: ""
+      merge:
+        description: "the pull request rebased onto main once the checks pass (else left for a hand)"
+        type: boolean
+        default: true
+    secrets:
+      INBOX_EVENTS_TOKEN:
+        description: "Ravenpost's inbox: the day told to the owner's phone (bin/tell.ts); without it, not told"
+        required: false
 
 jobs:
   data:
     runs-on: ubuntu-latest
+    env:
+      REPO: ${{ github.event.repository.name }}
+      INBOX_URL: ${{ vars.INBOX_URL }}
+      INBOX_EVENTS_TOKEN: ${{ secrets.INBOX_EVENTS_TOKEN }}
     defaults:
       run:
         working-directory: addon
@@ -114,11 +129,22 @@ jobs:
             git status --porcelain -- "${specs[@]}" >> "$GITHUB_STEP_SUMMARY"
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+      # (what changed, in words: Ravenpost's activity and the owner's phone)
+      - name: The day in words
+        if: steps.data.outputs.changed == 'true'
+        env:
+          PATHS: ${{ inputs.paths }}
+        run: |
+          set -f
+          mapfile -t specs < <(printf '%s\n' "$PATHS" | sed '/^\s*$/d')
+          bun ../wow-data/bin/describe-data.ts "$REPO" "${specs[@]}" > "$RUNNER_TEMP/words.json"
+          cat "$RUNNER_TEMP/words.json"
       - name: The pull request's words
         if: steps.data.outputs.changed == 'true'
         env:
           REPORT: ${{ inputs.report }}
           PATHS: ${{ inputs.paths }}
+          MERGE: ${{ inputs.merge }}
         run: |
           set -euo pipefail
           set -f
@@ -137,7 +163,11 @@ jobs:
               bash -euo pipefail -c "$REPORT"
             fi
             echo
-            echo "Opened by the daily Game data job (wow-data's addon-data.yml). Read the differences, then merge by hand."
+            if [ "$MERGE" = "true" ]; then
+              echo "Opened by the daily Game data job (wow-data's addon-data.yml), the addon's checks passed, and merged by itself."
+            else
+              echo "Opened by the daily Game data job (wow-data's addon-data.yml). Read the differences, then merge by hand."
+            fi
           } > "$RUNNER_TEMP/body.md"
           cat "$RUNNER_TEMP/body.md" >> "$GITHUB_STEP_SUMMARY"
       - name: The addon's checks
@@ -146,13 +176,48 @@ jobs:
           CHECK: ${{ inputs.check }}
         run: bash -euo pipefail -c "$CHECK"
       - name: Pull request
+        id: pr
         if: steps.data.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
           path: addon
           branch: game-data
           delete-branch: true
-          commit-message: "chore: the game's data at wow-data's pins"
+          commit-message: |
+            chore: the game's data at wow-data's pins
+
+            wow-data: ${{ env.WOW_DATA_AT }}
           title: "chore: the game's data at wow-data's pins"
           body-path: ${{ runner.temp }}/body.md
           add-paths: ${{ inputs.paths }}
+      # (GitHub may need a moment to see the new pull request as mergeable)
+      - name: Merge
+        if: steps.data.outputs.changed == 'true' && inputs.merge && steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pr.outputs.pull-request-number }}
+          URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: |
+          for wait in 5 15 30 60; do
+            sleep "$wait"
+            if gh pr merge "$PR" -R "$GITHUB_REPOSITORY" --rebase --delete-branch; then
+              echo "Merged #$PR." >> "$GITHUB_STEP_SUMMARY"
+              bun ../wow-data/bin/tell.ts --kind merged --repo "$REPO" --url "$URL" --from "$RUNNER_TEMP/words.json"
+              exit 0
+            fi
+          done
+          echo "#$PR could not be merged by itself: merge it by hand." >> "$GITHUB_STEP_SUMMARY"
+          # (said once, as waiting: not a failure besides)
+          bun ../wow-data/bin/tell.ts --kind waiting --repo "$REPO" --url "$URL" --title "$(jq -r .title "$RUNNER_TEMP/words.json"), waiting for you" --body "Its pull request couldn't be merged by itself."
+      - name: Waiting for a hand
+        if: steps.data.outputs.changed == 'true' && !inputs.merge && steps.pr.outputs.pull-request-number != ''
+        env:
+          URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: bun ../wow-data/bin/tell.ts --kind waiting --repo "$REPO" --url "$URL" --from "$RUNNER_TEMP/words.json"
+      - name: Failed
+        if: failure()
+        env:
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bun ../wow-data/bin/describe-data.ts --failed "$REPO" > "$RUNNER_TEMP/failed.json"
+          bun ../wow-data/bin/tell.ts --kind failed --repo "$REPO" --url "$URL" --from "$RUNNER_TEMP/failed.json"

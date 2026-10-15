@@ -66,8 +66,9 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   players link it with Battle.net from Ravenpost, one account one voice) and
   merged from it daily by `bin/players.ts` (`pull`, then `done` once the pull
   request holds them; `INBOX_URL`, `INBOX_TOKEN`), run by
-  `.github/workflows/players.yml` (a pull request, never merged by itself,
-  its waiting branch merged into again). Each fact keeps who saw it, a hash
+  `.github/workflows/players.yml` (a pull request, never merged by itself:
+  strangers' facts are read by a hand first, the owner's phone told; its
+  waiting branch merged into again). Each fact keeps who saw it, a hash
   of the account and the fact (no one's facts tied together), 20 at most.
   `src/players.ts` loads them last, as source `players`, where no other
   source has the fact: the value most players saw (`MIN_SEEN`: one is
@@ -82,13 +83,22 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   pull request carries (`paths`), its checks (`check`), Hearthtale's
   journals compared (`before`, `report`), addon-kit beside it (`kit`): the
   databases of the wow-data checked out downloaded, a pull request only when
-  a generated file changes, never merged by itself. A caller needs "Allow
-  GitHub Actions to create and approve pull requests".
+  a generated file changes, rebased onto main by itself once the checks pass
+  (`merge`: nothing reaches players before a release, which stays by hand).
+  Each day is told to the owner in words (`bin/describe-data.ts`: the files'
+  entries new, changed, gone, and wow-data's commits since the last data
+  commit's `wow-data: <commit>`; `bin/tell.ts`: Ravenpost's inbox, its
+  activity and the owner's phone, `INBOX_EVENTS_TOKEN`, callers pass
+  `secrets: inherit`), a failure too. A caller needs "Allow GitHub Actions to
+  create and approve pull requests".
 - `bin/latest.ts`: newer builds than the pins (`--write`, `--next FILE`,
   `--summary FILE`); the databases' newer commits, told only. `bin/path.ts`:
   a cached file's path, for the addons' Python scripts.
-- `.github/workflows/pins.yml`: daily, a pull request moving the pins (never
-  merged by itself); `ci.yml`: `bun run check`, and the explorer's.
+- `.github/workflows/pins.yml`: daily, a pull request moving the pins, merged
+  by itself once the databases build at them and pass their tests (else it
+  waits, and says so), then `db.yml` asked for (a merge by the workflow's
+  token sets off no push workflow); `ci.yml`: `bun run check`, and the
+  explorer's.
 - `explorer/`: the databases in a browser (README.md), its own package
   (`bun run explore`, `explore:dev`; `bun run --cwd explorer check`). The
   server (`server.ts`, `api/`: search on a trigram index of `name`, a page's

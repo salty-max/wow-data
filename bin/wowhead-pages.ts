@@ -17,6 +17,9 @@
 //     no list of what changed: a new build's, the launch's, once), for
 //     __wd.addJobs(keys, { refetch: true }). What Wowhead added that no
 //     database knows yet, the tab finds itself: __wd.addLatest()
+//   bun bin/wowhead-pages.ts pull       the pages the tab handed to Ravenpost's
+//     inbox (__wd.relayTo) into .cache/wowhead/forever/pages/, then out of the
+//     inbox (WOWHEAD_TOKEN, else ~/.config/wow-data/wowhead-token; WOWHEAD_URL)
 //   bun bin/wowhead-pages.ts import FILE   an exported batch ({ "<kind>/<locale>/<id>":
 //     page | { missing } }) into .cache/wowhead/forever/pages/
 //   bun bin/wowhead-pages.ts freeze     the saved pages into
@@ -24,6 +27,7 @@
 //     itembook | objbook: { id: page } }), which the build loads
 // A hand tool, as bin/names.ts: never run by a job.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import path from "node:path";
 import { CACHE } from "../src/cache";
 import { openDb } from "../src/db";
@@ -89,6 +93,20 @@ function queue(refresh = false): Job[] {
   ];
 }
 
+/** Pages ({ "<kind>/<locale>/<id>": page }) into the cache; how many. */
+function save(batch: Record<string, unknown>): number {
+  let n = 0;
+  for (const [k, page] of Object.entries(batch)) {
+    const [kind, locale, id] = k.split("/");
+    if (!/^(quest|npc|object|itembook|objbook)$/.test(kind) || !/^[a-z]{2}[A-Z]{2}$/.test(locale) || !/^\d+$/.test(id)) continue;
+    const f = file({ kind: kind as Job["kind"], locale, id: Number(id) });
+    mkdirSync(path.dirname(f), { recursive: true });
+    writeFileSync(f, JSON.stringify(page));
+    n++;
+  }
+  return n;
+}
+
 const ranges = (ids: number[]) => {
   const out: string[] = [];
   for (let i = 0; i < ids.length; ) {
@@ -108,16 +126,37 @@ if (command === "queue") {
     console.log(JSON.stringify(Object.fromEntries(Object.entries(groups).map(([g, list]) => [g, ranges(list)]))));
   }
 } else if (command === "import") {
-  const batch: Record<string, unknown> = JSON.parse(readFileSync(rest[0], "utf8"));
-  let n = 0;
-  for (const [k, page] of Object.entries(batch)) {
-    const [kind, locale, id] = k.split("/");
-    const f = file({ kind: kind as Job["kind"], locale, id: Number(id) });
-    mkdirSync(path.dirname(f), { recursive: true });
-    writeFileSync(f, JSON.stringify(page));
-    n++;
-  }
+  const n = save(JSON.parse(readFileSync(rest[0], "utf8")));
   console.log(`${n} pages saved under ${path.relative(ROOT, DIR)}`);
+} else if (command === "pull") {
+  const url = (process.env.WOWHEAD_URL ?? "https://ravenpost-inbox.vercel.app").replace(/\/$/, "");
+  const tokenFile = path.join(homedir(), ".config", "wow-data", "wowhead-token");
+  const token = process.env.WOWHEAD_TOKEN ?? (existsSync(tokenFile) ? readFileSync(tokenFile, "utf8").trim() : "");
+  if (!token) throw new Error(`no WOWHEAD_TOKEN (nor ${tokenFile})`);
+  const call = async (p: string, body?: unknown) => {
+    const res = await fetch(url + p, {
+      method: body ? "POST" : "GET",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) throw new Error(`${p}: ${res.status} ${await res.text()}`);
+    return res.json();
+  };
+  const names: string[] = [];
+  for (let cursor: string | null = ""; cursor !== null; ) {
+    const page = (await call(`/api/wowhead/list${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`)) as { names: { name: string }[]; cursor: string | null };
+    names.push(...page.names.map((n) => n.name));
+    cursor = page.cursor;
+  }
+  let n = 0;
+  for (let i = 0; i < names.length; i += 20) {
+    const part = names.slice(i, i + 20);
+    const { items } = (await call("/api/wowhead/read", { names: part })) as { items: { pages: Record<string, unknown> }[] };
+    for (const it of items) n += save(it.pages);
+    // (out of the inbox once saved here)
+    await call("/api/wowhead/done", { names: part });
+  }
+  console.log(`${n} pages from ${names.length} hand-overs saved under ${path.relative(ROOT, DIR)}`);
 } else if (command === "freeze") {
   const out: Record<string, Record<string, Record<string, unknown>>> = {};
   if (existsSync(DIR))
@@ -137,6 +176,6 @@ if (command === "queue") {
     console.log(`${path.relative(ROOT, dest)}: ${Object.entries(sorted).map(([k, p]) => `${Object.keys(p).length} ${k}s`).join(", ")}`);
   }
 } else {
-  console.error("usage: wowhead-pages.ts queue [--keys] [--refresh] | import FILE | freeze");
+  console.error("usage: wowhead-pages.ts queue [--keys] [--refresh] | pull | import FILE | freeze");
   process.exit(2);
 }

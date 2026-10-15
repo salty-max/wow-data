@@ -61,3 +61,10 @@ jobs:
           # (the five latest kept)
           gh release list --limit 100 --json tagName --jq '.[].tagName' | grep '^db-' | tail -n +6 |
             while read -r old; do gh release delete "$old" --cleanup-tag --yes; done
+      - name: Failed
+        if: failure()
+        env:
+          INBOX_URL: ${{ vars.INBOX_URL }}
+          INBOX_EVENTS_TOKEN: ${{ secrets.INBOX_EVENTS_TOKEN }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bun bin/tell.ts --kind failed --repo wow-data --url "$URL" --title "wow-data's databases didn't build" --body "The addons' data jobs wait for them. The run says why."

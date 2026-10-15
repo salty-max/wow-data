@@ -18,12 +18,13 @@
 //   await __wd.start(1)           fetch, a page every 1.5 s or so
 //   await __wd.stop()             let the page in flight finish, then stop
 //   await __wd.status()           done / total by kind and language
-//   await __wd.saveTo()           the panel's button (the browser asks it of a
-//                                 click): wow-data's .cache/wowhead/forever/pages
-//                                 picked once, every page then written there
-//                                 as it comes, as `import` would (the ones
-//                                 waiting too): nothing to export
-//   await __wd.export(n)          without that folder: up to n fetched pages
+//   await __wd.relayTo(TOKEN)     the pages handed to Ravenpost's inbox as
+//                                 they come (every 50, and every 5 minutes),
+//                                 the ones waiting too (WOWHEAD_TOKEN, the
+//                                 inbox's), for `bun bin/wowhead-pages.ts pull`:
+//                                 the tab reaches neither this computer nor a
+//                                 folder, the app's browser refuses both
+//   await __wd.export(n)          without the inbox: up to n fetched pages
 //                                 not handed over yet, for
 //                                 `bun bin/wowhead-pages.ts import FILE`
 //   await __wd.ack()              the last export handed over
@@ -133,44 +134,41 @@
     objbook: (h) => book(h),
   };
 
-  // ── straight into wow-data ─────────────────────────────────────────────────
-  // The folder picked once, its handle kept with the pages (after a reload
-  // the browser may ask again: the button again). Only that folder: the
-  // page's own scripts could reach the handle, and pages are data.
-  W.folder = async () => {
-    const dir = await W.get("meta", "dir");
-    return dir && (await dir.queryPermission({ mode: "readwrite" })) === "granted" ? dir : null;
+  // ── handed to Ravenpost's inbox ─────────────────────────────────────────
+  // Its address and token kept with the pages; a hundred pages a request
+  // (the inbox takes 4 MB), each counted handed once the inbox has it.
+  W.relayTo = async (token, url = "https://ravenpost-inbox.vercel.app") => {
+    await W.put("meta", "relay", { url: url.replace(/\/$/, ""), token });
+    return W.hand();
   };
-  W.write = async (dir, key, page) => {
-    const [kind, loc, id] = key.split("/");
-    const at = await (await dir.getDirectoryHandle(kind, { create: true })).getDirectoryHandle(loc, { create: true });
-    const out = await (await at.getFileHandle(id + ".json", { create: true })).createWritable();
-    await out.write(JSON.stringify(page));
-    await out.close();
-    await W.put("sent", key, 1);
-  };
-  W.flush = async () => {
-    const dir = await W.folder();
-    if (!dir) return 0;
-    const sent = new Set(await W.keys("sent"));
+  W.hand = async () => {
+    const relay = await W.get("meta", "relay");
+    if (!relay || W.handing) return 0;
+    W.handing = true;
     let n = 0;
-    for (const k of await W.keys("pages")) {
-      if (sent.has(k)) continue;
-      await W.write(dir, k, await W.get("pages", k));
-      n++;
+    try {
+      const sent = new Set(await W.keys("sent"));
+      const keys = (await W.keys("pages")).filter((k) => !sent.has(k));
+      for (let i = 0; i < keys.length; i += 100) {
+        const part = keys.slice(i, i + 100);
+        const pages = {};
+        for (const k of part) pages[k] = await W.get("pages", k);
+        const r = await fetch(relay.url + "/api/wowhead/pages", {
+          method: "POST",
+          headers: { authorization: "Bearer " + relay.token, "content-type": "application/json" },
+          body: JSON.stringify({ pages }),
+        });
+        if (!r.ok) throw new Error("the inbox said " + r.status);
+        for (const k of part) await W.put("sent", k, 1);
+        n += part.length;
+      }
+      W.state.handed = { at: Date.now(), n: (W.state.handed?.n || 0) + n };
+    } catch (e) {
+      W.state.err.push("relay:" + e.message);
+    } finally {
+      W.handing = false;
     }
     return n;
-  };
-  W.saveTo = async () => {
-    navigator.storage.persist?.();
-    let dir = await W.get("meta", "dir");
-    if (dir && (await dir.requestPermission({ mode: "readwrite" })) !== "granted") dir = null;
-    if (!dir) {
-      dir = await showDirectoryPicker({ id: "wowdata-pages", mode: "readwrite" });
-      if (dir.name !== "pages") throw new Error("pick wow-data/.cache/wowhead/forever/pages");
-      await W.put("meta", "dir", dir);
-    }
-    return W.flush();
   };
 
   // ── the fetching ───────────────────────────────────────────────────────────
@@ -181,6 +179,9 @@
     const todo = jobs.filter((k) => !have.has(k));
     let i = 0;
     W.state.stop = false;
+    W.state.fresh = 0;
+    clearInterval(W.handTimer);
+    W.handTimer = setInterval(() => W.hand(), 5 * 60000);
     const worker = async (w) => {
       W.state.running++;
       await new Promise((s) => setTimeout(s, w * 750));
@@ -198,10 +199,11 @@
             await new Promise((s) => setTimeout(s, 60000));
             continue;
           }
-          const page = r.ok ? W.x[kind](await r.text(), id, loc) || { missing: "none" } : { missing: String(r.status) };
-          await W.put("pages", key, page);
-          const dir = await W.folder();
-          if (dir) await W.write(dir, key, page).catch((e) => W.state.err.push(key + ":unsaved " + e.name));
+          await W.put("pages", key, r.ok ? W.x[kind](await r.text(), id, loc) || { missing: "none" } : { missing: String(r.status) });
+          if (++W.state.fresh >= 50) {
+            W.state.fresh = 0;
+            W.hand();
+          }
         } catch (e) {
           W.state.err.push(path + ":" + e);
           await new Promise((s) => setTimeout(s, 5000));
@@ -310,25 +312,15 @@
     const panel = document.createElement("div");
     panel.id = "wd-panel";
     panel.style.cssText = "position:fixed;top:8px;right:8px;z-index:2147483647;width:340px;max-height:calc(100vh - 16px);overflow-y:auto;box-sizing:border-box;background:#16130ff5;color:#e8dcc2;border:1px solid #d4a843;border-radius:10px;padding:12px 14px;font:11px/1.4 system-ui,sans-serif;font-variant-numeric:tabular-nums;box-shadow:0 6px 24px #000a";
-    panel.innerHTML = `<div></div><div style="margin-top:10px"></div>`;
+    panel.innerHTML = `<div></div><div style="margin-top:8px"></div>`;
     const [body, save] = panel.children;
     document.body.appendChild(panel);
-    // (its own place, drawn again only when it changes: a click lands)
-    let saving = null;
     const drawSave = async () => {
-      const dir = await W.folder();
-      const state = dir ? "on" : (await W.get("meta", "dir")) ? "again" : "off";
-      if (state === saving) return;
-      saving = state;
-      if (state === "on") {
-        save.innerHTML = `<div style="color:${GREEN};font-size:10px">Each page saved into wow-data as it comes</div>`;
-        return;
-      }
-      save.innerHTML = `<button style="width:100%;padding:6px;border-radius:6px;border:1px solid ${GOLD};background:#2a2218;color:${GOLD};font:600 11px system-ui,sans-serif;cursor:pointer">${state === "again" ? "Allow saving into wow-data again" : "Save into wow-data…"}</button><div style="color:${MUTED};font-size:10px;margin-top:4px">${state === "again" ? "The browser asks again after a reload." : "Pick wow-data/.cache/wowhead/forever/pages (⇧⌘G, then paste the path)."}</div>`;
-      save.querySelector("button").onclick = () =>
-        W.saveTo()
-          .then(() => ((saving = null), drawSave()))
-          .catch((e) => (save.lastChild.textContent = e.name === "AbortError" ? "No folder picked." : String(e.message || e)));
+      const relay = await W.get("meta", "relay");
+      const h = W.state.handed;
+      save.innerHTML = relay
+        ? `<div style="color:${GREEN};font-size:10px">Handed to Ravenpost's inbox as it goes${h ? ` · ${h.n.toLocaleString()} so far, the last ${fmt((Date.now() - h.at) / 1000)} ago` : ""}</div>`
+        : `<div style="color:${MUTED};font-size:10px">Not handed anywhere yet: __wd.relayTo(token)</div>`;
     };
     const draw = async () => {
       const jobs = await W.get("meta", "jobs");

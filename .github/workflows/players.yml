@@ -20,6 +20,8 @@ permissions:
 jobs:
   players:
     runs-on: ubuntu-latest
+    env:
+      INBOX_EVENTS_TOKEN: ${{ secrets.INBOX_EVENTS_TOKEN }}
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -51,6 +53,7 @@ jobs:
       - run: bun run check
         if: steps.pull.outputs.pulled == 'true'
       - name: Pull request
+        id: pr
         if: steps.pull.outputs.pulled == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
@@ -66,4 +69,17 @@ jobs:
         env:
           INBOX_URL: ${{ vars.INBOX_URL }}
           INBOX_TOKEN: ${{ secrets.INBOX_TOKEN }}
-        run: bun bin/players.ts done
+        run: bun bin/players.ts "done"
+      # (strangers' facts: read by a hand before they reach the databases)
+      - name: Waiting for a hand
+        if: steps.pull.outputs.pulled == 'true' && steps.pr.outputs.pull-request-number != ''
+        env:
+          INBOX_URL: ${{ vars.INBOX_URL }}
+          URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: bun bin/tell.ts --kind waiting --repo wow-data --url "$URL" --title "Players' facts wait for you" --body "$(head -n 6 "$RUNNER_TEMP/players.txt")"
+      - name: Failed
+        if: failure()
+        env:
+          INBOX_URL: ${{ vars.INBOX_URL }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bun bin/tell.ts --kind failed --repo wow-data --url "$URL" --title "The players' facts job failed" --body "It stopped on an error. The run says where."
