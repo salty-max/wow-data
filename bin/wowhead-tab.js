@@ -246,56 +246,88 @@
   };
 
   // ── the live panel ─────────────────────────────────────────────────────────
-  const LABEL = {
-    "quest enUS": "Quests EN", "npc enUS": "Creatures EN", "object enUS": "Objects EN",
-    "itembook enUS": "Books EN", "itembook frFR": "Books FR", "itembook deDE": "Books DE",
-    "objbook frFR": "Plaques FR", "objbook deDE": "Plaques DE",
-    "quest deDE": "Quests DE", "quest frFR": "Quests FR",
-    "itembook esES": "Books ES", "objbook esES": "Plaques ES", "quest esES": "Quests ES",
-    "itembook esMX": "Books MX", "objbook esMX": "Plaques MX", "quest esMX": "Quests MX",
-  };
-  const fmt = (s) => (!isFinite(s) ? "?" : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h ${String(Math.round((s % 3600) / 60)).padStart(2, "0")}`);
+  // The whole at a glance (a bar, the speed, what is left), then a grid: a
+  // row a kind, a column a language (its counts on hover), the one fetching
+  // now outlined; Wowhead's throttling under it.
+  const KINDS = [["quest", "Quests"], ["npc", "Creatures"], ["object", "Objects"], ["itembook", "Books"], ["objbook", "Plaques"]];
+  const LANGS = [["enUS", "EN"], ["deDE", "DE"], ["frFR", "FR"], ["esES", "ES"], ["esMX", "MX"]];
+  const LANG_NAMES = { enUS: "English", deDE: "German", frFR: "French", esES: "Spanish", esMX: "Latin American Spanish" };
+  const fmt = (s) => (!isFinite(s) ? "?" : s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : `${Math.floor(s / 3600)} h ${String(Math.round((s % 3600) / 60)).padStart(2, "0")}`);
+  const MUTED = "#a99c84", GOLD = "#d4a843", GREEN = "#9fd18b", RED = "#e08a6e", TRACK = "#3a3127";
+  const bar = (pct, h, color) => `<div style="height:${h}px;background:${TRACK};border-radius:${h}px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${color}"></div></div>`;
   W.samples = W.samples || [];
   W.panel = () => {
     document.getElementById("wd-panel")?.remove();
     if (W.panelTimer) clearInterval(W.panelTimer);
     const panel = document.createElement("div");
     panel.id = "wd-panel";
-    panel.style.cssText = "position:fixed;top:8px;right:8px;z-index:2147483647;width:330px;max-height:calc(100vh - 16px);overflow-y:auto;background:#16130ff2;color:#e8dcc2;border:1px solid #d4a843;border-radius:10px;padding:9px 12px;font:11px/1.35 system-ui,sans-serif;box-shadow:0 6px 24px #000a";
+    panel.style.cssText = "position:fixed;top:8px;right:8px;z-index:2147483647;width:340px;max-height:calc(100vh - 16px);overflow-y:auto;box-sizing:border-box;background:#16130ff5;color:#e8dcc2;border:1px solid #d4a843;border-radius:10px;padding:12px 14px;font:11px/1.4 system-ui,sans-serif;font-variant-numeric:tabular-nums;box-shadow:0 6px 24px #000a";
     document.body.appendChild(panel);
     const draw = async () => {
       const jobs = await W.get("meta", "jobs");
       const have = new Set(await W.keys("pages"));
       const sent = new Set(await W.keys("sent"));
       const by = {};
+      let done = 0, leftEn = 0, now = null;
       for (const k of jobs) {
-        const g = k.split("/").slice(0, 2).join(" ");
-        by[g] = by[g] || [0, 0];
-        by[g][1]++;
-        if (have.has(k)) by[g][0]++;
+        const [kind, loc] = k.split("/");
+        const g = (by[kind + " " + loc] = by[kind + " " + loc] || [0, 0]);
+        g[1]++;
+        if (have.has(k)) {
+          g[0]++;
+          done++;
+        } else {
+          now = now || [kind, loc];
+          if (loc === "enUS") leftEn++;
+        }
       }
-      const now = Date.now();
-      const done = jobs.filter((k) => have.has(k)).length;
-      W.samples.push([now, done]);
-      while (W.samples.length > 1 && now - W.samples[0][0] > 10 * 60000) W.samples.shift();
+      const t = Date.now();
+      W.samples.push([t, done]);
+      while (W.samples.length > 1 && t - W.samples[0][0] > 10 * 60000) W.samples.shift();
       const [t0, d0] = W.samples[0];
-      const rate = now > t0 + 120000 && done > d0 ? (done - d0) / ((now - t0) / 1000) : null;
+      const rate = t > t0 + 120000 && done > d0 ? (done - d0) / ((t - t0) / 1000) : null;
       const left = jobs.length - done;
-      const leftEn = jobs.filter((k) => k.includes("/enUS/") && !have.has(k)).length;
       const unsaved = [...have].filter((k) => !sent.has(k)).length;
-      const total = Math.floor((100 * done) / jobs.length);
-      const rows = Object.keys(LABEL)
-        .filter((g) => by[g])
-        .map((g) => {
-          const [d, t] = by[g];
-          const pct = Math.floor((100 * d) / t);
-          return `<div style="display:grid;grid-template-columns:78px 1fr 92px;align-items:center;gap:6px;margin:2px 0"><span>${LABEL[g]}</span><div style="height:5px;background:#3a3127;border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct === 100 ? "#9fd18b" : "#d4a843"}"></div></div><span style="text-align:right;color:#a99c84">${d.toLocaleString()}/${t.toLocaleString()}</span></div>`;
-        })
-        .join("");
-      panel.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-family:Georgia,serif;color:#d4a843;font-size:13px">Wowhead fetch · ${total}%</b><span style="color:${W.state.running ? "#9fd18b" : "#e08a6e"}">${W.state.running ? "● running" : "● stopped"}</span></div>
-      <div style="color:#a99c84;margin:3px 0 5px">${rate === null ? "measuring speed (two minutes)…" : `${(rate * 60).toFixed(0)} pages/min`} · English done in ${rate ? fmt(leftEn / rate) : "?"} · all in ${rate ? fmt(left / rate) : "?"}<br>Waiting to be saved into wow-data: <b style="color:#e8dcc2">${unsaved.toLocaleString()}</b> · last error: ${(W.state.err.slice(-1)[0] || "none").replace(/^\/forever\//, "")}</div>
-      ${rows}`;
-      document.title = `${total}% · Wowhead fetch`;
+      const pct = Math.floor((100 * done) / jobs.length);
+      const running = W.state.running > 0;
+      const stat = (label, value) =>
+        `<div><div style="color:${MUTED};font-size:9px;letter-spacing:.06em;text-transform:uppercase">${label}</div><div style="font-size:13px;font-weight:600;margin-top:1px">${value}</div></div>`;
+      const cell = (kind, loc) => {
+        const g = by[kind + " " + loc];
+        if (!g) return `<div style="text-align:right;color:#5a5044">–</div>`;
+        const [d, n] = g;
+        const p = Math.floor((100 * d) / n);
+        const current = running && now && now[0] === kind && now[1] === loc;
+        const color = d === n ? GREEN : d > 0 || current ? GOLD : MUTED;
+        return `<div title="${d.toLocaleString()} / ${n.toLocaleString()}" style="padding:2px 4px;margin:-2px -4px;border-radius:4px;${current ? `box-shadow:inset 0 0 0 1px ${GOLD};` : ""}"><div style="text-align:right;color:${color}">${d === n ? "✓" : p + "%"}</div>${bar(p, 3, d === n ? GREEN : GOLD)}</div>`;
+      };
+      const kinds = KINDS.filter(([k]) => LANGS.some(([l]) => by[k + " " + l]));
+      const grid = `<div style="display:grid;grid-template-columns:64px repeat(5,1fr);gap:7px 10px;align-items:center">
+        <div></div>${LANGS.map(([, l]) => `<div style="text-align:right;color:${MUTED};font-size:9px;letter-spacing:.06em">${l}</div>`).join("")}
+        ${kinds.map(([k, label]) => `<div>${label}</div>${LANGS.map(([l]) => cell(k, l)).join("")}`).join("")}
+      </div>`;
+      const throttles = W.state.err.filter((e) => e.endsWith(":403"));
+      const others = W.state.err.filter((e) => !e.endsWith(":403"));
+      const page = (e) => e.replace(/^\/forever\/(\w\w\/)?/, "").replace(/:[^:]*$/, "");
+      const nowLabel = now ? ` · now ${(KINDS.find(([k]) => k === now[0]) || [, now[0]])[1].toLowerCase()} in ${LANG_NAMES[now[1]] || now[1]}` : "";
+      panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <b style="font-family:Georgia,serif;color:${GOLD};font-size:14px">Wowhead fetch</b>
+          <span style="color:${running ? GREEN : RED}">● ${running ? "running" : "stopped"}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:9px 0 3px"><div style="flex:1">${bar(pct, 6, GOLD)}</div><b style="font-size:13px">${pct}%</b></div>
+        <div style="color:${MUTED}">${done.toLocaleString()} of ${jobs.length.toLocaleString()} pages${running ? nowLabel : ""}</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0 12px;padding:8px 0;border-top:1px solid ${TRACK};border-bottom:1px solid ${TRACK}">
+          ${stat("Speed", rate ? `${Math.round(rate * 60)}/min` : "…")}
+          ${stat("English in", leftEn ? (rate ? fmt(leftEn / rate) : "…") : "done")}
+          ${stat("All in", left ? (rate ? fmt(left / rate) : "…") : "done")}
+          ${stat("To save", unsaved.toLocaleString())}
+        </div>
+        ${grid}
+        <div style="color:${MUTED};margin-top:12px;padding-top:7px;border-top:1px solid ${TRACK};font-size:10px">${
+          throttles.length ? `Throttled ${throttles.length}× by Wowhead, last at ${page(throttles[throttles.length - 1])}` : "Not throttled yet"
+        }${others.length ? `<br>${others.length} failed, last ${page(others[others.length - 1])}` : ""}</div>`;
+      document.title = `${pct}% · Wowhead fetch`;
     };
     draw();
     W.panelTimer = setInterval(() => draw().catch(() => {}), 5000);
