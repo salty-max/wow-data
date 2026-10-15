@@ -100,7 +100,8 @@ describe.skipIf(!built)("forever.db", () => {
   test("every source accounted for", () => {
     const sources = all("SELECT name FROM source ORDER BY name").map((r) => r.name);
     // (allthethings: Forever's own quests' rewards and prerequisites, frozen)
-    expect(sources).toEqual(["allthethings", "classicdb", "client", "questie", "wowhead"]);
+    // (english: the English a client shows where its language has no name)
+    expect(sources).toEqual(["allthethings", "classicdb", "client", "english", "questie", "wowhead"]);
     for (const table of ["creature", "quest", "quest_objective", "quest_relation", "quest_reward", "quest_prereq", "spawn", "loot", "name"]) {
       const used = all(`SELECT DISTINCT source FROM ${table}`).map((r) => r.source as string);
       for (const s of used) expect(sources).toContain(s);
@@ -110,6 +111,7 @@ describe.skipIf(!built)("forever.db", () => {
     const named = (locale: string) => one("SELECT name FROM name WHERE kind = 'creature' AND id = 269075 AND locale = ?", locale)?.name;
     expect(named("esES")).toBe("Leopardo de la nieve merodeador");
     expect(named("esMX")).toBe("Snow Leopard Prowler");
+    expect(one("SELECT source FROM name WHERE kind = 'creature' AND id = 269075 AND locale = 'esMX'")?.source).toBe("english");
   });
   test("no name is Wowhead's English in brackets (the client shows the English)", () => {
     expect(one("SELECT count(*) AS n FROM name WHERE source = 'wowhead' AND name LIKE '[%]'")).toEqual({ n: 0 });

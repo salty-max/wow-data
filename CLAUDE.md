@@ -56,8 +56,9 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   and Chinese, 15 October 2026, and both games' in Italian and Mexican
   Spanish). A name Wowhead gives in brackets is the English its client
   shows where the language has none: the build records it as that
-  language's name (the English one), so every language names what its
-  client shows.
+  language's name (the English one, of the source `english`: no
+  translation, which a glossary leaves out), so every language names what
+  its client shows.
   `pages-<locale>.json`: Wowhead's pages of Forever, every quest (texts in
   English, German, French and Spanish; in English its info box's level,
   zone, giver and ender), the creatures' and objects' gaps, the books'

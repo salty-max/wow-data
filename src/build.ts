@@ -933,6 +933,7 @@ function wowheadNames(db: Database, game: Game) {
   const dir = path.join(ROOT, "data", "wowhead", game);
   if (!existsSync(dir)) return;
   const insert = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'wowhead')");
+  const shownInEnglish = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'english')");
   // The game's own names (Wowhead mines them from each client), which win over
   // Questie's where they truly differ: Questie's translations lag the
   // clients' (Forever's "Sentinelle de Dolanaar", "Finkle Einhorn"; Classic
@@ -954,11 +955,12 @@ function wowheadNames(db: Database, game: Game) {
         for (const [id, name] of Object.entries(byId)) {
           // (a name in brackets: Wowhead's English where the language's client has
           // none; the client shows the English: the language's name is it, so
-          // that every language names what its client shows)
+          // that every language names what its client shows, of a source of its
+          // own, "english": no translation, which a glossary leaves out)
           if (/^\[.*\]$/.test(name)) {
             const en = (english.get(kind, Number(id)) as { name: string } | null)?.name;
             // (not a placeholder of the English's own: "[DNT] Kill Credit")
-            if (en && !en.startsWith("[")) shown += insert.run(kind, Number(id), locale, en).changes;
+            if (en && !en.startsWith("[")) shown += shownInEnglish.run(kind, Number(id), locale, en).changes;
             continue;
           }
           const had = current.get(kind, Number(id), locale) as { name: string; source: string } | null;
@@ -1137,6 +1139,7 @@ export async function build(game: Game, file: string) {
   const qd = PINS.repos.questie;
   source.run("questie", qd.commit, `https://github.com/${qd.repo}`, "none stated (credited)");
   source.run("wowhead", "data/wowhead (frozen)", "https://www.wowhead.com", "Wowhead's");
+  source.run("english", "data/wowhead (frozen): its names in brackets", "https://www.wowhead.com", "Blizzard's (the English a client shows where its language has no name)");
   console.log(`${game}: the client's tables (${b.build})`);
   await clientTables(db, game);
   console.log(`${game}: names in every language`);
