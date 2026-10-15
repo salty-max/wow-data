@@ -12,6 +12,10 @@ describe.skipIf(!built)("classic.db", () => {
   const name = (kind: string, id: number, locale = "enUS") =>
     (one("SELECT name FROM name WHERE kind = ? AND id = ? AND locale = ?", kind, id, locale) ?? {}).name;
 
+  test("a TBC Anniversary item the TBC packages name: in every language, the TBC client's (source tbc)", () => {
+    expect(one("SELECT name, source FROM name WHERE kind = 'item' AND id = 21990 AND locale = 'frFR'")).toEqual({ name: "Bandage en tisse-néant", source: "tbc" });
+    expect(one("SELECT count(*) AS n FROM name WHERE kind = 'item' AND id = 21990")).toEqual({ n: 11 });
+  });
   test("Hogger: creature 448, an elite of level 11", () => {
     expect(name("creature", 448)).toBe("Hogger");
     expect(one("SELECT min_level, rank FROM creature WHERE id = 448")).toEqual({ min_level: 11, rank: 1 });

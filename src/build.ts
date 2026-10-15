@@ -927,6 +927,24 @@ async function classicDb(db: Database, q: QuestieData) {
   });
 }
 
+// ── the TBC Anniversary client's items (data/tbc/items.json, bin/tbc-items.ts) ─
+// what an addon's TBC package names and neither client has: Classic Era's
+// database (the TBC packages read Classic Era's files), source tbc, where it
+// names no such item
+function tbcItems(db: Database) {
+  const file = path.join(ROOT, "data", "tbc", "items.json");
+  if (!existsSync(file)) return;
+  const frozen = JSON.parse(readFileSync(file, "utf8")) as { product: string; build: string; items: Record<string, Record<string, string>> };
+  db.prepare("INSERT INTO source VALUES (?, ?, ?, ?)").run("tbc", `${frozen.product} ${frozen.build} (frozen: data/tbc/items.json)`, "https://wago.tools", "Blizzard's");
+  const insert = db.prepare("INSERT OR IGNORE INTO name VALUES ('item', ?, ?, ?, NULL, 'tbc')");
+  let n = 0;
+  db.transaction(() => {
+    for (const [id, names] of Object.entries(frozen.items))
+      for (const [locale, name] of Object.entries(names)) n += insert.run(Number(id), locale, name).changes;
+  })();
+  log(`names tbc: ${n}`);
+}
+
 // ── Wowhead's names (data/wowhead/<game>/<locale>.json, bin/names.ts) ────────
 // where the client has none: its own win (inserted first)
 function wowheadNames(db: Database, game: Game) {
@@ -1151,6 +1169,7 @@ export async function build(game: Game, file: string) {
   console.log(`${game}: the Classic database (${c.commit.slice(0, 12)})`);
   await classicDb(db, data);
   wowheadNames(db, game);
+  if (game === "classic") tbcItems(db);
   wowheadRanks(db, game);
   wowheadPoints(db, game);
   attRewards(db, game);

@@ -73,6 +73,12 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   objects and books added (source wowhead), the creatures' lines in
   `npc_line`; Wowhead's own codes left out (an "uncategorized" creature, a
   quest object's category, a scaling level).
+- The TBC Anniversary client's items, `data/tbc/items.json` (`bin/tbc-items.ts
+  <ids>`, a hand tool: its ItemSparse on wago.tools, every language, frozen
+  with its build): what an addon's TBC package names and neither client has
+  (Second Wind's tools: TBC's own potions, bandages, medallions), given to
+  Classic Era's database (the TBC packages read Classic Era's files), source
+  `tbc`, where it names no such item.
 - Players' facts, `data/players/<game>/<locale>.json`: what the game told
   the players who said yes to the addons' opt-in (the kit's `K.collect`:
   quests' texts, givers and enders, creatures' names, levels, ranks, types
