@@ -6,7 +6,15 @@
 // then:
 //   await __wd.addJobs(keys)      the jobs, "<kind>/<locale>/<id>", from
 //                                 `bun bin/wowhead-pages.ts queue --keys`
-//                                 ({ front: true } to fetch them first)
+//                                 ({ front: true } to fetch them first;
+//                                 { refetch: true } with `queue --refresh`:
+//                                 the pages fetched again, had or not)
+//   await __wd.addLatest(since)   what Wowhead added since a date ("2026-10-15",
+//                                 else since the last call), which the
+//                                 databases may not know yet: its Latest
+//                                 Additions' quests and NPCs (first) and
+//                                 objects (last), in English, those the tab
+//                                 hasn't
 //   await __wd.start(1)           fetch, a page every 1.5 s or so
 //   await __wd.stop()             let the page in flight finish, then stop
 //   await __wd.status()           done / total by kind and language
@@ -35,6 +43,7 @@
   W.get = async (store, key) => W.req((await W.open()).transaction(store).objectStore(store).get(key));
   W.put = async (store, key, v) => W.req((await W.open()).transaction(store, "readwrite").objectStore(store).put(v, key));
   W.keys = async (store) => W.req((await W.open()).transaction(store).objectStore(store).getAllKeys());
+  W.del = async (store, key) => W.req((await W.open()).transaction(store, "readwrite").objectStore(store).delete(key));
 
   W.LP = { enUS: "/forever/", deDE: "/forever/de/", frFR: "/forever/fr/", esES: "/forever/es/", esMX: "/forever/mx/" };
   W.PATH = { itembook: "item", objbook: "object" };
@@ -162,12 +171,54 @@
     for (let i = 0; i < 90 && W.state.running > 0; i++) await new Promise((s) => setTimeout(s, 1000));
     return W.state.running;
   };
-  W.addJobs = async (keys, { front = false } = {}) => {
+  W.addJobs = async (keys, { front = false, refetch = false } = {}) => {
+    if (refetch) for (const k of keys) await Promise.all([W.del("pages", k), W.del("sent", k)]);
     const jobs = (await W.get("meta", "jobs")) || [];
     const known = new Set(jobs);
     const fresh = keys.filter((k) => !known.has(k));
     await W.put("meta", "jobs", front ? [...fresh, ...jobs] : [...jobs, ...fresh]);
-    return fresh.length;
+    return refetch ? keys.length : fresh.length;
+  };
+  // Wowhead's Latest Additions: each day a heading, its additions linked
+  // under it; a busy day only a link to its search, whose lists are the
+  // page's JSON.
+  W.addLatest = async (since) => {
+    since = since || (await W.get("meta", "latest")) || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const found = { quest: new Set(), npc: new Set(), object: new Set() };
+    const html = async (path) => new DOMParser().parseFromString(await (await fetch(path)).text(), "text/html");
+    const day = (text) => {
+      const t = new Date(text + " UTC");
+      return isNaN(t) ? null : t.toISOString().slice(0, 10);
+    };
+    const d = await html("/forever/latest-additions");
+    let date = null;
+    const busy = [];
+    for (const el of d.querySelectorAll("h2, a[href]")) {
+      if (el.tagName === "H2") date = day(el.textContent.trim());
+      else if (date && date >= since) {
+        const href = el.getAttribute("href");
+        const m = href.match(/\/forever\/(quest|npc|object)=(\d+)/);
+        if (m) found[m[1]].add(Number(m[2]));
+        else if (/search\?q=date/.test(href)) busy.push(href);
+      }
+    }
+    for (const href of busy) {
+      const s = await html(href);
+      for (const script of s.querySelectorAll("script:not([src])")) {
+        for (const m of script.textContent.matchAll(/template: "(quest|npc|object)",[^]*?data: WH\.getPageData\("([\w-]+)"\)/g)) {
+          const data = s.getElementById("data." + m[2]);
+          for (const row of data ? JSON.parse(data.textContent) : []) found[m[1]].add(row.id);
+        }
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    // (new quests and NPCs first; new objects after the rest, mostly props:
+    // a fire, a brazier, a mailbox, among them a quest's crate)
+    const have = new Set(await W.keys("pages"));
+    const keys = (kinds) => kinds.flatMap((kind) => [...found[kind]].map((id) => `${kind}/enUS/${id}`)).filter((k) => !have.has(k));
+    const added = (await W.addJobs(keys(["quest", "npc"]), { front: true })) + (await W.addJobs(keys(["object"])));
+    await W.put("meta", "latest", new Date().toISOString().slice(0, 10));
+    return { since, found: Object.fromEntries(Object.entries(found).map(([k, v]) => [k, v.size])), added };
   };
   W.status = async () => {
     const jobs = await W.get("meta", "jobs");

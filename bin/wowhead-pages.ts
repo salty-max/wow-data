@@ -11,7 +11,12 @@
 // batches:
 //   bun bin/wowhead-pages.ts queue      the pages to fetch, as id ranges by job
 //     (the Forever and Classic databases' gaps, in the tab's order: English
-//     first); --keys: the jobs themselves, for the tab's __wd.addJobs
+//     first), leaving out every page we have (saved here or frozen): a run
+//     fetches only what is new; --keys: the jobs themselves, for the tab's
+//     __wd.addJobs; --refresh: every page again, have it or not (Wowhead has
+//     no list of what changed: a new build's, the launch's, once), for
+//     __wd.addJobs(keys, { refetch: true }). What Wowhead added that no
+//     database knows yet, the tab finds itself: __wd.addLatest()
 //   bun bin/wowhead-pages.ts import FILE   an exported batch ({ "<kind>/<locale>/<id>":
 //     page | { missing } }) into .cache/wowhead/forever/pages/
 //   bun bin/wowhead-pages.ts freeze     the saved pages into
@@ -30,7 +35,22 @@ type Job = { kind: "quest" | "npc" | "object" | "itembook" | "objbook"; locale: 
 const file = (j: Job) => path.join(DIR, j.kind, j.locale, `${j.id}.json`);
 const BOOK_LOCALES = ["enUS", "deDE", "frFR", "esES", "esMX"];
 
-function queue(): Job[] {
+// The pages we have: saved here (one Wowhead hasn't, as { missing }, too)
+// or frozen in data/ (a checkout without the cache).
+const frozenOf = new Map<string, Record<string, Record<string, unknown>>>();
+function have(kind: string, locale: string): Set<number> {
+  const out = new Set<number>();
+  const dir = path.join(DIR, kind, locale);
+  if (existsSync(dir)) for (const f of readdirSync(dir)) out.add(Number.parseInt(f, 10));
+  if (!frozenOf.has(locale)) {
+    const f = path.join(ROOT, "data", "wowhead", "forever", `pages-${locale}.json`);
+    frozenOf.set(locale, existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : {});
+  }
+  for (const id of Object.keys(frozenOf.get(locale)?.[kind] ?? {})) out.add(Number(id));
+  return out;
+}
+
+function queue(refresh = false): Job[] {
   const ids = (sql: string) => {
     const out = new Set<number>();
     for (const game of ["forever", "classic"] as const)
@@ -42,29 +62,30 @@ function queue(): Job[] {
     "SELECT id FROM creature WHERE removed IS NOT 1 AND (type_id IS NULL OR min_level IS NULL OR display_ids IS NULL OR rank IS NULL)",
   );
   const objects = ids("SELECT id FROM object WHERE removed IS NOT 1 AND type IS NULL");
+  // (a refresh: the gaps and every page Wowhead gave before, which fill
+  // them no more once the build has them)
+  const jobs = (kind: Job["kind"], locale: string, list: number[], also: Set<number> = new Set()) => {
+    const got = new Set([...have(kind, locale), ...also]);
+    const ids = refresh ? [...new Set([...list, ...got])].sort((a, b) => a - b) : list.filter((id) => !got.has(id));
+    return ids.map((id) => ({ kind, locale, id }) as Job);
+  };
   // (a book with no page in a language; Forever's own books, which no
   // database has yet, once Wowhead gave their English: found by hand, 15 Oct)
-  const saved = (kind: string, locale: string) =>
-    existsSync(path.join(DIR, kind, locale)) ? readdirSync(path.join(DIR, kind, locale)).map((f) => Number.parseInt(f, 10)) : [];
   const books = (locale: string) =>
     (["item", "object"] as const).flatMap((kind) => {
       const book = kind === "item" ? "itembook" : "objbook";
-      const all = new Set([
-        ...ids(`SELECT id FROM readable WHERE kind = '${kind}' AND removed IS NOT 1`),
-        ...saved(book, "enUS"),
-      ]);
-      const have = new Set([
-        ...ids(`SELECT DISTINCT id FROM readable_page WHERE kind = '${kind}' AND locale = '${locale}'`),
-        ...saved(book, locale),
-      ]);
-      return [...all].filter((id) => !have.has(id)).sort((a, b) => a - b).map((id) => ({ kind: book, locale, id }) as Job);
+      const all = new Set([...ids(`SELECT id FROM readable WHERE kind = '${kind}' AND removed IS NOT 1`), ...have(book, "enUS")]);
+      const pages = (sources: string) =>
+        new Set(ids(`SELECT DISTINCT id FROM readable_page WHERE kind = '${kind}' AND locale = '${locale}' AND source ${sources}`));
+      const theirs = pages("!= 'wowhead'"); // (the client's, the Classic database's: never Wowhead's to give)
+      return jobs(book, locale, [...all].filter((id) => !theirs.has(id)).sort((a, b) => a - b), pages("= 'wowhead'"));
     });
   return [
-    ...quests.map((id) => ({ kind: "quest", locale: "enUS", id }) as Job),
-    ...npcs.map((id) => ({ kind: "npc", locale: "enUS", id }) as Job),
-    ...objects.map((id) => ({ kind: "object", locale: "enUS", id }) as Job),
+    ...jobs("quest", "enUS", quests),
+    ...jobs("npc", "enUS", npcs),
+    ...jobs("object", "enUS", objects),
     ...BOOK_LOCALES.flatMap(books),
-    ...["deDE", "frFR", "esES"].flatMap((locale) => quests.map((id) => ({ kind: "quest", locale, id }) as Job)),
+    ...["deDE", "frFR", "esES"].flatMap((locale) => jobs("quest", locale, quests)),
   ];
 }
 
@@ -79,7 +100,7 @@ const ranges = (ids: number[]) => {
   return out.join(",");
 };
 if (command === "queue") {
-  const jobs = queue();
+  const jobs = queue(rest.includes("--refresh"));
   if (rest.includes("--keys")) console.log(JSON.stringify(jobs.map((j) => `${j.kind}/${j.locale}/${j.id}`)));
   else {
     const groups: Record<string, number[]> = {};
@@ -116,6 +137,6 @@ if (command === "queue") {
     console.log(`${path.relative(ROOT, dest)}: ${Object.entries(sorted).map(([k, p]) => `${Object.keys(p).length} ${k}s`).join(", ")}`);
   }
 } else {
-  console.error("usage: wowhead-pages.ts queue [--keys] | import FILE | freeze");
+  console.error("usage: wowhead-pages.ts queue [--keys] [--refresh] | import FILE | freeze");
   process.exit(2);
 }
