@@ -23,7 +23,9 @@ export const WOWHEAD_LOCALES: Record<string, number> = {
   esES: 6,
   ruRU: 7,
   ptBR: 8,
+  itIT: 9,
   zhTW: 10,
+  esMX: 11,
 };
 // our kinds, Wowhead's
 export const WOWHEAD_KINDS = { creature: "npc", object: "object", quest: "quest", item: "item" } as const;

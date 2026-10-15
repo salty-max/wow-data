@@ -6,6 +6,8 @@
 //   bun bin/names.ts <classic|forever> <locale> --seed DIR...   tooltips an addon
 //     already fetched (npc-<id>-<locale>.json, object-<id>-<n>.json...) first
 //   --offline: the seeds alone, nothing fetched
+//   --gaps: only what the database names in no way in this language (a
+//     language whose names the other sources give, but for a game's own)
 //   bun bin/names.ts <classic|forever> <locale> --ranks   the ranks Questie
 //     doesn't give (Forever's own creatures), from the cached tooltips'
 //     "Level 12 Humanoid (Rare)", into data/wowhead/<game>/ranks.json
@@ -39,6 +41,7 @@ const seeds = seedAt >= 0 ? rest.slice(seedAt + 1).filter((a) => !a.startsWith("
 const retitle = rest.includes("--titles");
 const offline = rest.includes("--offline");
 const ranks = rest.includes("--ranks");
+const gaps = rest.includes("--gaps");
 
 const db = openDb(game);
 const names: Names = readNames(game, locale);
@@ -56,6 +59,14 @@ const wanted: Record<NameKind, number[]> = {
     UNION SELECT entity_id AS id FROM spawn WHERE kind = 'object') ORDER BY id`),
   item: [],
 };
+if (gaps) {
+  const named = (kind: string) =>
+    new Set(ids(`SELECT id FROM name WHERE kind = '${kind}' AND locale = '${locale}'`));
+  for (const kind of ["creature", "quest", "object"] as const) {
+    const has = named(kind);
+    wanted[kind] = wanted[kind].filter((id) => !has.has(id));
+  }
+}
 const titled = new Set(ids("SELECT id FROM name WHERE kind = 'creature_subname' AND locale = 'enUS'"));
 
 // what a tooltip names

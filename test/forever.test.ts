@@ -106,6 +106,11 @@ describe.skipIf(!built)("forever.db", () => {
       for (const s of used) expect(sources).toContain(s);
     }
   });
+  test("every language names what its client shows: Forever's own creatures translated, else the English", () => {
+    const named = (locale: string) => one("SELECT name FROM name WHERE kind = 'creature' AND id = 269075 AND locale = ?", locale)?.name;
+    expect(named("esES")).toBe("Leopardo de la nieve merodeador");
+    expect(named("esMX")).toBe("Snow Leopard Prowler");
+  });
   test("no name is Wowhead's English in brackets (the client shows the English)", () => {
     expect(one("SELECT count(*) AS n FROM name WHERE source = 'wowhead' AND name LIKE '[%]'")).toEqual({ n: 0 });
     // (a quest's text untranslated on Wowhead: none in its language's)

@@ -947,13 +947,20 @@ function wowheadNames(db: Database, game: Game) {
     const locale = f.slice(0, -5);
     const names = JSON.parse(readFileSync(path.join(dir, f), "utf8")) as Record<string, Record<string, string>>;
     let n = 0,
-      renamed = 0;
+      renamed = 0,
+      shown = 0;
     db.transaction(() => {
       for (const [kind, byId] of Object.entries(names))
         for (const [id, name] of Object.entries(byId)) {
           // (a name in brackets: Wowhead's English where the language's client has
-          // none; the client shows the English, which the name table has)
-          if (/^\[.*\]$/.test(name)) continue;
+          // none; the client shows the English: the language's name is it, so
+          // that every language names what its client shows)
+          if (/^\[.*\]$/.test(name)) {
+            const en = (english.get(kind, Number(id)) as { name: string } | null)?.name;
+            // (not a placeholder of the English's own: "[DNT] Kill Credit")
+            if (en && !en.startsWith("[")) shown += insert.run(kind, Number(id), locale, en).changes;
+            continue;
+          }
           const had = current.get(kind, Number(id), locale) as { name: string; source: string } | null;
           if (had && had.source === "questie" && fold(had.name) !== fold(name) && !/^\[|<PH>|\bUNUSED\b/i.test(name)) {
             const en = (english.get(kind, Number(id)) as { name: string } | null)?.name;
@@ -963,7 +970,9 @@ function wowheadNames(db: Database, game: Game) {
           n += insert.run(kind, Number(id), locale, name).changes;
         }
     })();
-    log(`names wowhead ${locale}: ${n}${renamed ? `, ${renamed} of the game's own over Questie's` : ""}`);
+    log(
+      `names wowhead ${locale}: ${n}${renamed ? `, ${renamed} of the game's own over Questie's` : ""}${shown ? `, ${shown} the client shows in English` : ""}`,
+    );
   }
 }
 

@@ -50,7 +50,14 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   players met a creature or an object, by zone: the addons' cross-check and
   a roaming rare's haunts, loaded as spawns of source wowhead).
   `bin/names.ts` and `bin/wowhead-points.ts` fetched or seeded them once;
-  they are hand tools, run only when something is missing, never by a job.
+  they are hand tools, run only when something is missing, never by a job
+  (`names.ts --gaps`: only what the database names in no way in that
+  language; Forever's new creatures in Spanish, Russian, Portuguese, Korean
+  and Chinese, 15 October 2026, and both games' in Italian and Mexican
+  Spanish). A name Wowhead gives in brackets is the English its client
+  shows where the language has none: the build records it as that
+  language's name (the English one), so every language names what its
+  client shows.
   `pages-<locale>.json`: Wowhead's pages of Forever, every quest (texts in
   English, German, French and Spanish; in English its info box's level,
   zone, giver and ender), the creatures' and objects' gaps, the books'
