@@ -64,7 +64,7 @@ function save(game: Game, byLocale: Map<string, Map<string, Line>>) {
   }
 }
 
-async function pull(game: Game): Promise<string[]> {
+async function pull(game: Game): Promise<{ names: string[]; newFacts: number }> {
   const listed: { name: string; size: number }[] = [];
   for (let cursor: string | null = ""; cursor !== null; ) {
     const page: { names: { name: string; size: number }[]; cursor: string | null } = await api(
@@ -97,7 +97,7 @@ async function pull(game: Game): Promise<string[]> {
   }
   if (listed.length) save(game, byLocale);
   console.log(`${game}: ${listed.length} uploads, ${added} new facts`);
-  return listed.map((l) => l.name);
+  return { names: listed.map((l) => l.name), newFacts: added };
 }
 
 const [command, which = "all"] = process.argv.slice(2);
@@ -107,9 +107,16 @@ if (!server || !token) {
 }
 if (command === "pull") {
   const merged: string[] = [];
-  for (const game of (which === "all" ? ["classic", "forever"] : [which]) as Game[]) merged.push(...(await pull(game)));
+  const numbers: Record<string, { uploads: number; newFacts: number }> = {};
+  for (const game of (which === "all" ? ["classic", "forever"] : [which]) as Game[]) {
+    const { names, newFacts } = await pull(game);
+    merged.push(...names);
+    numbers[game] = { uploads: names.length, newFacts };
+  }
   mkdirSync(path.dirname(MERGED), { recursive: true });
   writeFileSync(MERGED, JSON.stringify(merged));
+  // (the day's merge, for Ravenpost's dashboard)
+  await api("/api/inbox/stats", { days: { [new Date().toISOString().slice(0, 10)]: { merged: numbers } } });
 } else if (command === "done") {
   const merged = existsSync(MERGED) ? (JSON.parse(readFileSync(MERGED, "utf8")) as string[]) : [];
   let removed = 0;
