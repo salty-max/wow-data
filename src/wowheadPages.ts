@@ -97,6 +97,8 @@ export function compactPage(kind: string, locale: string, raw: Raw): QuestPage |
   return null;
 }
 
+const PLACEHOLDER = /^\s*(<(UNUSED|NYI|TXT|DEPRECATED|PH|TEST)>|\[(DEPRECATED|PH|UNUSED)\]|zz|z?OLD\b)/i;
+
 /** The frozen pages into Forever's database: the gaps of the other sources filled, Wowhead's own added. */
 export function wowheadPages(db: Database, game: string, log: (s: string) => void) {
   const dir = path.join(ROOT, "data", "wowhead", game);
@@ -123,6 +125,11 @@ export function wowheadPages(db: Database, game: string, log: (s: string) => voi
       const relation = db.prepare("INSERT OR IGNORE INTO quest_relation VALUES (?, ?, ?, ?, 'wowhead')");
       for (const [sid, q] of Object.entries(pages.quest ?? {})) {
         const id = Number(sid);
+        // (Blizzard's placeholders, which Wowhead lists too: no quest of the game's)
+        if (q.title && PLACEHOLDER.test(q.title)) {
+          count("placeholders left out", 1);
+          continue;
+        }
         if (locale === "enUS") {
           count("new quests", newQuest.run(id, q.level ?? null, q.min ?? null, q.zone ?? null, q.sort ?? null, q.races ?? null, q.classes ?? null).changes);
           count("quests filled", fillQuest.run(q.level ?? null, q.min ?? null, q.zone ?? null, q.sort ?? null, id).changes);

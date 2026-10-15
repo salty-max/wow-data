@@ -123,5 +123,7 @@ describe.skipIf(!built)("forever.db", () => {
     expect(one("SELECT text FROM quest_text WHERE quest_id = 1191 AND locale = 'enUS' AND field = 'details'").text).toBe("Let's go!");
     expect(one("SELECT type_id, rank, display_ids FROM creature WHERE id = 268690")).toEqual({ type_id: 4, rank: 0, display_ids: "145131" });
     expect(all("SELECT kind, text FROM npc_line WHERE npc_id = 232929 AND locale = 'enUS'")).toContainEqual({ kind: "say", text: "Here they come!" });
+    // (Blizzard's placeholders Wowhead lists, <UNUSED>, left out)
+    expect(one("SELECT count(*) AS n FROM quest WHERE id IN (807, 820, 856, 8458) AND source = 'wowhead'").n).toBe(0);
   });
 });
