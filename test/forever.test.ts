@@ -108,6 +108,8 @@ describe.skipIf(!built)("forever.db", () => {
   });
   test("no name is Wowhead's English in brackets (the client shows the English)", () => {
     expect(one("SELECT count(*) AS n FROM name WHERE source = 'wowhead' AND name LIKE '[%]'")).toEqual({ n: 0 });
+    // (a quest's text untranslated on Wowhead: none in its language's)
+    expect(one("SELECT count(*) AS n FROM quest_text WHERE source = 'wowhead' AND locale <> 'enUS' AND text LIKE '[%]'")).toEqual({ n: 0 });
   });
   test("the client's other words in every language: the interface's strings, an item's flavour line", () => {
     expect(

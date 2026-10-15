@@ -126,10 +126,13 @@ export function wowheadPages(db: Database, game: string, log: (s: string) => voi
       for (const [sid, q] of Object.entries(pages.quest ?? {})) {
         const id = Number(sid);
         // (Blizzard's placeholders, which Wowhead lists too: no quest of the game's)
-        if (q.title && PLACEHOLDER.test(q.title)) {
+        if (q.title && PLACEHOLDER.test(q.title.replace(/^\[/, ""))) {
           count("placeholders left out", 1);
           continue;
         }
+        // (a language's page with the English in brackets: Wowhead has no
+        // translation of it, the client shows the English)
+        const untranslated = (s: string | undefined) => locale !== "enUS" && !!s && /^\[[\s\S]*\]$/.test(s.trim());
         if (locale === "enUS") {
           count("new quests", newQuest.run(id, q.level ?? null, q.min ?? null, q.zone ?? null, q.sort ?? null, q.races ?? null, q.classes ?? null).changes);
           count("quests filled", fillQuest.run(q.level ?? null, q.min ?? null, q.zone ?? null, q.sort ?? null, id).changes);
@@ -138,8 +141,10 @@ export function wowheadPages(db: Database, game: string, log: (s: string) => voi
             for (const [kind, who] of q[role]!) count(`${role} relations`, relation.run(id, role, kind, who).changes);
           }
         }
-        if (q.title) count("quest names", name.run("quest", id, locale, q.title).changes);
-        for (const field of ["details", "objectives", "request", "reward"] as const) if (q[field]) count("quest texts", text.run(id, locale, field, q[field]).changes);
+        if (q.title && !untranslated(q.title)) count("quest names", name.run("quest", id, locale, q.title).changes);
+        for (const field of ["details", "objectives", "request", "reward"] as const)
+          if (q[field] && !untranslated(q[field])) count("quest texts", text.run(id, locale, field, q[field]).changes);
+          else if (q[field]) count("untranslated left out", 1);
       }
       // ── creatures ──
       const newNpc = db.prepare("INSERT OR IGNORE INTO creature (id, min_level, max_level, type_id, family_id, rank, display_ids, source) VALUES (?, ?, ?, ?, ?, ?, ?, 'wowhead')");
