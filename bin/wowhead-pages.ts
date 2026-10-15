@@ -75,11 +75,17 @@ function queue(refresh = false): Job[] {
     return ids.map((id) => ({ kind, locale, id }) as Job);
   };
   // (a book with no page in a language; Forever's own books, which no
-  // database has yet, once Wowhead gave their English: found by hand, 15 Oct)
+  // database has yet, once Wowhead gave their English: found by hand, 15 Oct;
+  // and every item or object with a page the databases have no text of, the
+  // Classic database's missing pages and Forever's own books: 61, 15 Oct)
   const books = (locale: string) =>
     (["item", "object"] as const).flatMap((kind) => {
       const book = kind === "item" ? "itembook" : "objbook";
-      const all = new Set([...ids(`SELECT id FROM readable WHERE kind = '${kind}' AND removed IS NOT 1`), ...have(book, "enUS")]);
+      const all = new Set([
+        ...ids(`SELECT id FROM readable WHERE kind = '${kind}' AND removed IS NOT 1`),
+        ...ids(`SELECT id FROM ${kind} WHERE page_id > 0 AND removed IS NOT 1`),
+        ...have(book, "enUS"),
+      ]);
       const pages = (sources: string) =>
         new Set(ids(`SELECT DISTINCT id FROM readable_page WHERE kind = '${kind}' AND locale = '${locale}' AND source ${sources}`));
       const theirs = pages("!= 'wowhead'"); // (the client's, the Classic database's: never Wowhead's to give)
