@@ -115,4 +115,13 @@ describe.skipIf(!built)("forever.db", () => {
     ).toEqual({ name: "Zornbringer" });
     expect(one("SELECT count(*) > 1000 AS ok FROM name WHERE kind = 'item_description' AND locale = 'frFR'")).toEqual({ ok: 1 });
   });
+  test("Wowhead's pages fill Forever's gaps: a quest of its latest additions, texts, a creature's facts, lines", () => {
+    expect(one("SELECT level, zone_id, source FROM quest WHERE id = 95786")).toEqual({ level: 40, zone_id: 33, source: "wowhead" });
+    expect(name("quest", 95786)).toBe("An Acquaintance in Southshore");
+    expect(String(one("SELECT text FROM quest_text WHERE quest_id = 95786 AND locale = 'enUS' AND field = 'details'").text)).toStartWith("$N, I have a friend in the Hillsbrad Foothills");
+    // (Wowhead's own tip after a quest's text is no part of it)
+    expect(one("SELECT text FROM quest_text WHERE quest_id = 1191 AND locale = 'enUS' AND field = 'details'").text).toBe("Let's go!");
+    expect(one("SELECT type_id, rank, display_ids FROM creature WHERE id = 268690")).toEqual({ type_id: 4, rank: 0, display_ids: "145131" });
+    expect(all("SELECT kind, text FROM npc_line WHERE npc_id = 232929 AND locale = 'enUS'")).toContainEqual({ kind: "say", text: "Here they come!" });
+  });
 });

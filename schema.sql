@@ -331,8 +331,8 @@ CREATE TABLE speech (
   PRIMARY KEY (id, locale)
 );
 
--- What an npc was heard to say, by the npc: players' facts (the broadcast
--- texts above know no speaker). kind: say, yell, emote, whisper, gossip (its
+-- What an npc was heard to say, by the npc: Wowhead's pages' quotes and
+-- players' facts (the broadcast texts above know no speaker). kind: say, yell, emote, whisper, gossip (its
 -- window's text).
 CREATE TABLE npc_line (
   npc_id INTEGER NOT NULL,

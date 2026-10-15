@@ -1,6 +1,9 @@
 // A game's database built from the pinned sources (PLAN.md, schema.sql):
 // the client's own tables whole, their names in every language, then the
 // Classic database's world, every link an id, every row its source.
+import { gamePage } from "./gametext";
+export { gamePage } from "./gametext";
+import { wowheadPages } from "./wowheadPages";
 import { Database } from "bun:sqlite";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -1058,30 +1061,6 @@ function attRewards(db: Database, game: Game) {
 // (<nom>, <Klasse>) and a gendered word as <male/female> ("der
 // Überbringer/die Überbringerin"); any other <...> is the game's own aside
 // (<texte illisible>, <unleserlicher Text>), kept.
-const TOKENS: Record<string, string> = {
-  nom: "$N", name: "$N", nombre: "$N",
-  classe: "$C", class: "$C", klasse: "$C", clase: "$C",
-  race: "$R", rasse: "$R", volk: "$R", raza: "$R",
-};
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
-export function gamePage(html: string): string {
-  return html
-    .replace(/&lt;([^&]{1,40})&gt;/g, (aside, t: string) => {
-      const token = TOKENS[t.toLowerCase()];
-      if (token) return token;
-      const parts = t.split("/");
-      return parts.length === 2 && !/[.!?]/.test(t) ? `$g${parts[0]}:${parts[1]};` : aside;
-    })
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|h\d)>/gi, "\n\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, e: string) =>
-      e[0] === "#" ? String.fromCodePoint(e[1] === "x" ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : (ENTITIES[e] ?? m),
-    )
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
 function wowheadBooks(db: Database, game: Game) {
   const dir = path.join(ROOT, "data", "wowhead", game);
   if (!existsSync(dir)) return;
@@ -1165,6 +1144,7 @@ export async function build(game: Game, file: string) {
   attRewards(db, game);
   attPrereqs(db, game);
   wowheadBooks(db, game);
+  wowheadPages(db, game, log);
   loadPlayers(db, game);
   chains(db);
   db.exec("ANALYZE");

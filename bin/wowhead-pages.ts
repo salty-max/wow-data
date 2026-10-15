@@ -31,6 +31,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { CACHE } from "../src/cache";
 import { openDb } from "../src/db";
+import { compactPage } from "../src/wowheadPages";
 import { ROOT } from "../src/pins";
 
 const DIR = path.join(CACHE, "wowhead", "forever", "pages");
@@ -158,21 +159,29 @@ if (command === "queue") {
   }
   console.log(`${n} pages from ${names.length} hand-overs saved under ${path.relative(ROOT, DIR)}`);
 } else if (command === "freeze") {
+  // (each page in the build's compact form: the game's own texts, the info
+  // box's facts; a page Wowhead hasn't, left out)
   const out: Record<string, Record<string, Record<string, unknown>>> = {};
   if (existsSync(DIR))
     for (const kind of readdirSync(DIR))
       for (const locale of readdirSync(path.join(DIR, kind)))
         for (const f of readdirSync(path.join(DIR, kind, locale))) {
-          const page = JSON.parse(readFileSync(path.join(DIR, kind, locale, f), "utf8"));
-          if (page.missing) continue;
+          const page = compactPage(kind, locale, JSON.parse(readFileSync(path.join(DIR, kind, locale, f), "utf8")));
+          if (!page || !Object.keys(page).length) continue;
           ((out[locale] ??= {})[kind] ??= {})[f.replace(/\.json$/, "")] = page;
         }
   for (const [locale, kinds] of Object.entries(out)) {
     const sorted = Object.fromEntries(
-      Object.entries(kinds).map(([k, pages]) => [k, Object.fromEntries(Object.entries(pages).sort((a, b) => Number(a[0]) - Number(b[0])))]),
+      Object.entries(kinds)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, pages]) => [k, Object.fromEntries(Object.entries(pages).sort((a, b) => Number(a[0]) - Number(b[0])))]),
     );
     const dest = path.join(ROOT, "data", "wowhead", "forever", `pages-${locale}.json`);
-    writeFileSync(dest, JSON.stringify(sorted));
+    // (one page a line: a day's change reads as lines in a diff)
+    const body = Object.entries(sorted)
+      .map(([k, pages]) => `${JSON.stringify(k)}:{\n${Object.entries(pages).map(([id, p]) => `${JSON.stringify(id)}:${JSON.stringify(p)}`).join(",\n")}\n}`)
+      .join(",\n");
+    writeFileSync(dest, `{${body}}\n`);
     console.log(`${path.relative(ROOT, dest)}: ${Object.entries(sorted).map(([k, p]) => `${Object.keys(p).length} ${k}s`).join(", ")}`);
   }
 } else {

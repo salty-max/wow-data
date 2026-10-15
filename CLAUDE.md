@@ -51,12 +51,19 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   a roaming rare's haunts, loaded as spawns of source wowhead).
   `bin/names.ts` and `bin/wowhead-points.ts` fetched or seeded them once;
   they are hand tools, run only when something is missing, never by a job.
-  `pages-<locale>.json` (coming, 15 Oct): Wowhead's pages of every quest
-  (texts in English, German, French and Spanish, and the English info box),
-  the creatures' and objects' gaps and the books' missing languages, fetched
-  by a Wowhead tab (`bin/wowhead-tab.js`, its how-to) and saved, then frozen,
-  by `bin/wowhead-pages.ts` (`queue --keys` the tab's jobs, `import`,
-  `freeze`).
+  `pages-<locale>.json`: Wowhead's pages of Forever, every quest (texts in
+  English, German, French and Spanish; in English its info box's level,
+  zone, giver and ender), the creatures' and objects' gaps, the books'
+  missing languages and what its Latest Additions hold that no database
+  knows, fetched by a Wowhead tab (`bin/wowhead-tab.js`, its how-to; it hands
+  them to Ravenpost's inbox) and taken, then frozen, by `bin/wowhead-pages.ts`
+  (`queue --keys` the tab's jobs, `pull`, `freeze`: one compact page a line,
+  the texts the game's own, `src/gametext.ts`). `src/wowheadPages.ts` loads
+  them into Forever's database after the books: a gap of the other sources
+  filled (they win a fact they have), Forever's new quests, creatures,
+  objects and books added (source wowhead), the creatures' lines in
+  `npc_line`; Wowhead's own codes left out (an "uncategorized" creature, a
+  quest object's category, a scaling level).
 - Players' facts, `data/players/<game>/<locale>.json`: what the game told
   the players who said yes to the addons' opt-in (the kit's `K.collect`:
   quests' texts, givers and enders, creatures' names, levels, ranks, types
