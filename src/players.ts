@@ -116,6 +116,8 @@ export function players(db: Database, all: PlayerFact[]): Record<string, number>
         count("creatures", creature.run(id).changes);
         if (field === "name") count("creature names", name.run("creature", id, locale, value).changes);
         else if (field === "rank" && value in RANKS) count("ranks", setRank.run(RANKS[value], id).changes);
+        else if ((field === "typeId" || field === "familyId") && /^\d+$/.test(value))
+          count(field === "typeId" ? "types" : "families", (field === "typeId" ? setType : setFamily).run(Number(value), id).changes);
         else if (field === "type" || field === "family") {
           const t = typeOf.get(field === "type" ? "creature_type" : "creature_family", locale, value) as { id: number } | null;
           if (t) count(field === "type" ? "types" : "families", (field === "type" ? setType : setFamily).run(t.id, id).changes);

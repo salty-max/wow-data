@@ -92,6 +92,12 @@ describe("players' facts", () => {
     expect(told.creatures).toBe(1);
   });
 
+  test("a creature's type and family by their ids, as the addons keep them now", () => {
+    const db = world();
+    players(db, [fact("frFR", "npc", "250002", "typeId", "1"), fact("frFR", "npc", "250002", "familyId", "1")]);
+    expect(db.query("SELECT type_id, family_id FROM creature WHERE id = 250002").get()).toEqual({ type_id: 1, family_id: 1 });
+  });
+
   test("a source's loot is never added to", () => {
     const db = world();
     db.run("UPDATE creature SET loot_id = 299 WHERE id = 299");

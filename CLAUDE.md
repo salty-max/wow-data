@@ -67,6 +67,7 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
 - Players' facts, `data/players/<game>/<locale>.json`: what the game told
   the players who said yes to the addons' opt-in (the kit's `K.collect`:
   quests' texts, givers and enders, creatures' names, levels, ranks, types
+  and families (by their ids; an older file's words matched to them)
   and where they were met, NPCs' lines, loot), sent by Ravenpost to its
   inbox (salty-max/ravenpost's `inbox/`, its README.md:
   https://ravenpost-inbox.vercel.app, a private Blob store, no database;
