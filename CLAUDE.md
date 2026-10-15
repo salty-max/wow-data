@@ -51,6 +51,12 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   a roaming rare's haunts, loaded as spawns of source wowhead).
   `bin/names.ts` and `bin/wowhead-points.ts` fetched or seeded them once;
   they are hand tools, run only when something is missing, never by a job.
+  `pages-<locale>.json` (coming, 15 Oct): Wowhead's pages of every quest
+  (texts in English, German, French and Spanish, and the English info box),
+  the creatures' and objects' gaps and the books' missing languages, fetched
+  by a Wowhead tab (`bin/wowhead-tab.js`, its how-to) and saved, then frozen,
+  by `bin/wowhead-pages.ts` (`queue --keys` the tab's jobs, `import`,
+  `freeze`).
 - Players' facts, `data/players/<game>/<locale>.json`: what the game told
   the players who said yes to the addons' opt-in (the kit's `K.collect`:
   quests' texts, givers and enders, creatures' names, levels, ranks, types
