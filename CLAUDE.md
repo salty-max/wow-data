@@ -106,7 +106,10 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   Dashboard merge counts are new archived observations, not database gaps.
 - `.github/workflows/db.yml`: both databases built, tested and published as
   the latest release (`db-<commit12>`, the last commit that changed them);
-  `bin/get.ts` downloads them (`--tag`: one release's, which must be there).
+  `bin/db-tag.ts` supplies the same input-revision tag to the publisher and
+  addon jobs, including recovery builds after test-only fixes. `bin/get.ts`
+  downloads them (`--tag`: one exact release, `--wait SECONDS`: wait for both
+  uploads). Addon jobs wait up to ten minutes for a build still publishing.
 - `.github/workflows/addon-data.yml`: an addon's game data built again,
   called by each addon's daily `game-data.yml` (Hearthtale, the Codex,
   Yonder, Second Wind) with its own generators (`generate`), the files a

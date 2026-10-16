@@ -106,8 +106,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          sha=$(git log -1 --format=%H -- pins.json schema.sql src bin data .github/workflows/db.yml)
-          bun bin/get.ts all --tag "db-${sha:0:12}"
+          tag=$(bun bin/db-tag.ts)
+          bun bin/get.ts all --tag "$tag" --wait 600
           echo "WOW_DATA_AT=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_ENV"
       - name: The data built again
         id: data
