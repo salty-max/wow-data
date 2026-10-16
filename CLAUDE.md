@@ -83,7 +83,7 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   the players who said yes to the addons' opt-in (the kit's `K.collect`:
   quests' texts, givers and enders, creatures' names, levels, ranks, types
   and families (by their ids; an older file's words matched to them)
-  and where they were met, NPCs' lines, loot), sent by Ravenpost to its
+  and approximate sightings, NPCs' lines, loot), sent by Ravenpost to its
   inbox (salty-max/ravenpost's `inbox/`, its README.md:
   https://ravenpost-inbox.vercel.app, a private Blob store, no database;
   players link it with Battle.net from Ravenpost, one account one voice) and
@@ -97,6 +97,13 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   source has the fact: the value most players saw (`MIN_SEEN`: one is
   enough while they are few), a level the range of all seen, NPCs' lines in
   `npc_line`, loot only for a creature or an object no source gives any.
+  NPC positions go to `creature_sighting` as observer coordinates, even
+  when a creature already has known spawns. They never add to `spawn` and
+  must never resolve an exact riddle spot. Multiple sightings are retained.
+  The collector marks checked world NPCs with `world: true`, rejecting
+  player-controlled units and purging its older unchecked NPC cache. The
+  inbox rejects unchecked legacy NPC entries and keeps type/family ids.
+  Dashboard merge counts are new archived observations, not database gaps.
 - `.github/workflows/db.yml`: both databases built, tested and published as
   the latest release (`db-<commit12>`, the last commit that changed them);
   `bin/get.ts` downloads them (`--tag`: one release's, which must be there).

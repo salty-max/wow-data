@@ -2,7 +2,7 @@
 // the game told the players who said yes to the addons' opt-in (the kit's
 // collector), sent by Ravenpost to its inbox (salty-max/ravenpost, inbox/) and merged from
 // there daily: quests' texts, givers and enders, creatures' names, levels,
-// ranks, types and where they were met, what NPCs said, what a creature or an
+// ranks, types and approximate sightings, what NPCs said, what a creature or an
 // object gave. The live game's own words, so new content is known without
 // waiting for the other sources. They fill gaps only: a fact any other source
 // has stays its.
@@ -73,10 +73,12 @@ export function players(db: Database, all: PlayerFact[]): Record<string, number>
   const ranges = new Map<number, [number, number]>();
   const lines: PlayerFact[] = [];
   const loot: PlayerFact[] = [];
+  const sightings: PlayerFact[] = [];
   for (const f of facts) {
     const [locale, kind, entity, field, value] = f;
     if (kind === "say" || kind === "gossip") lines.push(f);
     else if (kind === "loot") loot.push(f);
+    else if (kind === "npc" && field === "where") sightings.push(f);
     else if (kind === "npc" && field === "level") {
       const [lo, hi] = JSON.parse(value) as [number, number];
       const r = ranges.get(Number(entity));
@@ -99,8 +101,6 @@ export function players(db: Database, all: PlayerFact[]): Record<string, number>
     const setType = set("type_id"),
       setFamily = set("family_id"),
       setRank = set("rank");
-    const spawned = db.prepare("SELECT 1 FROM spawn WHERE kind = 'creature' AND entity_id = ?");
-    const spawn = db.prepare("INSERT INTO spawn (kind, entity_id, ui_map_id, ux, uy, source) VALUES ('creature', ?, ?, ?, ?, 'players')");
     for (const [locale, kind, entity, field, value] of chosen) {
       const id = Number(entity);
       if (kind === "quest") {
@@ -121,11 +121,22 @@ export function players(db: Database, all: PlayerFact[]): Record<string, number>
         else if (field === "type" || field === "family") {
           const t = typeOf.get(field === "type" ? "creature_type" : "creature_family", locale, value) as { id: number } | null;
           if (t) count(field === "type" ? "types" : "families", (field === "type" ? setType : setFamily).run(t.id, id).changes);
-        } else if (field === "where" && !spawned.get(id)) {
-          const [map, x, y] = JSON.parse(value) as number[];
-          if (x !== undefined && y !== undefined) count("spawns", spawn.run(id, map, x, y).changes);
         }
       }
+    }
+    const sighting = db.prepare(`INSERT OR IGNORE INTO creature_sighting
+      (npc_id, locale, ui_map_id, observer_x, observer_y, build, seen, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'players')`);
+    for (const [locale, , entity, , value, build, seen] of sightings) {
+      let position: unknown;
+      try { position = JSON.parse(value); } catch { continue; }
+      if (!Array.isArray(position) || position.length !== 3) continue;
+      const [map, x, y] = position;
+      if (!Number.isInteger(map) || map < 1 || map > 100_000
+        || typeof x !== "number" || !Number.isFinite(x) || x < 0 || x > 100
+        || typeof y !== "number" || !Number.isFinite(y) || y < 0 || y > 100) continue;
+      count("creatures", creature.run(Number(entity)).changes);
+      count("sightings", sighting.run(Number(entity), locale, map, x, y, build, seen).changes);
     }
     const level = db.prepare("UPDATE creature SET min_level = ?, max_level = ? WHERE id = ? AND min_level IS NULL");
     for (const [id, [lo, hi]] of ranges) {
