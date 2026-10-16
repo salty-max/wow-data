@@ -96,7 +96,7 @@ async function pull(game: Game): Promise<{ names: string[]; newFacts: number }> 
       }
   }
   if (listed.length) save(game, byLocale);
-  console.log(`${game}: ${listed.length} uploads, ${added} new facts`);
+  console.log(`${game}: ${listed.length} uploads, ${added} new observations archived`);
   return { names: listed.map((l) => l.name), newFacts: added };
 }
 

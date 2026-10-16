@@ -344,6 +344,20 @@ CREATE TABLE npc_line (
   PRIMARY KEY (npc_id, locale, kind, text)
 );
 
+-- Where a player stood while seeing a world creature. This is an approximate
+-- observation, never a spawn point: do not use it as a riddle's exact spot.
+CREATE TABLE creature_sighting (
+  npc_id      INTEGER NOT NULL,
+  locale      TEXT NOT NULL,
+  ui_map_id   INTEGER NOT NULL,
+  observer_x  REAL NOT NULL,
+  observer_y  REAL NOT NULL,
+  build       TEXT,
+  seen        INTEGER NOT NULL,
+  source      TEXT NOT NULL,
+  PRIMARY KEY (npc_id, locale, ui_map_id, observer_x, observer_y)
+);
+
 -- ── outside sources' own facts ───────────────────────────────────────────────
 -- A rare's zone (the WoWWiki archive's "Rare mobs by zone", else its spawns).
 CREATE TABLE rare_zone (

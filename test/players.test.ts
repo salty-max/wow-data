@@ -79,7 +79,9 @@ describe("players' facts", () => {
       source: "players",
     });
     expect(db.query("SELECT name FROM name WHERE kind = 'creature' AND id = 250001 AND locale = 'deDE'").get()).toEqual({ name: "Sturmkrähe" });
-    expect(db.query("SELECT ui_map_id, ux, uy FROM spawn WHERE entity_id = 250001").get()).toEqual({ ui_map_id: 1411, ux: 46.1, uy: 25 });
+    expect(db.query("SELECT ui_map_id, observer_x, observer_y, seen FROM creature_sighting WHERE npc_id = 250001").get())
+      .toEqual({ ui_map_id: 1411, observer_x: 46.1, observer_y: 25, seen: 1 });
+    expect(db.query("SELECT * FROM spawn WHERE entity_id = 250001").all()).toEqual([]);
     expect(db.query("SELECT kind, text FROM npc_line WHERE npc_id = 250001 ORDER BY kind").all()).toEqual([
       { kind: "gossip", text: "Was wollt Ihr?$BGeht." },
       { kind: "yell", text: "Ihr stört meine Ruhe, $N!" },
@@ -90,6 +92,25 @@ describe("players' facts", () => {
       { kind: "object", source_id: 180001, item_id: 3355 },
     ]);
     expect(told.creatures).toBe(1);
+  });
+
+  test("observer positions remain sightings, including multiple places and creatures with known spawns", () => {
+    const db = world();
+    db.run("INSERT INTO spawn (kind, entity_id, ui_map_id, ux, uy, source) VALUES ('creature', 299, 1426, 40, 50, 'questie')");
+    const facts = [
+      fact("enUS", "npc", "299", "where", "[1426,47.2,52]"),
+      fact("enUS", "npc", "299", "where", "[1426,48,53]"),
+      fact("enUS", "npc", "299", "where", "[1426]"),
+      fact("enUS", "npc", "299", "where", "[1426,101,52]"),
+      fact("enUS", "npc", "299", "where", "[1426,47.2,null]"),
+      fact("enUS", "npc", "299", "where", "broken"),
+    ];
+    expect(players(db, facts)).toEqual({ sightings: 2 });
+    expect(players(db, facts)).toEqual({});
+    expect(db.query("SELECT ui_map_id, ux, uy, source FROM spawn WHERE entity_id = 299").all())
+      .toEqual([{ ui_map_id: 1426, ux: 40, uy: 50, source: "questie" }]);
+    expect(db.query("SELECT count(*) AS n FROM creature_sighting WHERE npc_id = 299").get()).toEqual({ n: 2 });
+    db.close();
   });
 
   test("a creature's type and family by their ids, as the addons keep them now", () => {
