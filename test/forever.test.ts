@@ -21,6 +21,19 @@ describe.skipIf(!built)("forever.db", () => {
     expect(name("creature", 448)).toBe("Hogger");
     expect(name("quest", 182)).toBe("The Troll Cave");
   });
+  test("Finds gaps: Forever requirements, explicit skinning and source-only mining yields", () => {
+    expect(one("SELECT min_skill,source FROM gathering_node WHERE object_id=1731 AND skill_line_id=186")).toEqual({ min_skill: 1, source: "client" });
+    expect(one("SELECT min_skill,source,introduced_build FROM gathering_node WHERE object_id=562111")).toEqual({ min_skill: 1, source: "wowhead", introduced_build: "1.60.1.69893" });
+    expect(all("SELECT item_id,chance FROM loot WHERE kind='object' AND source_id=562111 AND source='wowhead' ORDER BY item_id")).toEqual([{ item_id: 2770, chance: null }, { item_id: 2835, chance: null }]);
+    expect(all("SELECT source_id FROM loot WHERE kind='skinning' AND item_id=249427 AND source='wowhead' ORDER BY source_id")).toEqual([{ source_id: 3474 }, { source_id: 5832 }, { source_id: 270693 }]);
+    expect(one("SELECT source_id FROM loot WHERE kind='skinning' AND item_id=249428 AND source='wowhead'")).toEqual({ source_id: 271334 });
+    expect(one("SELECT min_skill FROM gathering_node WHERE object_id=566779")).toEqual({ min_skill: 300 });
+    expect(one("SELECT count(*) AS n FROM loot WHERE kind='object' AND source_id=566779 AND source='wowhead'")).toEqual({ n: 0 });
+    expect(one("SELECT introduced_build FROM gathering_node WHERE object_id=439778")).toEqual({ introduced_build: "1.15.2.54092" });
+    expect(one("SELECT source FROM loot WHERE kind='object' AND source_id=1733 AND item_id=249391")).toEqual({ source: "questie" });
+    expect(one("SELECT source FROM loot WHERE kind='object' AND source_id=1610 AND item_id=249391")).toEqual({ source: "wowhead" });
+    expect(one("SELECT source FROM loot WHERE kind='object' AND source_id=2040 AND item_id=249425")).toEqual({ source: "wowhead" });
+  });
   test("a quest of Forever's own: Foul Matriarch, on Zephras Isle", () => {
     expect(name("quest", 92470)).toBe("Foul Matriarch");
     const q = one("SELECT zone_id, level, prev_id, source FROM quest WHERE id = 92470");

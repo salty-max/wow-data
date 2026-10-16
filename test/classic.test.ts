@@ -117,4 +117,9 @@ describe.skipIf(!built)("classic.db", () => {
       expect(one(`SELECT count(*) AS n FROM ${table} WHERE source IS NULL OR source = ''`)).toEqual({ n: 0 });
     }
   });
+  test("Finds gathering requirements use this client and keep Forever additions out", () => {
+    expect(one("SELECT skill_line_id,min_skill,source FROM gathering_node WHERE object_id=1731")).toEqual({ skill_line_id: 186, min_skill: 0, source: "client" });
+    expect(one("SELECT count(*) AS n FROM gathering_node WHERE object_id IN (562111,566779,656332,656333)")).toEqual({ n: 0 });
+    expect(one("SELECT SpellID FROM client_SpellReagents WHERE SpellID=2657 AND Reagent_0=2770")).toEqual({ SpellID: 2657 });
+  });
 });

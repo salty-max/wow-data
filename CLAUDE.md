@@ -73,6 +73,14 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   objects and books added (source wowhead), the creatures' lines in
   `npc_line`; Wowhead's own codes left out (an "uncategorized" creature, a
   quest object's category, a scaling level).
+- Gathering data for Finds: `gathering_node` resolves the client's Lock
+  requirements and fills unknown ones from frozen Wowhead pages.
+  `src/gathering.ts`, `docs/finds-materials.md`. The tab fetcher also retains
+  object yields and explicit mined/skinned item sources (`item` jobs).
+  Targeted `wowhead-pages.ts queue` and `freeze` accept `--kind item|object
+  --ids ID,ID` and optional `--locale`. The overlay has a Materials row.
+  Loot IDs are provider-specific: ClassicDB/players use templates,
+  Questie/Wowhead use entities. Keep Wowhead counts out of server odds.
 - The TBC Anniversary client's items, `data/tbc/items.json` (`bin/tbc-items.ts
   <ids>`, a hand tool: its ItemSparse on wago.tools, every language, frozen
   with its build): what an addon's TBC package names and neither client has

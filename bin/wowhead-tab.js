@@ -31,7 +31,8 @@
 //   __wd.panel()                  a live progress panel on the page, and the
 //                                 tab's title its percentage
 // Kinds: quest (texts; in English also its info box: giver, ender, level,
-// zone), npc (type, level, rank, model, quotes), object (type), itembook and
+// zone), npc (type, level, rank, model, quotes), object (type, gathering
+// requirement and yields), item (explicit mined/skinned sources), itembook and
 // objbook (a book's or a plaque's pages, as the page's book viewer has them).
 // Languages: enUS, deDE, frFR, esES (Spain's), esMX (Latin America's).
 (async () => {
@@ -63,17 +64,29 @@
     const s = i;
     for (; i < h.length; i++) {
       const c = h[i];
-      if (c === "{") depth++;
-      else if (c === "}") {
+      if (c === "{" || c === "[") depth++;
+      else if (c === "}" || c === "]") {
         depth--;
         if (depth === 0) { i++; break; }
       } else if (c === '"') for (i++; i < h.length && h[i] !== '"'; i++) if (h[i] === "\\") i++;
     }
-    try { return JSON.parse(h.slice(s, i)); } catch { return null; }
+    // Loot listviews use JS object literals with bare property keys. Quote
+    // those keys outside strings only. Never execute scripts from a page.
+    const literal = h.slice(s, i).replace(/"(?:\\.|[^"\\])*"|([A-Za-z_$][\w$]*)(\s*:)/g,
+      (all, key, colon) => key ? JSON.stringify(key) + colon : all);
+    try { return JSON.parse(literal); } catch { return null; }
+  };
+  const listview = (h, id) => {
+    for (const part of h.split(/new Listview\s*\(/).slice(1)) {
+      const header = part.slice(0, part.search(/\bdata\s*:/));
+      if (!new RegExp(`\\bid\\s*:\\s*['"]${id}['"]`).test(header)) continue;
+      return jsonAfter(part, /\bdata\s*:\s*/);
+    }
+    return null;
   };
   const box = (h) => {
-    const m = h.match(/WH\.markup\.printHtml\("(\[ul\][^"]*(?:\\.[^"]*)*)"/);
-    return m ? m[1].replace(/\\\//g, "/").replace(/\\"/g, '"') : null;
+    const m = h.match(/WH\.markup\.printHtml\(("\[ul\](?:\\.|[^"\\])*")/);
+    try { return m ? JSON.parse(m[1]) : null; } catch { return null; }
   };
   const book = (h) => {
     const m = h.match(/new Book\(\{[^}]*pages: (\[.*?\])\}\)/s);
@@ -128,8 +141,10 @@
     },
     object: (h, id) => {
       const info = jsonAfter(h, new RegExp("g_objects\\[" + id + "\\],\\s*"));
-      return info ? { info, box: box(h) } : null;
+      const mining = listview(h, "mining"), herbs = listview(h, "herbalism");
+      return info ? { info, box: box(h), mining, herbs } : null;
     },
+    item: (h) => ({ skinned: listview(h, "skinned-from"), mined: listview(h, "mined-from-object") }),
     itembook: (h) => book(h),
     objbook: (h) => book(h),
   };
@@ -307,7 +322,7 @@
   // The whole at a glance (a bar, the speed, what is left), then a grid: a
   // row a kind, a column a language (its counts on hover), the one fetching
   // now outlined; Wowhead's throttling under it.
-  const KINDS = [["quest", "Quests"], ["npc", "Creatures"], ["object", "Objects"], ["itembook", "Books"], ["objbook", "Plaques"]];
+  const KINDS = [["quest", "Quests"], ["npc", "Creatures"], ["object", "Objects"], ["item", "Materials"], ["itembook", "Books"], ["objbook", "Plaques"]];
   const LANGS = [["enUS", "EN"], ["deDE", "DE"], ["frFR", "FR"], ["esES", "ES"], ["esMX", "MX"]];
   const LANG_NAMES = { enUS: "English", deDE: "German", frFR: "French", esES: "Spanish", esMX: "Latin American Spanish" };
   const fmt = (s) => (!isFinite(s) ? "?" : s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : `${Math.floor(s / 3600)} h ${String(Math.round((s % 3600) / 60)).padStart(2, "0")}`);

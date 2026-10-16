@@ -26,6 +26,8 @@
 //     data/wowhead/forever/pages-<locale>.json ({ quest | npc | object |
 //     itembook | objbook: { id: page } }), which the build loads
 // A hand tool, as bin/names.ts: never run by a job.
+// Targeted material work: queue/freeze --kind item --ids 249427,249428
+// (or --kind object). The queue defaults to enUS, --locale chooses another.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -36,9 +38,20 @@ import { ROOT } from "../src/pins";
 
 const DIR = path.join(CACHE, "wowhead", "forever", "pages");
 const [command, ...rest] = process.argv.slice(2);
-type Job = { kind: "quest" | "npc" | "object" | "itembook" | "objbook"; locale: string; id: number };
+type Job = { kind: "quest" | "npc" | "object" | "item" | "itembook" | "objbook"; locale: string; id: number };
 const file = (j: Job) => path.join(DIR, j.kind, j.locale, `${j.id}.json`);
 const BOOK_LOCALES = ["enUS", "deDE", "frFR", "esES", "esMX"];
+function selection(): Job[] | null {
+  const option = (name: string) => rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined;
+  const kind = option("--kind"), ids = option("--ids"), locale = option("--locale") ?? "enUS";
+  if (kind === undefined && ids === undefined) return null;
+  if (!kind || !/^(quest|npc|object|item|itembook|objbook)$/.test(kind) || !ids || !BOOK_LOCALES.includes(locale))
+    throw new Error("targeted pages need --kind, --ids (comma-separated IDs), and a supported --locale");
+  return [...new Set(ids.split(",").map(Number))].sort((a, b) => a - b).map(id => {
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error(`invalid page id: ${id}`);
+    return { kind: kind as Job["kind"], locale, id };
+  });
+}
 
 // The pages we have: saved here (one Wowhead hasn't, as { missing }, too)
 // or frozen in data/ (a checkout without the cache).
@@ -105,7 +118,7 @@ function save(batch: Record<string, unknown>): number {
   let n = 0;
   for (const [k, page] of Object.entries(batch)) {
     const [kind, locale, id] = k.split("/");
-    if (!/^(quest|npc|object|itembook|objbook)$/.test(kind) || !/^[a-z]{2}[A-Z]{2}$/.test(locale) || !/^\d+$/.test(id)) continue;
+    if (!/^(quest|npc|object|item|itembook|objbook)$/.test(kind) || !/^[a-z]{2}[A-Z]{2}$/.test(locale) || !/^\d+$/.test(id)) continue;
     const f = file({ kind: kind as Job["kind"], locale, id: Number(id) });
     mkdirSync(path.dirname(f), { recursive: true });
     writeFileSync(f, JSON.stringify(page));
@@ -125,7 +138,8 @@ const ranges = (ids: number[]) => {
   return out.join(",");
 };
 if (command === "queue") {
-  const jobs = queue(rest.includes("--refresh"));
+  const targets = selection();
+  const jobs = targets ? targets.filter(j => rest.includes("--refresh") || !have(j.kind, j.locale).has(j.id)) : queue(rest.includes("--refresh"));
   if (rest.includes("--keys")) console.log(JSON.stringify(jobs.map((j) => `${j.kind}/${j.locale}/${j.id}`)));
   else {
     const groups: Record<string, number[]> = {};
@@ -168,10 +182,18 @@ if (command === "queue") {
   // (each page in the build's compact form: the game's own texts, the info
   // box's facts; a page Wowhead hasn't, left out)
   const out: Record<string, Record<string, Record<string, unknown>>> = {};
+  // Preserve frozen pages absent from this machine's cache, including when
+  // updating just a material's source evidence rather than every page.
+  const frozenDir = path.join(ROOT, "data", "wowhead", "forever");
+  for (const f of readdirSync(frozenDir).filter(f => /^pages-[a-z]{2}[A-Z]{2}\.json$/.test(f)))
+    out[f.slice(6, -5)] = JSON.parse(readFileSync(path.join(frozenDir, f), "utf8"));
+  const targets = selection();
+  const selected = targets && new Set(targets.map(j => `${j.kind}/${j.locale}/${j.id}`));
   if (existsSync(DIR))
     for (const kind of readdirSync(DIR))
       for (const locale of readdirSync(path.join(DIR, kind)))
         for (const f of readdirSync(path.join(DIR, kind, locale))) {
+          if (selected && !selected.has(`${kind}/${locale}/${f.replace(/\.json$/, "")}`)) continue;
           const page = compactPage(kind, locale, JSON.parse(readFileSync(path.join(DIR, kind, locale, f), "utf8")));
           if (!page || !Object.keys(page).length) continue;
           ((out[locale] ??= {})[kind] ??= {})[f.replace(/\.json$/, "")] = page;
@@ -191,6 +213,6 @@ if (command === "queue") {
     console.log(`${path.relative(ROOT, dest)}: ${Object.entries(sorted).map(([k, p]) => `${Object.keys(p).length} ${k}s`).join(", ")}`);
   }
 } else {
-  console.error("usage: wowhead-pages.ts queue [--keys] [--refresh] | pull | import FILE | freeze");
+  console.error("usage: wowhead-pages.ts queue [--keys] [--refresh] [--kind KIND --ids IDS --locale LOCALE] | pull | import FILE | freeze [--kind KIND --ids IDS --locale LOCALE]");
   process.exit(2);
 }

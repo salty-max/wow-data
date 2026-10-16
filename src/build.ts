@@ -4,6 +4,7 @@
 import { gamePage } from "./gametext";
 export { gamePage } from "./gametext";
 import { wowheadPages } from "./wowheadPages";
+import { clientGathering } from "./gathering";
 import { Database } from "bun:sqlite";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -1168,6 +1169,7 @@ export async function build(game: Game, file: string) {
   questieWorld(db, data);
   console.log(`${game}: the Classic database (${c.commit.slice(0, 12)})`);
   await classicDb(db, data);
+  clientGathering(db);
   wowheadNames(db, game);
   if (game === "classic") tbcItems(db);
   wowheadRanks(db, game);

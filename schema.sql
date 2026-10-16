@@ -144,7 +144,7 @@ CREATE TABLE item (
 -- fishing area's, skinning's, pickpocketing's.
 CREATE TABLE loot (
   kind      TEXT NOT NULL,  -- creature, object, item, fishing, skinning, pickpocket, reference
-  source_id INTEGER NOT NULL,  -- the template's id (creature.loot_id, an area id for fishing)
+  source_id INTEGER NOT NULL,  -- classicdb/players: loot template (area id for fishing), questie/wowhead: entity id
   item_id   INTEGER,        -- null for a reference row
   ref_id    INTEGER,        -- another template, for a reference row
   chance    REAL,           -- percent; negative: only on its quest
@@ -156,6 +156,17 @@ CREATE TABLE loot (
 );
 CREATE INDEX loot_source ON loot (kind, source_id);
 CREATE INDEX loot_item ON loot (item_id);
+-- A gathering object's required profession and rank. Client Lock data wins,
+-- frozen Wowhead pages fill unknown locks without inventing a client Lock ID.
+-- These are source facts, not collectible entries or proof of availability.
+CREATE TABLE gathering_node (
+  object_id     INTEGER NOT NULL,
+  skill_line_id INTEGER NOT NULL,
+  min_skill     INTEGER NOT NULL CHECK (min_skill >= 0),
+  source        TEXT NOT NULL,
+  introduced_build TEXT,  -- Wowhead's added-in build, when given (may be another season)
+  PRIMARY KEY (object_id, skill_line_id)
+);
 -- The Classic database's: another creature that may stand at a spawn instead
 -- (a rare in an ordinary mob's place), and spawn groups, whose spawns share
 -- their entries

@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { gamePage, gameQuestText } from "./gametext";
 import { ROOT } from "./pins";
+import { materialSources } from "./gathering";
 
 /**
  * Wowhead's pages of Forever (bin/wowhead-pages.ts, its tab), frozen in
@@ -30,9 +31,10 @@ export type QuestPage = {
 };
 type Kind = "creature" | "object" | "item";
 export type NpcPage = { name?: string; type?: number; family?: number; rank?: number; min?: number; max?: number; model?: number; lines?: [string, string][]; zones?: number[] };
-export type ObjectPage = { name?: string; type?: number; zones?: number[] };
+export type ObjectPage = { name?: string; type?: number; zones?: number[]; gathering?: [number, number]; yields?: number[]; added?: string };
+export type ItemPage = { skinned?: number[]; mined?: number[] };
 export type BookPage = { title?: string; pages: string[] };
-export type Frozen = { quest?: Record<string, QuestPage>; npc?: Record<string, NpcPage>; object?: Record<string, ObjectPage>; itembook?: Record<string, BookPage>; objbook?: Record<string, BookPage> };
+export type Frozen = { quest?: Record<string, QuestPage>; npc?: Record<string, NpcPage>; object?: Record<string, ObjectPage>; item?: Record<string, ItemPage>; itembook?: Record<string, BookPage>; objbook?: Record<string, BookPage> };
 
 type Raw = Record<string, unknown> & { info?: Record<string, unknown>; box?: string; quotes?: { kind: string; who?: string; text: string }[]; pages?: string[] };
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
@@ -49,7 +51,7 @@ const KINDS: Record<string, Kind> = { npc: "creature", object: "object", item: "
 const SPEECH: Record<string, string> = { s2: "say", s1: "yell", s3: "whisper", s4: "emote" };
 
 /** A page as the tab saved it, in the frozen file's form (null: Wowhead has none). */
-export function compactPage(kind: string, locale: string, raw: Raw): QuestPage | NpcPage | ObjectPage | BookPage | null {
+export function compactPage(kind: string, locale: string, raw: Raw): QuestPage | NpcPage | ObjectPage | ItemPage | BookPage | null {
   if (!raw || raw.missing) return null;
   const info = raw.info ?? {};
   if (kind === "quest") {
@@ -90,8 +92,22 @@ export function compactPage(kind: string, locale: string, raw: Raw): QuestPage |
       lines: (raw.quotes ?? []).filter((q) => SPEECH[q.kind]).map((q) => [SPEECH[q.kind], gameQuestText(q.text)] as [string, string]),
       zones: Array.isArray(info.location) ? (info.location as number[]) : undefined,
     });
-  if (kind === "object")
-    return clean({ name: typeof info.name === "string" ? info.name : undefined, type: objectType(info.type), zones: Array.isArray(info.location) ? (info.location as number[]) : undefined });
+  const ids = (rows: unknown) => Array.isArray(rows)
+    ? [...new Set(rows.map(r => positive(r?.id)).filter((id): id is number => id !== undefined && Number.isSafeInteger(id)))].sort((a, b) => a - b)
+    : undefined;
+  if (kind === "object") {
+    const skill = num(info.skill);
+    // Wowhead's mineral/herb category is evidence, not its English name.
+    const profession = info.type === -4 ? 186 : info.type === -3 ? 182 : undefined;
+    return clean({ name: typeof info.name === "string" ? info.name : undefined, type: objectType(info.type), zones: Array.isArray(info.location) ? (info.location as number[]) : undefined,
+      ...(locale === "enUS" && {
+        gathering: profession && skill !== undefined && Number.isSafeInteger(skill) && skill >= 0 ? [profession, skill] as [number, number] : undefined,
+        yields: ids(info.type === -4 ? raw.mining : info.type === -3 ? raw.herbs : undefined),
+        added: (raw.box ?? "").match(/\[acronym="([\d.]+)"\]/)?.[1],
+      }),
+    });
+  }
+  if (kind === "item") return locale === "enUS" ? clean({ skinned: ids(raw.skinned), mined: ids(raw.mined) }) : null;
   if (kind === "itembook" || kind === "objbook")
     return raw.pages?.length ? clean({ title: typeof raw.title === "string" ? raw.title : undefined, pages: raw.pages.map(gamePage) }) : null;
   return null;
@@ -180,6 +196,7 @@ export function wowheadPages(db: Database, game: string, log: (s: string) => voi
           b.pages.forEach((p, i) => count("book pages", page.run(kind, id, locale, i + 1, p).changes));
         }
     })();
+    if (locale === "enUS") materialSources(db, pages, log);
     log(`wowhead pages ${locale}: ${Object.entries(n).map(([k, v]) => `${v} ${k}`).join(", ") || "nothing new"}`);
   }
 }
