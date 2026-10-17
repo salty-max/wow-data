@@ -115,12 +115,12 @@ describe.skipIf(!built)("forever.db", () => {
     // (allthethings: Forever's own quests' rewards and prerequisites, frozen)
     // (english: the English a client shows where its language has no name)
     // (players: present once a database has imported archived observations)
-    expect(sources.filter((source) => source !== "players")).toEqual(["allthethings", "classicdb", "client", "english", "questie", "wowhead"]);
-    for (const table of ["creature", "creature_sighting", "quest", "quest_objective", "quest_relation", "quest_reward", "quest_prereq", "spawn", "loot", "name"]) {
+    expect(sources.filter((source) => source !== "players")).toEqual(["allthethings", "classicdb", "client", "english", "owner-report", "questie", "wowhead"]);
+    for (const table of ["creature", "creature_sighting", "landmark", "quest", "quest_objective", "quest_relation", "quest_reward", "quest_prereq", "spawn", "loot", "name"]) {
       const used = all(`SELECT DISTINCT source FROM ${table}`).map((r) => r.source as string);
       for (const s of used) expect(sources).toContain(s);
     }
-    expect(all("SELECT entity_id FROM spawn WHERE source = 'players'")).toEqual([]);
+    expect(all("SELECT entity_id FROM spawn WHERE source IN ('players', 'owner-report')")).toEqual([]);
   });
   test("every language names what its client shows: Forever's own creatures translated, else the English", () => {
     const named = (locale: string) => one("SELECT name FROM name WHERE kind = 'creature' AND id = 269075 AND locale = ?", locale)?.name;

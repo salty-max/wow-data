@@ -105,6 +105,17 @@ CREATE TABLE spawn (
 CREATE INDEX spawn_entity ON spawn (kind, entity_id);
 CREATE INDEX spawn_area ON spawn (area_id);
 CREATE INDEX spawn_own ON spawn (kind, spawn_id);
+-- Reviewed positions of scenery that has no game object or unique NPC.
+-- These are landmarks, never invented spawns or creature observer sightings.
+CREATE TABLE landmark (
+  id          TEXT PRIMARY KEY,
+  ui_map_id   INTEGER NOT NULL,
+  ux          REAL NOT NULL CHECK (ux BETWEEN 0 AND 100),
+  uy          REAL NOT NULL CHECK (uy BETWEEN 0 AND 100),
+  observed_at TEXT NOT NULL,
+  evidence    TEXT NOT NULL,
+  source      TEXT NOT NULL
+);
 -- The way a creature walks: one spawn's own path (owner: spawn, its spawn_id)
 -- or every spawn of a creature's (owner: creature, its id; path_id when it has
 -- several), point by point. Yonder's quarries are tracked along them.

@@ -1,0 +1,11 @@
+[
+  {
+    "id": "dun-morogh-abandoned-camp",
+    "games": ["classic", "forever"],
+    "uiMap": 1426,
+    "x": 39.2,
+    "y": 67.6,
+    "observedAt": "2026-10-17",
+    "evidence": "Owner's in-game correction: the abandoned camp is at 39.2, 67.6 in Dun Morogh. The earlier association with Young Black Bear spawn 270 at 41.9, 66.8 was incorrect. The coordinate report did not state a client version. Applied to the shared original-world location, not separately playtested on Classic."
+  }
+]

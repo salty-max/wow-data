@@ -81,6 +81,13 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   --ids ID,ID` and optional `--locale`. The overlay has a Materials row.
   Loot IDs are provider-specific: ClassicDB/players use templates,
   Questie/Wowhead use entities. Keep Wowhead counts out of server odds.
+- Reviewed scenery positions: `data/landmarks.json`, imported by
+  `src/landmarks.ts` into `landmark`, with an owning map, observation date
+  and evidence. Source `owner-report` is explicit human review, not an
+  automatic NPC sighting. A landmark has its own text ID and never invents
+  a game object or spawn. Per-game applicability and unverified clients stay
+  in its evidence. Yonder reads this table for the abandoned Dun Morogh camp,
+  corrected in game to 39.2, 67.6, instead of borrowing a bear's spawn.
 - The TBC Anniversary client's items, `data/tbc/items.json` (`bin/tbc-items.ts
   <ids>`, a hand tool: its ItemSparse on wago.tools, every language, frozen
   with its build): what an addon's TBC package names and neither client has

@@ -5,6 +5,7 @@ import { gamePage } from "./gametext";
 export { gamePage } from "./gametext";
 import { wowheadPages } from "./wowheadPages";
 import { clientGathering } from "./gathering";
+import { loadLandmarks } from "./landmarks";
 import { Database } from "bun:sqlite";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -1179,6 +1180,7 @@ export async function build(game: Game, file: string) {
   wowheadBooks(db, game);
   wowheadPages(db, game, log);
   loadPlayers(db, game);
+  loadLandmarks(db, game);
   chains(db);
   db.exec("ANALYZE");
   db.close();
