@@ -1,11 +1,23 @@
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { databaseRelease, databaseTag } from "../src/dbRelease";
+import { ROOT } from "../src/pins";
 
 describe("database release identity", () => {
+  test("publisher and consumer checkouts retain the history used to identify database inputs", () => {
+    type Step = { uses?: string; with?: { repository?: string; "fetch-depth"?: number } };
+    for (const [file, job] of [["db.yml", "build"], ["addon-data.yml", "data"]]) {
+      const config = Bun.YAML.parse(readFileSync(path.join(ROOT, ".github/workflows", file!), "utf8")) as {
+        jobs: Record<string, { steps: Step[] }>;
+      };
+      const checkout = config.jobs[job!]!.steps.find(step => step.uses?.startsWith("actions/checkout@")
+        && (file === "db.yml" || step.with?.repository === "salty-max/wow-data"));
+      expect(checkout?.with?.["fetch-depth"], file).toBe(0);
+    }
+  });
   test("a test-only recovery build keeps the data's tag, while changed inputs get a new one", () => {
     const root = mkdtempSync(path.join(tmpdir(), "wow-data-release-"));
     const git = (...args: string[]) => execFileSync("git", [
