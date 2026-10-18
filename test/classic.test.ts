@@ -122,4 +122,32 @@ describe.skipIf(!built)("classic.db", () => {
     expect(one("SELECT count(*) AS n FROM gathering_node WHERE object_id IN (562111,566779,656332,656333)")).toEqual({ n: 0 });
     expect(one("SELECT SpellID FROM client_SpellReagents WHERE SpellID=2657 AND Reagent_0=2770")).toEqual({ SpellID: 2657 });
   });
+
+  // ── the trades' recipes (the cookbook's ground) ──
+  test("a recipe item teaches its recipe by the client's learn effect: Recipe: Mithril Head Trout, Mithril Headed Trout, at Cooking 175", () => {
+    // (the names differ: only the effect can tell)
+    expect(all("SELECT spell_id, skill_line_id, kind, skill_value FROM recipe_source WHERE ref_id = 17062")).toEqual([
+      { spell_id: 20916, skill_line_id: 185, kind: "item", skill_value: 175 },
+    ]);
+  });
+  test("a trainer's lesson teaches the cook's own: Cook Ghilm's Spiced Wolf Meat (2559 to 2539) at 10, its yellow 50 and grey 90", () => {
+    expect(one("SELECT taught_spell_id, source FROM teaching WHERE spell_id = 2559")).toEqual({ taught_spell_id: 2539, source: "client" });
+    expect(one("SELECT kind, skill_value FROM recipe_source WHERE spell_id = 2539 AND ref_id = 1355")).toEqual({ kind: "trainer", skill_value: 10 });
+    expect(one("SELECT TrivialSkillLineRankLow AS yellow, TrivialSkillLineRankHigh AS grey FROM client_SkillLineAbility WHERE Spell = 2539")).toEqual({ yellow: 50, grey: 90 });
+  });
+  test("learned with the skill: Charred Wolf Meat, Roasted Boar Meat, Herb Baked Egg", () => {
+    const skill = all("SELECT spell_id FROM recipe_source WHERE kind = 'skill' AND skill_line_id = 185").map((r) => r.spell_id);
+    for (const spell of [2538, 2540, 8604]) expect(skill).toContain(spell);
+  });
+  test("a quest's: Sharing the Knowledge teaches Smoked Desert Dumplings", () => {
+    expect(all("SELECT kind, ref_id FROM recipe_source WHERE spell_id = 24801")).toEqual([{ kind: "quest", ref_id: 8313 }]);
+  });
+  test("a limited stock: Jabbey holds one Recipe: Undermine Clam Chowder, one more every three hours", () => {
+    expect(one("SELECT max_count, restock_s FROM vendor WHERE npc_id = 8139 AND item_id = 16767")).toEqual({ max_count: 1, restock_s: 10800 });
+  });
+  test("no recipe item teaches two recipes, and no class spell is a recipe", () => {
+    expect(one("SELECT count(*) AS n FROM (SELECT ref_id FROM recipe_source WHERE kind = 'item' GROUP BY ref_id HAVING count(DISTINCT spell_id) > 1)").n).toBe(0);
+    // (Fireball, a mage's, taught by trainers: no trade's)
+    expect(one("SELECT count(*) AS n FROM recipe_source WHERE spell_id = 133").n).toBe(0);
+  });
 });

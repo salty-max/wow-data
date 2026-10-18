@@ -227,10 +227,53 @@ CREATE TABLE game_event (
   source  TEXT NOT NULL
 );
 CREATE TABLE vendor (
-  npc_id  INTEGER NOT NULL,
-  item_id INTEGER NOT NULL,
-  source  TEXT NOT NULL
+  npc_id    INTEGER NOT NULL,
+  item_id   INTEGER NOT NULL,
+  source    TEXT NOT NULL,
+  max_count INTEGER,  -- a limited stock: how many it holds at once (null: as many as asked)
+  restock_s INTEGER   -- seconds until one more is back on the stall
 );
+-- The spells an item casts: on use (trigger 0: a recipe learned, a potion
+-- drunk), on equip (1), on hit (2)... (the client's ItemEffect)
+CREATE TABLE item_spell (
+  item_id  INTEGER NOT NULL,
+  spell_id INTEGER NOT NULL,
+  trigger  INTEGER NOT NULL,
+  source   TEXT NOT NULL
+);
+-- A spell that teaches another: a recipe item's use ("Recipe: Goretusk Liver
+-- Pie" teaches Goretusk Liver Pie), a trainer's lesson. Resolved by the
+-- client's learn effect where it has one, else by the name within the skill
+-- line (the recipe's prefix taken off), only where exactly one spell bears it.
+CREATE TABLE teaching (
+  spell_id        INTEGER PRIMARY KEY,
+  taught_spell_id INTEGER NOT NULL,
+  skill_line_id   INTEGER NOT NULL,
+  source          TEXT NOT NULL  -- client (the learn effect), name (the match), classic (a
+                                 -- Classic lesson Forever's client lacks: the Classic client's effect)
+);
+-- Every way a trade's recipe is learned (a spell of a trade's skill line,
+-- the client's SkillLineAbility, its SkillLine of category 11 or 9: the
+-- professions, cooking, first aid, fishing): with the skill itself (its AcquireMethod 1:
+-- Charred Wolf Meat, Herb Baked Egg), from a trainer (trainer_spell, its
+-- lesson through teaching), from a recipe item (item_spell's use, through
+-- teaching), from a quest (quest_reward's spell, or a cast that teaches it:
+-- Sharing the Knowledge, Smoked Desert Dumplings). skill_value: the skill it
+-- takes to learn (the trainer's, the item's RequiredSkillRank), where one is
+-- set: the start of its orange. Its yellow and grey are the client's own
+-- (SkillLineAbility's TrivialSkillLineRankLow and High), its green their
+-- middle. A recipe item none sells, drops or rewards is listed all the same
+-- (Recipe: Darkclaw Bisque, Season of Discovery's, in Classic Era's client):
+-- a reader keeps the recipes its world can give (vendor, loot, quest_reward).
+CREATE TABLE recipe_source (
+  spell_id      INTEGER NOT NULL,  -- the recipe (the skill line's spell)
+  skill_line_id INTEGER NOT NULL,
+  kind          TEXT NOT NULL,     -- skill, trainer, item, quest
+  ref_id        INTEGER,           -- the trainer's npc, the item, the quest (null for skill)
+  skill_value   INTEGER,
+  source        TEXT NOT NULL      -- client, classicdb... (the fact's own source)
+);
+CREATE INDEX recipe_source_spell ON recipe_source (spell_id);
 
 -- ── quests ───────────────────────────────────────────────────────────────────
 CREATE TABLE quest (

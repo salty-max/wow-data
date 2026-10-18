@@ -32,7 +32,8 @@
 //                                 tab's title its percentage
 // Kinds: quest (texts; in English also its info box: giver, ender, level,
 // zone), npc (type, level, rank, model, quotes), object (type, gathering
-// requirement and yields), item (explicit mined/skinned sources), itembook and
+// requirement and yields), item (explicit mined/skinned sources; who sells,
+// drops or rewards it: a recipe's sources), itembook and
 // objbook (a book's or a plaque's pages, as the page's book viewer has them).
 // Languages: enUS, deDE, frFR, esES (Spain's), esMX (Latin America's).
 (async () => {
@@ -144,7 +145,13 @@
       const mining = listview(h, "mining"), herbs = listview(h, "herbalism");
       return info ? { info, box: box(h), mining, herbs } : null;
     },
-    item: (h) => ({ skinned: listview(h, "skinned-from"), mined: listview(h, "mined-from-object") }),
+    item: (h) => ({
+      skinned: listview(h, "skinned-from"),
+      mined: listview(h, "mined-from-object"),
+      sold: listview(h, "sold-by"),
+      dropped: listview(h, "dropped-by"),
+      reward: listview(h, "reward-from-q"),
+    }),
     itembook: (h) => book(h),
     objbook: (h) => book(h),
   };

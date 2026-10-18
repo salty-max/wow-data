@@ -81,6 +81,23 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   --ids ID,ID` and optional `--locale`. The overlay has a Materials row.
   Loot IDs are provider-specific: ClassicDB/players use templates,
   Questie/Wowhead use entities. Keep Wowhead counts out of server odds.
+- The trades' recipes (the cookbook's ground, 19 October 2026): `item_spell`
+  (the client's ItemEffect: what an item casts, by trigger), `teaching` (a
+  recipe item's use or a trainer's lesson and the recipe it teaches: the
+  client's learn effect, else the name within the skill line; a use spell
+  many items share, Forever's "Learning", never stands for all of them;
+  Forever's trainers are the Classic database's, their lessons Classic
+  spells Forever's client lacks: resolved through the pinned Classic
+  client, source `classic`), `recipe_source` (every way a trade's recipe is
+  learned: with the skill, from a trainer, a recipe item (Forever's item
+  names its recipe directly, trigger 6), a quest; the skill it takes to
+  learn it), `vendor.max_count`/`restock_s` (a limited stock). A recipe's
+  yellow and grey are the client's SkillLineAbility's trivial ranks (in
+  Forever too), its orange from `recipe_source.skill_value`. The Wowhead
+  tab's item jobs also keep who sells, drops or rewards an item
+  (`itemSources`: only where no other source has the item, a test realm's
+  vendor left out, no drop odds): Forever's own recipes, most of which no
+  source knows before launch (players' facts will).
 - Reviewed scenery positions: `data/landmarks.json`, imported by
   `src/landmarks.ts` into `landmark`, with an owning map, observation date
   and evidence. Source `owner-report` is explicit human review, not an

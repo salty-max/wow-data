@@ -32,7 +32,8 @@ export type QuestPage = {
 type Kind = "creature" | "object" | "item";
 export type NpcPage = { name?: string; type?: number; family?: number; rank?: number; min?: number; max?: number; model?: number; lines?: [string, string][]; zones?: number[] };
 export type ObjectPage = { name?: string; type?: number; zones?: number[]; gathering?: [number, number]; yields?: number[]; added?: string };
-export type ItemPage = { skinned?: number[]; mined?: number[] };
+// (sold: [vendor, its stock where limited]; dropped: the creatures; reward: the quests)
+export type ItemPage = { skinned?: number[]; mined?: number[]; sold?: [number, number | null][]; dropped?: number[]; reward?: number[] };
 export type BookPage = { title?: string; pages: string[] };
 export type Frozen = { quest?: Record<string, QuestPage>; npc?: Record<string, NpcPage>; object?: Record<string, ObjectPage>; item?: Record<string, ItemPage>; itembook?: Record<string, BookPage>; objbook?: Record<string, BookPage> };
 
@@ -107,7 +108,17 @@ export function compactPage(kind: string, locale: string, raw: Raw): QuestPage |
       }),
     });
   }
-  if (kind === "item") return locale === "enUS" ? clean({ skinned: ids(raw.skinned), mined: ids(raw.mined) }) : null;
+  if (kind === "item") {
+    if (locale !== "enUS") return null;
+    // (a vendor of Wowhead's test realms, "PTR Camping Vendor", sells nothing in the game)
+    const sold = Array.isArray(raw.sold)
+      ? (raw.sold as { id?: unknown; tag?: unknown; stock?: unknown }[])
+          .filter((r) => positive(r?.id) !== undefined && !/\b(PTR|Test|Beta)\b/i.test(String(r?.tag ?? "")))
+          .map((r) => [positive(r.id)!, positive(r.stock) ?? null] as [number, number | null])
+          .sort((a, b) => a[0] - b[0])
+      : undefined;
+    return clean({ skinned: ids(raw.skinned), mined: ids(raw.mined), sold, dropped: ids(raw.dropped), reward: ids(raw.reward) });
+  }
   if (kind === "itembook" || kind === "objbook")
     return raw.pages?.length ? clean({ title: typeof raw.title === "string" ? raw.title : undefined, pages: raw.pages.map(gamePage) }) : null;
   return null;
@@ -196,7 +207,33 @@ export function wowheadPages(db: Database, game: string, log: (s: string) => voi
           b.pages.forEach((p, i) => count("book pages", page.run(kind, id, locale, i + 1, p).changes));
         }
     })();
-    if (locale === "enUS") materialSources(db, pages, log);
+    if (locale === "enUS") {
+      materialSources(db, pages, log);
+      itemSources(db, pages, log);
+    }
     log(`wowhead pages ${locale}: ${Object.entries(n).map(([k, v]) => `${v} ${k}`).join(", ") || "nothing new"}`);
   }
+}
+
+/** Who sells, drops or rewards an item, where no other source says (Forever's
+ * own recipes: Cookie drops the Blueprint: Cookie's Feast). A drop's odds are
+ * left out: Wowhead's counts are its players', not the game's. */
+function itemSources(db: Database, pages: Frozen, log: (s: string) => void) {
+  const has = (sql: string, id: number) => !!db.query(sql).get(id);
+  const vendor = db.prepare("INSERT INTO vendor VALUES (?, ?, 'wowhead', ?, NULL)");
+  const loot = db.prepare("INSERT INTO loot (kind, source_id, item_id, ref_id, chance, group_id, min_count, max_count, source, event_id) VALUES ('creature', ?, ?, NULL, NULL, NULL, NULL, NULL, 'wowhead', NULL)");
+  const reward = db.prepare("INSERT INTO quest_reward VALUES (?, 'item', ?, NULL, 'wowhead')");
+  const n = { vendors: 0, drops: 0, rewards: 0 };
+  db.transaction(() => {
+    for (const [sid, page] of Object.entries(pages.item ?? {})) {
+      const id = Number(sid);
+      if (page.sold?.length && !has("SELECT 1 FROM vendor WHERE item_id = ?", id))
+        for (const [npc, stock] of page.sold) n.vendors += vendor.run(npc, id, stock).changes;
+      if (page.dropped?.length && !has("SELECT 1 FROM loot WHERE item_id = ?", id))
+        for (const npc of page.dropped) n.drops += loot.run(npc, id).changes;
+      if (page.reward?.length && !has("SELECT 1 FROM quest_reward WHERE ref_id = ? AND kind IN ('item', 'choice')", id))
+        for (const quest of page.reward) n.rewards += reward.run(quest, id).changes;
+    }
+  })();
+  log(`wowhead item sources: ${n.vendors} vendors, ${n.drops} drops, ${n.rewards} quest rewards`);
 }

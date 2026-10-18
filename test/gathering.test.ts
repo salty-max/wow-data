@@ -70,11 +70,15 @@ describe("the browser fetcher's material extraction", () => {
       name: "Poor Copper Vein", type: 3, gathering: [186, 0],
     });
   });
-  test("only explicit skinning/mining lists become item acquisition facts", () => {
+  test("skinning and mining only from their own lists; a drop, a vendor, a quest's reward kept apart (no test realm's vendor)", () => {
     const html = `new Listview({id:'dropped-by',data:[{"id":999}]});
       new Listview({id:'skinned-from',data:[{"id":3474,"count":2,"outof":343}]});
-      new Listview({id:'mined-from-object',data:[{"id":1731}]});`;
-    expect(compactPage("item", "enUS", x.item(html))).toEqual({ skinned: [3474], mined: [1731] });
+      new Listview({id:'mined-from-object',data:[{"id":1731}]});
+      new Listview({id:'sold-by',data:[{"id":256629,"tag":"Quartermaster","stock":-1},{"id":277945,"tag":"PTR Camping Vendor","stock":-1},{"id":8139,"stock":1}]});
+      new Listview({id:'reward-from-q',data:[{"id":8313}]});`;
+    expect(compactPage("item", "enUS", x.item(html))).toEqual({
+      skinned: [3474], mined: [1731], sold: [[8139, 1], [256629, null]], dropped: [999], reward: [8313],
+    });
     expect(compactPage("item", "deDE", x.item(html))).toBeNull();
     expect(compactPage("object", "enUS", { info: { name: 'Mining Vein', type: -2, skill: 25 }, mining: [{ id: 2770 }] })).toEqual({ name: 'Mining Vein' });
   });

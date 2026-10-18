@@ -150,4 +150,24 @@ describe.skipIf(!built)("forever.db", () => {
     // (Blizzard's placeholders Wowhead lists, <UNUSED>, left out)
     expect(one("SELECT count(*) AS n FROM quest WHERE id IN (807, 820, 856, 8458) AND source = 'wowhead'").n).toBe(0);
   });
+
+  // ── the trades' recipes (the cookbook's ground) ──
+  test("Forever's recipe items name their recipe (its learn effect, trigger 6): Recipe: Westfall Stew at Cooking 75, and nothing else", () => {
+    expect(all("SELECT spell_id, kind, skill_value FROM recipe_source WHERE ref_id = 728")).toEqual([{ spell_id: 2543, kind: "item", skill_value: 75 }]);
+    // (every recipe's shared "Learning" spell once taught them all an elixir)
+    expect(one("SELECT count(*) AS n FROM (SELECT ref_id FROM recipe_source WHERE kind = 'item' GROUP BY ref_id HAVING count(DISTINCT spell_id) > 1)").n).toBe(0);
+  });
+  test("its trainers' lessons, the Classic database's, through the Classic client: Cook Ghilm's Spiced Wolf Meat", () => {
+    expect(one("SELECT taught_spell_id, source FROM teaching WHERE spell_id = 2559")).toEqual({ taught_spell_id: 2539, source: "classic" });
+    expect(one("SELECT kind, skill_value FROM recipe_source WHERE spell_id = 2539 AND ref_id = 1355")).toEqual({ kind: "trainer", skill_value: 10 });
+  });
+  test("a recipe of Forever's own: Recipe: Peace Tea at Cooking 25, its yellow 30 and grey 45", () => {
+    expect(all("SELECT kind, ref_id, skill_value FROM recipe_source WHERE spell_id = 1249957")).toEqual([{ kind: "item", ref_id: 249879, skill_value: 25 }]);
+    expect(one("SELECT TrivialSkillLineRankLow AS yellow, TrivialSkillLineRankHigh AS grey FROM client_SkillLineAbility WHERE Spell = 1249957")).toEqual({ yellow: 30, grey: 45 });
+  });
+  test("Wowhead's sources for what no database sells or drops: Cookie drops the Blueprint: Cookie's Feast, a test realm's vendor left out", () => {
+    expect(all("SELECT kind, source_id, chance, source FROM loot WHERE item_id = 273102")).toEqual([{ kind: "creature", source_id: 645, chance: null, source: "wowhead" }]);
+    expect(one("SELECT count(*) AS n FROM vendor WHERE item_id = 273102").n).toBe(0);
+    expect(all("SELECT npc_id FROM vendor WHERE item_id = 274415 AND source = 'wowhead'")).toEqual([{ npc_id: 256629 }]);
+  });
 });

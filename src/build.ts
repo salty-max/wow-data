@@ -53,6 +53,8 @@ const CLIENT_TABLES = [
   "CreatureDisplayInfoExtra",
   "ItemSparse",
   "Item",
+  "ItemEffect",
+  "ItemXItemEffect",
   "Lock",
   "QuestSort",
   "QuestInfo",
@@ -790,29 +792,31 @@ async function classicDb(db: Database, q: QuestieData) {
     }
     return n;
   });
-  const vendorTemplate = new Map<number, number[]>();
+  const vendorTemplate = new Map<number, Row[]>();
   for (const r of rows(sql, "npc_vendor_template")) {
     const list = vendorTemplate.get(num(r.entry)!) ?? [];
-    list.push(num(r.item)!);
+    list.push(r);
     vendorTemplate.set(num(r.entry)!, list);
   }
-  const insertVendor = db.prepare("INSERT INTO vendor VALUES (?, ?, 'classicdb')");
+  const insertVendor = db.prepare("INSERT INTO vendor VALUES (?, ?, 'classicdb', ?, ?)");
+  // (a limited stock: maxcount held at once, one more every incrtime seconds)
+  const stock = (r: Row): [number | null, number | null] => (nz(r.maxcount) ? [num(r.maxcount), nz(r.incrtime)] : [null, null]);
   run("vendor", () => {
     let n = 0;
     for (const r of rows(sql, "npc_vendor")) {
-      insertVendor.run(num(r.entry), num(r.item));
+      insertVendor.run(num(r.entry), num(r.item), ...stock(r));
       n++;
     }
     for (const c of creatures)
-      for (const item of vendorTemplate.get(num(c.VendorTemplateId) ?? 0) ?? []) {
-        insertVendor.run(num(c.Entry), item);
+      for (const r of vendorTemplate.get(num(c.VendorTemplateId) ?? 0) ?? []) {
+        insertVendor.run(num(c.Entry), num(r.item), ...stock(r));
         n++;
       }
     return n;
   });
   // (Questie's vendors for an item the database sells nowhere)
   const sold = new Set((db.query("SELECT DISTINCT item_id AS id FROM vendor").all() as { id: number }[]).map((r) => r.id));
-  const insertQuestieVendor = db.prepare("INSERT INTO vendor VALUES (?, ?, 'questie')");
+  const insertQuestieVendor = db.prepare("INSERT INTO vendor VALUES (?, ?, 'questie', NULL, NULL)");
   run("vendor (questie)", () => {
     let n = 0;
     for (const [sid, it] of Object.entries(q.items))
@@ -1141,6 +1145,160 @@ function chains(db: Database) {
 
 }
 
+// ── what an item casts, what a spell teaches ────────────────────────────────
+// The items' spells from the client's ItemEffect (Classic Era's names the
+// item; Forever's through ItemXItemEffect). Then what teaches what: a recipe
+// item's use spell and a trainer's lesson that are no spell of a skill line
+// themselves teach the one of the same name in the item's required skill
+// (ItemSparse) or the trainer's: "Recipe: Goretusk Liver Pie" teaches Goretusk
+// Liver Pie, Cook Ghilm's Spiced Wolf Meat (2559) teaches the cook's own
+// (2539). The client's learn effect (36) decides where it has one; the name
+// only where exactly one spell of the skill line bears it (a use spell named
+// "Learning", Season of Discovery's, says nothing: the item's own name then).
+const RECIPE_PREFIX = /^(Recipe|Pattern|Plans|Formula|Schematic|Manual|Design|Book|Tome|Codex|Libram|Grimoire): /;
+async function teachings(db: Database, game: Game) {
+  const has = (table: string) => !!db.query("SELECT 1 FROM sqlite_master WHERE name = ?").get(table);
+  if (!has("client_ItemEffect")) {
+    log("item_spell: no ItemEffect in this client");
+    return;
+  }
+  const cols = (db.query("PRAGMA table_info(client_ItemEffect)").all() as { name: string }[]).map((c) => c.name);
+  const n = cols.includes("ParentItemID")
+    ? db.run("INSERT INTO item_spell SELECT ParentItemID, SpellID, TriggerType, 'client' FROM client_ItemEffect WHERE ParentItemID > 0 AND SpellID > 0").changes
+    : has("client_ItemXItemEffect")
+      ? db.run(`INSERT INTO item_spell SELECT x.ItemID, e.SpellID, e.TriggerType, 'client'
+                FROM client_ItemXItemEffect x JOIN client_ItemEffect e ON e.ID = x.ItemEffectID WHERE e.SpellID > 0`).changes
+      : 0;
+  log(`item_spell: ${n}`);
+
+  const spellName = new Map<number, string>();
+  for (const r of db.query("SELECT id, name FROM name WHERE kind = 'spell' AND locale = 'enUS'").all() as { id: number; name: string }[])
+    spellName.set(r.id, r.name);
+  // the skill lines' spells by name: skill line -> name -> the spells
+  const bySkill = new Map<number, Map<string, Set<number>>>();
+  const inSkill = new Set<number>();
+  for (const r of db.query("SELECT SkillLine AS line, Spell AS spell FROM client_SkillLineAbility").all() as { line: number; spell: number }[]) {
+    inSkill.add(r.spell);
+    const name = spellName.get(r.spell);
+    if (!name) continue;
+    const names = bySkill.get(r.line) ?? new Map();
+    bySkill.set(r.line, names);
+    (names.get(name) ?? names.set(name, new Set()).get(name)!).add(r.spell);
+  }
+  // (Forever's trainers are the Classic database's, their lessons Classic's
+  // own spells, which Forever's client no longer has (its trainers teach the
+  // recipe itself): what such a lesson teaches, from the pinned Classic
+  // client's learn effect, for a spell this client doesn't know)
+  const known = new Set((db.query("SELECT DISTINCT SpellID AS id FROM client_SpellEffect").all() as { id: number }[]).map((r) => r.id));
+  const classicLearns = new Map<number, number>();
+  if (game === "forever")
+    for (const r of await wago("classic", "SpellEffect"))
+      if (num(r.Effect) === 36 && (num(r.EffectTriggerSpell) ?? 0) > 0) classicLearns.set(num(r.SpellID)!, num(r.EffectTriggerSpell)!);
+  const learns = new Map<number, number>();
+  // (by the spell the effect belongs to: SpellID, never the effect's own row ID)
+  for (const r of db.query("SELECT SpellID AS id, EffectTriggerSpell AS taught FROM client_SpellEffect WHERE Effect = 36 AND EffectTriggerSpell > 0").all() as { id: number; taught: number }[])
+    learns.set(r.id, r.taught);
+  const insert = db.prepare("INSERT OR IGNORE INTO teaching VALUES (?, ?, ?, ?)");
+  // what spell teaches, by the learn effect, else by one of the names given
+  const resolve = (spell: number, line: number, names: string[]): [number, string] | null => {
+    const taught = learns.get(spell);
+    if (taught) return [taught, "client"];
+    const classic = known.has(spell) ? undefined : classicLearns.get(spell);
+    if (classic && inSkill.has(classic)) return [classic, "classic"];
+    for (const raw of names) {
+      const name = raw.replace(RECIPE_PREFIX, "");
+      if (name === "Learning") continue;
+      const found = bySkill.get(line)?.get(name);
+      if (found?.size === 1) return [[...found][0], "name"];
+    }
+    return null;
+  };
+  let items = 0, trainers = 0, unresolved = 0;
+  // (what each recipe item teaches, item by item: a use spell many items
+  // share says nothing of its own (Forever's "Learning", 402265, on every
+  // recipe), so it is resolved by each item's name and never stands in
+  // teaching for all of them, where it once taught an elixir to every cook)
+  const itemTeaches = new Map<number, number>();
+  const recipes = db.query(`SELECT s.item_id AS item, s.spell_id AS spell, p.RequiredSkill AS line, n.name AS name
+                            FROM item_spell s JOIN item i ON i.id = s.item_id AND i.class_id = 9
+                            JOIN client_ItemSparse p ON p.ID = s.item_id
+                            LEFT JOIN name n ON n.kind = 'item' AND n.id = s.item_id AND n.locale = 'enUS'
+                            WHERE s.trigger = 0 AND p.RequiredSkill > 0`).all() as { item: number; spell: number; line: number; name: string | null }[];
+  const users = new Map<number, number>();
+  for (const r of recipes) users.set(r.spell, (users.get(r.spell) ?? 0) + 1);
+  db.transaction(() => {
+    for (const r of recipes) {
+      if (inSkill.has(r.spell)) continue;
+      const shared = (users.get(r.spell) ?? 0) > 1 && !learns.has(r.spell);
+      const got = shared ? resolve(-1, r.line, [r.name ?? ""]) : resolve(r.spell, r.line, [spellName.get(r.spell) ?? "", r.name ?? ""]);
+      if (got) {
+        itemTeaches.set(r.item, got[0]);
+        if (!shared) insert.run(r.spell, got[0], r.line, got[1]);
+        items++;
+      } else unresolved++;
+    }
+    for (const r of db.query("SELECT DISTINCT spell_id AS spell, skill_line_id AS line FROM trainer_spell WHERE skill_line_id > 0").all() as { spell: number; line: number }[]) {
+      if (inSkill.has(r.spell) || (!learns.has(r.spell) && !spellName.get(r.spell) && !classicLearns.has(r.spell))) continue;
+      const got = resolve(r.spell, r.line, [spellName.get(r.spell) ?? ""]);
+      if (got) {
+        insert.run(r.spell, got[0], r.line, got[1]);
+        trainers++;
+      } else unresolved++;
+    }
+  })();
+  log(`teaching: ${items} recipe items, ${trainers} trainers' lessons (${unresolved} unresolved: no spell of that name in the skill line, or more than one)`);
+  recipeSources(db, learns, itemTeaches);
+}
+
+// Every way a recipe is learned (recipe_source): with the skill, from a
+// trainer, a recipe item, a quest.
+// (a trade: the client's skill line categories 11, the professions, and 9,
+// the secondary ones: cooking, first aid, fishing. A class's spells are no
+// recipes.)
+const TRADES = [9, 11];
+function recipeSources(db: Database, learns: Map<number, number>, itemTeaches: Map<number, number>) {
+  const lineOf = new Map<number, number>();
+  for (const r of db.query(`SELECT a.SkillLine AS line, a.Spell AS spell FROM client_SkillLineAbility a
+                            JOIN client_SkillLine l ON l.ID = a.SkillLine WHERE l.CategoryID IN (${TRADES.join(",")})`).all() as { line: number; spell: number }[])
+    if (!lineOf.has(r.spell)) lineOf.set(r.spell, r.line);
+  const taught = new Map<number, number>();
+  for (const r of db.query("SELECT spell_id AS spell, taught_spell_id AS taught FROM teaching").all() as { spell: number; taught: number }[])
+    taught.set(r.spell, r.taught);
+  // (the recipe a spell is, or teaches)
+  const recipeOf = (spell: number) => (lineOf.has(spell) ? spell : (taught.get(spell) ?? learns.get(spell)));
+  const insert = db.prepare("INSERT INTO recipe_source VALUES (?, ?, ?, ?, ?, ?)");
+  const seen = new Set<string>();
+  const add = (recipe: number | undefined, kind: string, ref: number | null, value: number | null, source: string) => {
+    if (recipe === undefined || !lineOf.has(recipe)) return 0;
+    const key = `${recipe}|${kind}|${ref}`;
+    if (seen.has(key)) return 0;
+    seen.add(key);
+    insert.run(recipe, lineOf.get(recipe)!, kind, ref, value && value > 0 ? value : null, source);
+    return 1;
+  };
+  const n = { skill: 0, trainer: 0, item: 0, quest: 0 };
+  db.transaction(() => {
+    for (const r of db.query("SELECT Spell AS spell FROM client_SkillLineAbility WHERE AcquireMethod = 1").all() as { spell: number }[])
+      n.skill += add(r.spell, "skill", null, null, "client");
+    for (const r of db.query("SELECT npc_id AS npc, spell_id AS spell, skill_value AS value, source FROM trainer_spell").all() as { npc: number; spell: number; value: number | null; source: string }[])
+      n.trainer += add(recipeOf(r.spell), "trainer", r.npc, r.value, r.source);
+    // (an item's use that teaches the recipe, trigger 0: Classic Era's
+    // client; the recipe itself as the item's "learn" effect, trigger 6:
+    // Forever's)
+    // (an item whose learn effect names its recipe: that one alone, never a
+    // name's guess besides: Plans: Stronger-hold Gauntlets teaches 16741)
+    const named = new Set((db.query("SELECT item_id AS item, spell_id AS spell FROM item_spell WHERE trigger = 6").all() as { item: number; spell: number }[])
+      .filter((r) => lineOf.has(r.spell)).map((r) => r.item));
+    for (const r of db.query(`SELECT s.item_id AS item, s.spell_id AS spell, s.trigger AS trigger, p.RequiredSkillRank AS value FROM item_spell s
+                              LEFT JOIN client_ItemSparse p ON p.ID = s.item_id WHERE s.trigger IN (0, 6)`).all() as { item: number; spell: number; trigger: number; value: number | null }[])
+      if (r.trigger === 6 ? lineOf.has(r.spell) : !lineOf.has(r.spell) && !named.has(r.item))
+        n.item += add(r.trigger === 6 ? r.spell : (itemTeaches.get(r.item) ?? recipeOf(r.spell)), "item", r.item, r.value, "client");
+    for (const r of db.query("SELECT quest_id AS quest, ref_id AS spell, source FROM quest_reward WHERE kind IN ('spell', 'cast')").all() as { quest: number; spell: number; source: string }[])
+      n.quest += add(recipeOf(r.spell), "quest", r.quest, null, r.source);
+  })();
+  log(`recipe_source: ${n.skill} with the skill, ${n.trainer} trainers, ${n.item} items, ${n.quest} quests`);
+}
+
 // ── the whole build ──────────────────────────────────────────────────────────
 export async function build(game: Game, file: string) {
   const db = new Database(file, { create: true });
@@ -1171,6 +1329,7 @@ export async function build(game: Game, file: string) {
   console.log(`${game}: the Classic database (${c.commit.slice(0, 12)})`);
   await classicDb(db, data);
   clientGathering(db);
+  await teachings(db, game);
   wowheadNames(db, game);
   if (game === "classic") tbcItems(db);
   wowheadRanks(db, game);
