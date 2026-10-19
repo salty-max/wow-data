@@ -219,7 +219,7 @@ function questieWorld(db: Database, q: QuestieData) {
 
   // NPCs: their spawns by zone, the paths they walk ({ zone: [ [ [x, y], ... ], ... ] })
   const creature = db.prepare(
-    "INSERT INTO creature (id, min_level, max_level, rank, faction_id, npc_flags, source) VALUES (?, ?, ?, ?, ?, ?, 'questie')",
+    "INSERT INTO creature (id, min_level, max_level, rank, faction_id, npc_flags, friendly, source) VALUES (?, ?, ?, ?, ?, ?, ?, 'questie')",
   );
   const pathPoint = db.prepare(
     "INSERT OR IGNORE INTO path VALUES ('creature', ?, ?, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, NULL, 'questie')",
@@ -228,7 +228,9 @@ function questieWorld(db: Database, q: QuestieData) {
     let n = 0;
     for (const [sid, r] of Object.entries(q.npcs)) {
       const id = Number(sid);
-      creature.run(id, num(r.minLevel), num(r.maxLevel), num(r.rank), nz(r.factionID), num(r.npcFlags));
+      // (the sides it is friendly to: "A", "H", "AH", Questie's own word for it)
+      const friendly = typeof r.friendlyToFaction === "string" && /^(A|H|AH)$/.test(r.friendlyToFaction) ? r.friendlyToFaction : null;
+      creature.run(id, num(r.minLevel), num(r.maxLevel), num(r.rank), nz(r.factionID), num(r.npcFlags), friendly);
       if (typeof r.name === "string") name.run("creature", id, "enUS", r.name);
       if (typeof r.subName === "string" && r.subName) name.run("creature_subname", id, "enUS", r.subName);
       spawns("creature", id, r);
@@ -394,7 +396,7 @@ async function classicDb(db: Database, q: QuestieData) {
   // creatures and their spawns
   const creatures = rows(sql, "creature_template");
   const insertCreature = db.prepare(
-    "INSERT INTO creature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb', ?, ?, ?)",
+    "INSERT INTO creature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb', ?, ?, ?, NULL)",
   );
   const creatureColumns = db.prepare(
     `UPDATE creature SET type_id = ?, family_id = ?, unit_class = ?, display_ids = ?, loot_id = ?,

@@ -71,7 +71,8 @@ CREATE TABLE creature (
   source        TEXT NOT NULL,
   trainer_type  INTEGER,  -- a trainer's kind: 0 class, 1 mounts, 2 trades, 3 pets (the Classic database's)
   trainer_class INTEGER,  -- a class trainer's class (ChrClasses id)
-  unit_flags    INTEGER   -- the Classic database's (0x02000000: not selectable, a helper)
+  unit_flags    INTEGER,  -- the Classic database's (0x02000000: not selectable, a helper)
+  friendly      TEXT      -- the players' sides it is friendly to: A, H, AH (Questie's friendlyToFaction), where a source says
 );
 CREATE TABLE object (
   id         INTEGER PRIMARY KEY,  -- the gameobject id
