@@ -37,8 +37,9 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   creature's server-side fields, faction, npc and unit flags, are the Classic
   database's wherever it has the creature, which Questie's lack or misplace;
   `creature.friendly`, the players' sides a creature is friendly to, A, H or
-  AH, is Questie's `friendlyToFaction`: the side of a creature with no
-  faction template, Forever's new vendors);
+  AH, is Questie's `friendlyToFaction`, for about 60% of its creatures in
+  both games: the one word on a creature with no faction template,
+  Forever's new vendors);
   `src/db.ts`
   (`openDb(game)`, read only; `dbPath`). IDs everywhere, names only in
   `name`, every row its `source`. `test/classic.test.ts` and `test/forever.test.ts` check them against

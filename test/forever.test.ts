@@ -17,6 +17,10 @@ describe.skipIf(!built)("forever.db", () => {
     expect(db.query("SELECT min_level, max_level FROM creature WHERE id = 397").get()).toEqual({ min_level: 27, max_level: 27 });
     expect(db.query("SELECT min_level, max_level FROM creature WHERE id = 517").get()).toEqual({ min_level: 17, max_level: 18 });
   });
+  test("a creature's friendly sides, Questie's: Forever's new vendors with no faction template (Aza'bek, Horde; Kalsey Sanden, Alliance)", () => {
+    expect(one("SELECT faction_id, friendly FROM creature WHERE id = 248198")).toEqual({ faction_id: null, friendly: "H" });
+    expect(one("SELECT faction_id, friendly FROM creature WHERE id = 256731")).toEqual({ faction_id: null, friendly: "A" });
+  });
   test("Classic's world kept: Hogger, The Troll Cave", () => {
     expect(name("creature", 448)).toBe("Hogger");
     expect(name("quest", 182)).toBe("The Troll Cave");

@@ -16,6 +16,10 @@ describe.skipIf(!built)("classic.db", () => {
     expect(one("SELECT name, source FROM name WHERE kind = 'item' AND id = 21990 AND locale = 'frFR'")).toEqual({ name: "Bandage en tisse-néant", source: "tbc" });
     expect(one("SELECT count(*) AS n FROM name WHERE kind = 'item' AND id = 21990")).toEqual({ n: 11 });
   });
+  test("a creature's friendly sides, Questie's: Kendor Kabonka the Alliance's, Eunice Burch the Horde's", () => {
+    expect(db.query("SELECT friendly FROM creature WHERE id = 340").get()).toEqual({ friendly: "A" });
+    expect(db.query("SELECT friendly FROM creature WHERE id = 4552").get()).toEqual({ friendly: "H" });
+  });
   test("Hogger: creature 448, an elite of level 11", () => {
     expect(name("creature", 448)).toBe("Hogger");
     expect(one("SELECT min_level, rank FROM creature WHERE id = 448")).toEqual({ min_level: 11, rank: 1 });
