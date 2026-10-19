@@ -13,7 +13,7 @@ import { gunzipSync } from "node:zlib";
 import { classicDump } from "./github";
 import { type Game, PINS, ROOT } from "./pins";
 import { loadPlayers } from "./players";
-import { questie, type QuestieData, type QuestieRecord } from "./questie";
+import { questie, questieZoneMaps, type QuestieData, type QuestieRecord } from "./questie";
 import { rows } from "./sql";
 import { LOCALES, wago } from "./wago";
 
@@ -1120,6 +1120,85 @@ function wowheadBooks(db: Database, game: Game) {
   }
 }
 
+// ── Questie's own zone ids, made the game's ─────────────────────────────────
+// Questie names a few places by ids of its own that the client's AreaTable
+// doesn't have (its support/Zones/uiMapIdToAreaId.lua: an instance's wing,
+// 10026 for Dire Maul's Warpwood Quarter, 1585 Blackrock Depths; a whole
+// continent's map, 10073 Kalimdor, 10074 the Eastern Kingdoms, 10089 Azeroth).
+// A spawn under one gets the game's zone, from where its creature or object
+// stands: in an instance, the map most of them stand on in the Classic
+// database (one vote each), then the Map table's AreaTableID, else the one
+// area at the map's top; on a continent, the one zone whose client
+// UiMapAssignment regions hold each one's spot (all its spawns agreeing; two
+// zones' regions overlapping there, Blackrock Mountain's between Searing
+// Gorge and the Burning Steppes: none); none where neither says, never an id
+// the game doesn't know. A spot's percents keep the map they are on: the
+// UiMap Questie's id stands for (its table), where the spawn has one.
+function questieZones(db: Database, zoneMaps: Map<number, number>) {
+  db.transaction(() => {
+    const priv = (
+      db
+        .query("SELECT DISTINCT area_id FROM spawn WHERE source = 'questie' AND area_id IS NOT NULL AND area_id NOT IN (SELECT ID FROM client_AreaTable)")
+        .all() as { area_id: number }[]
+    ).map((r) => r.area_id);
+    if (!priv.length) return;
+    const instances = new Set((db.query("SELECT ID FROM client_Map WHERE InstanceType > 0").all() as { ID: number }[]).map((r) => r.ID));
+    const known = new Set((db.query("SELECT ID FROM client_AreaTable").all() as { ID: number }[]).map((r) => r.ID));
+    const zoneOfMap = new Map<number, number>();
+    for (const r of db.query("SELECT ContinentID map, min(ID) area, count(*) n FROM client_AreaTable WHERE ParentAreaID = 0 GROUP BY ContinentID").all() as { map: number; area: number; n: number }[])
+      if (r.n === 1 && instances.has(r.map)) zoneOfMap.set(r.map, r.area);
+    for (const r of db.query("SELECT ID, AreaTableID FROM client_Map WHERE InstanceType > 0 AND AreaTableID > 0").all() as { ID: number; AreaTableID: number }[])
+      if (known.has(r.AreaTableID)) zoneOfMap.set(r.ID, r.AreaTableID);
+    // (the zones whose regions hold the spot: one, or it can't be told,
+    // regions being rectangles that overlap where zones meet)
+    const regions = db.prepare(
+      `SELECT DISTINCT AreaID area FROM client_UiMapAssignment WHERE MapID = ? AND AreaID > 0 AND ? BETWEEN Region_0 AND Region_3 AND ? BETWEEN Region_1 AND Region_4`,
+    );
+    const entities = db.prepare("SELECT DISTINCT kind, entity_id FROM spawn WHERE source = 'questie' AND area_id = ?");
+    const theirs = db.prepare("SELECT map_id, x, y FROM spawn WHERE source = 'classicdb' AND kind = ? AND entity_id = ? AND map_id IS NOT NULL");
+    const setAll = db.prepare("UPDATE spawn SET area_id = ? WHERE source = 'questie' AND area_id = ?");
+    const setOne = db.prepare("UPDATE spawn SET area_id = ? WHERE source = 'questie' AND area_id = ? AND kind = ? AND entity_id = ?");
+    const setUi = db.prepare(
+      "UPDATE spawn SET ui_map_id = ? WHERE source = 'questie' AND area_id = ? AND ui_map_id IS NULL AND ux BETWEEN 0 AND 100 AND uy BETWEEN 0 AND 100",
+    );
+    let instance = 0, continent = 0, none = 0, spots = 0;
+    for (const id of priv) {
+      const ui = zoneMaps.get(id);
+      if (ui !== undefined) spots += setUi.run(ui, id).changes;
+      const ents = entities.all(id) as { kind: string; entity_id: number }[];
+      const at = ents.map((e) => ({ e, at: theirs.all(e.kind, e.entity_id) as { map_id: number; x: number | null; y: number | null }[] }));
+      // (one vote each: the map most of its spawns stand on)
+      const votes = new Map<number, number>();
+      for (const { at: a } of at) {
+        const own = new Map<number, number>();
+        for (const s of a) own.set(s.map_id, (own.get(s.map_id) ?? 0) + 1);
+        const map = [...own].sort((x, y) => y[1] - x[1] || x[0] - y[0])[0]?.[0];
+        if (map !== undefined) votes.set(map, (votes.get(map) ?? 0) + 1);
+      }
+      const map = [...votes].sort((x, y) => y[1] - x[1] || x[0] - y[0])[0]?.[0];
+      if (map !== undefined && zoneOfMap.has(map)) {
+        instance += setAll.run(zoneOfMap.get(map)!, id).changes;
+        continue;
+      }
+      for (const { e, at: a } of at) {
+        const areas = new Set(
+          a
+            .filter((s) => s.x !== null && s.y !== null)
+            .map((s) => {
+              const held = regions.all(s.map_id, s.x!, s.y!) as { area: number }[];
+              return held.length === 1 ? held[0].area : null;
+            }),
+        );
+        const area = areas.size === 1 ? [...areas][0] : null;
+        const n = setOne.run(area, id, e.kind, e.entity_id).changes;
+        if (area === null) none += n;
+        else continent += n;
+      }
+    }
+    log(`questie zones: ${instance} spawns in an instance, ${continent} on a continent, ${none} none, ${spots} spots given their map (${priv.length} ids of Questie's own)`);
+  })();
+}
+
 // ── a quest chain's first quest (Classic's and Forever's alike) ─────────────
 function chains(db: Database) {
   // (a chain's first quest: the previous quest's, else the one that leads in by NextQuestInChain)
@@ -1331,6 +1410,7 @@ export async function build(game: Game, file: string) {
   questieWorld(db, data);
   console.log(`${game}: the Classic database (${c.commit.slice(0, 12)})`);
   await classicDb(db, data);
+  questieZones(db, await questieZoneMaps());
   clientGathering(db);
   await teachings(db, game);
   wowheadNames(db, game);

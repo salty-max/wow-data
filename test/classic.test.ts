@@ -16,6 +16,13 @@ describe.skipIf(!built)("classic.db", () => {
     expect(one("SELECT name, source FROM name WHERE kind = 'item' AND id = 21990 AND locale = 'frFR'")).toEqual({ name: "Bandage en tisse-néant", source: "tbc" });
     expect(one("SELECT count(*) AS n FROM name WHERE kind = 'item' AND id = 21990")).toEqual({ n: 11 });
   });
+  test("every spawn's zone the game's: Questie's own ids made AreaTable's (Pusillin in Dire Maul, Anvilrage Overseer in Blackrock Depths)", () => {
+    expect(db.query("SELECT count(*) n FROM spawn WHERE area_id IS NOT NULL AND area_id NOT IN (SELECT ID FROM client_AreaTable)").get()).toEqual({ n: 0 });
+    expect(db.query("SELECT DISTINCT area_id FROM spawn WHERE source = 'questie' AND kind = 'creature' AND entity_id = 14354").get()).toEqual({ area_id: 2557 });
+    expect(db.query("SELECT DISTINCT area_id FROM spawn WHERE source = 'questie' AND kind = 'creature' AND entity_id = 8889").get()).toEqual({ area_id: 1584 });
+    // (a spot on a whole continent's map keeps that map: Mistress Natalia Mar'alith's on Kalimdor's)
+    expect(db.query("SELECT area_id, ui_map_id FROM spawn WHERE source = 'questie' AND kind = 'creature' AND entity_id = 15215").get()).toEqual({ area_id: null, ui_map_id: 1414 });
+  });
   test("a creature's friendly sides, Questie's: Kendor Kabonka the Alliance's, Eunice Burch the Horde's", () => {
     expect(db.query("SELECT friendly FROM creature WHERE id = 340").get()).toEqual({ friendly: "A" });
     expect(db.query("SELECT friendly FROM creature WHERE id = 4552").get()).toEqual({ friendly: "H" });

@@ -17,6 +17,13 @@ describe.skipIf(!built)("forever.db", () => {
     expect(db.query("SELECT min_level, max_level FROM creature WHERE id = 397").get()).toEqual({ min_level: 27, max_level: 27 });
     expect(db.query("SELECT min_level, max_level FROM creature WHERE id = 517").get()).toEqual({ min_level: 17, max_level: 18 });
   });
+  test("every spawn's zone the game's: Questie's own ids made AreaTable's (Pusillin in Dire Maul, Anvilrage Overseer in Blackrock Depths)", () => {
+    expect(db.query("SELECT count(*) n FROM spawn WHERE area_id IS NOT NULL AND area_id NOT IN (SELECT ID FROM client_AreaTable)").get()).toEqual({ n: 0 });
+    expect(db.query("SELECT DISTINCT area_id FROM spawn WHERE source = 'questie' AND kind = 'creature' AND entity_id = 14354").get()).toEqual({ area_id: 2557 });
+    expect(db.query("SELECT DISTINCT area_id FROM spawn WHERE source = 'questie' AND kind = 'creature' AND entity_id = 8889").get()).toEqual({ area_id: 1584 });
+    // (a spot on a whole continent's map keeps that map: Mistress Natalia Mar'alith's on Kalimdor's)
+    expect(db.query("SELECT area_id, ui_map_id FROM spawn WHERE source = 'questie' AND kind = 'creature' AND entity_id = 15215").get()).toEqual({ area_id: null, ui_map_id: 1414 });
+  });
   test("a creature's friendly sides, Questie's: Forever's new vendors with no faction template (Aza'bek, Horde; Kalsey Sanden, Alliance)", () => {
     expect(one("SELECT faction_id, friendly FROM creature WHERE id = 248198")).toEqual({ faction_id: null, friendly: "H" });
     expect(one("SELECT faction_id, friendly FROM creature WHERE id = 256731")).toEqual({ faction_id: null, friendly: "A" });

@@ -73,3 +73,16 @@ export async function questie(game: Game): Promise<QuestieData> {
   }
   return JSON.parse(readFileSync(out, "utf8"));
 }
+
+// Questie's own zone ids (an instance's wing, a continent's map: 10026 for
+// Dire Maul's Warpwood Quarter, 10073 for Kalimdor's) and the game's UiMap
+// each stands for: its support/Zones/uiMapIdToAreaId.lua, private id -> UiMap.
+export async function questieZoneMaps(): Promise<Map<number, number>> {
+  const file = path.join(await checkout(), "support", "Zones", "uiMapIdToAreaId.lua");
+  const out = new Map<number, number>();
+  for (const m of readFileSync(file, "utf8").matchAll(/\[\s*(\d+)\s*\]\s*=\s*(\d+)\s*,/g)) {
+    const ui = Number(m[1]), area = Number(m[2]);
+    if (!out.has(area)) out.set(area, ui);
+  }
+  return out;
+}
