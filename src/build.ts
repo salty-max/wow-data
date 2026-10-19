@@ -603,11 +603,11 @@ async function classicDb(db: Database, q: QuestieData) {
   const quests = rows(sql, "quest_template");
   const insertPrereq = db.prepare("INSERT OR IGNORE INTO quest_prereq VALUES (?, ?, 'all', 'classicdb')");
   const insertQuest = db.prepare(
-    "INSERT INTO quest VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, 'classicdb', ?, ?, ?)",
+    "INSERT INTO quest VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, 'classicdb', ?, ?, ?, ?)",
   );
   const insertText = db.prepare("INSERT OR IGNORE INTO quest_text VALUES (?, 'enUS', ?, ?, 'classicdb')");
   const questColumns = db.prepare(
-    "UPDATE quest SET type = ?, next_id = ?, special_flags = ?, exclusive_group = ?, src_item_id = COALESCE(src_item_id, ?) WHERE id = ?",
+    "UPDATE quest SET type = ?, next_id = ?, special_flags = ?, exclusive_group = ?, src_item_id = COALESCE(src_item_id, ?), skill_line_id = COALESCE(skill_line_id, ?), skill_value = ? WHERE id = ?",
   );
   const exclusive = (r: Row) => ((num(r.ExclusiveGroup) ?? 0) > 0 ? num(r.ExclusiveGroup) : null);
   // (Questie's objectives carry no count: the database's, where it asks the same thing)
@@ -642,7 +642,7 @@ async function classicDb(db: Database, q: QuestieData) {
       if (questieQuests.has(id!)) {
         // Questie's quest: the database's type, next quest, texts, rewards (not
         // reputation: Questie's), its objectives' counts
-        questColumns.run(nz(r.Type), nz(r.NextQuestId), nz(r.SpecialFlags), exclusive(r), nz(r.SrcItemId), id);
+        questColumns.run(nz(r.Type), nz(r.NextQuestId), nz(r.SpecialFlags), exclusive(r), nz(r.SrcItemId), nz(r.RequiredSkill), nz(r.RequiredSkillValue), id);
         if ((num(r.RewOrReqMoney) ?? 0) > 0) insertReward.run(id, "money", 0, num(r.RewOrReqMoney));
         if (nz(r.PrevQuestId)) insertPrereq.run(id, num(r.PrevQuestId));
       if (r.Title) name.run("quest", id, r.Title);
@@ -683,6 +683,7 @@ async function classicDb(db: Database, q: QuestieData) {
         nz(r.SpecialFlags),
         exclusive(r),
         nz(r.SrcItemId),
+        nz(r.RequiredSkillValue),
       );
       if ((num(r.RewOrReqMoney) ?? 0) > 0) insertReward.run(id, "money", 0, num(r.RewOrReqMoney));
       if (r.Title) name.run("quest", id, r.Title);

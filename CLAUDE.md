@@ -91,7 +91,8 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   client, source `classic`), `recipe_source` (every way a trade's recipe is
   learned: with the skill, from a trainer, a recipe item (Forever's item
   names its recipe directly, trigger 6), a quest; the skill it takes to
-  learn it), `vendor.max_count`/`restock_s` (a limited stock). A recipe's
+  learn it; a quest's own in `quest.skill_value`, the Classic database's
+  RequiredSkillValue: Smoked Desert Dumplings' quest asks 285), `vendor.max_count`/`restock_s` (a limited stock). A recipe's
   yellow and grey are the client's SkillLineAbility's trivial ranks (in
   Forever too), its orange from `recipe_source.skill_value`. The Wowhead
   tab's item jobs also keep who sells, drops or rewards an item
