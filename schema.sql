@@ -462,7 +462,7 @@ CREATE TABLE rare_zone (
 CREATE TABLE left_out (
   kind   TEXT NOT NULL,  -- creature, object, quest
   id     INTEGER NOT NULL,
-  reason TEXT NOT NULL,  -- season_of_discovery
+  reason TEXT NOT NULL,  -- season_of_discovery (the build's own call: it stands for a row's source)
   PRIMARY KEY (kind, id)
 );
 
