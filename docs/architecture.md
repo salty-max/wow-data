@@ -44,8 +44,14 @@ comes from, and the rules for them: `docs/sources.md`.
   (`openDb(game)`, read only; `dbPath`). IDs everywhere, names only in
   `name`, every row its `source`. `test/classic.test.ts` and `test/forever.test.ts` check them against
   facts from the game (skipped where they aren't built).
+- `left_out`: what the build leaves out of a game though a source had it
+  (Forever: Season of Discovery's, `docs/sources.md`), its names kept in
+  `name` and nothing else of it. A journal may hold its id: an addon's
+  table that turns saved ids back into names keeps these ids as names
+  (never as the game's: no spawn, no level, no source), and only there.
 - `bun bin/card.ts <npc|object|place|item|quest> <id or exact name> [--game classic|forever] [--full]`:
-  one thing on one card, 40 lines at most (`src/card.ts`), before any query by hand.
+  one thing on one card, 40 lines at most (`src/card.ts`), before any query by hand
+  (a left-out thing: its names, "LEFT OUT").
 
 ## The workflows and the hand tools
 
@@ -98,4 +104,7 @@ through `py/wowdata.py` (`db(game)`, read only) or asks `bin/path.ts` for a
 file. Moving a script onto the kit must leave its generated files byte for
 byte the same (the addon's own `--check`, and Hearthtale's golden check). An
 addon's daily job checks out wow-data's main beside it and builds its data
-again from the pins.
+again from the pins. A table decoding a journal's ids reads `left_out` too
+(Hearthtale's English_Forever.lua, Second Wind's and Yonder's
+creatures.json): an id leaves no saved file bare when the build leaves its
+thing out.

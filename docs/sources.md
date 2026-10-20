@@ -87,7 +87,9 @@ before the others know it.
   and items). The rest goes with every row naming it (217 creatures, 9
   objects, 28 quests: Ashenvale's battle, the Nightmare incursions, the
   Firelands in Searing Gorge, the Scarlet Enclave, SoD's herbs and veins,
-  the Duskwood Missions). A SoD item stays (the client has it), its Questie
+  the Duskwood Missions), but its names: `left_out` lists it, its `name` rows
+  stay in every language, for the journals that may hold its id (the user's
+  call, 20 October 2026: names only, nothing else of it). A SoD item stays (the client has it), its Questie
   and Wowhead drops, contents, vendors and recipe sources only where
   Forever's players looted it or such a quest asks for it (Waylaid Supplies
   dropped nowhere; the rune scrolls and The Cook in the Cage's key kept).

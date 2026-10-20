@@ -215,11 +215,19 @@ describe.skipIf(!built)("forever.db", () => {
     expect(name("object", 403041)).toBe("Blasting Supplies");
     // (none of the rest, nor what named it: Polymorphed Apprentice, a Vengeful
     // Ancient of the Nightmare, Star Lotus, Starsilver Vein, a Duskwood Mission,
-    // Metzen's (only its reward renamed DEPRECATED), Ataeric's (Wowhead unconfirmed))
+    // Metzen's (only its reward renamed DEPRECATED), Ataeric's (Wowhead unconfirmed);
+    // but their names, every language's, left_out: a journal may hold their ids)
     for (const [kind, ids] of [["creature", "202093, 221263"], ["object", "439762, 439778"], ["quest", "81730, 79492, 79096"]]) {
+      const n = ids.split(",").length;
       expect(one(`SELECT count(*) AS n FROM ${kind} WHERE id IN (${ids})`)).toEqual({ n: 0 });
-      expect(one(`SELECT count(*) AS n FROM name WHERE kind = '${kind}' AND id IN (${ids})`)).toEqual({ n: 0 });
+      expect(one(`SELECT count(*) AS n FROM left_out WHERE kind = '${kind}' AND reason = 'season_of_discovery' AND id IN (${ids})`)).toEqual({ n });
+      expect(one(`SELECT count(*) AS n FROM name WHERE kind = '${kind}' AND locale = 'enUS' AND id IN (${ids})`)).toEqual({ n });
     }
+    expect(name("creature", 202093)).toBe("Polymorphed Apprentice");
+    expect(one("SELECT count(DISTINCT locale) AS n FROM name WHERE kind = 'creature' AND id = 202093").n).toBeGreaterThan(1);
+    // (what is left out is in no table of the game's, and has its English name)
+    for (const kind of ["creature", "object", "quest"])
+      expect(one(`SELECT count(*) AS n FROM left_out l WHERE l.kind = '${kind}' AND (l.id IN (SELECT id FROM ${kind}) OR NOT EXISTS (SELECT 1 FROM name WHERE kind = l.kind AND id = l.id AND locale = 'enUS'))`)).toEqual({ n: 0 });
     expect(one("SELECT count(*) AS n FROM spawn WHERE (kind = 'creature' AND entity_id IN (202093, 221263)) OR (kind = 'object' AND entity_id IN (439762, 439778))")).toEqual({ n: 0 });
     expect(one("SELECT count(*) AS n FROM gathering_node WHERE object_id IN (439762, 439778)")).toEqual({ n: 0 });
     expect(one("SELECT count(*) AS n FROM quest_text WHERE quest_id = 81730")).toEqual({ n: 0 });

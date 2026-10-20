@@ -1298,7 +1298,9 @@ function chains(db: Database) {
 // who starts, ends or is asked for by a SoD quest it keeps or a quest only
 // it has, and who drops what such a quest asks for. Wowhead's "unchanged"
 // is SoD's copy and its "added in patch" SoD's (Forever's players looted the
-// world books it dates 1.15.0): no evidence either. The rest goes, with every row that names it. A SoD item stays
+// world books it dates 1.15.0): no evidence either. The rest goes, with every
+// row that names it, but its names (`left_out`: a journal may hold its id,
+// the user's call, 20 October 2026). A SoD item stays
 // (Forever's client has it), its drops, contents, vendors and recipe only
 // where Forever's players looted it or such a quest asks for it.
 async function seasonOfDiscovery(db: Database, game: Game) {
@@ -1378,11 +1380,12 @@ async function seasonOfDiscovery(db: Database, game: Game) {
   const of = (kind: string) => `(SELECT id FROM gone WHERE kind = '${kind}')`;
   const n: Record<string, number> = {};
   db.transaction(() => {
+    // (its names stay, in every language: the ids a saved file may hold)
+    n["kept as names"] = db.prepare("INSERT INTO left_out SELECT kind, id, 'season_of_discovery' FROM gone").run().changes;
     for (const [table, where] of [
       ["creature", `id IN ${of("creature")}`],
       ["object", `id IN ${of("object")}`],
       ["quest", `id IN ${of("quest")}`],
-      ["name", `(kind IN ('creature', 'creature_subname') AND id IN ${of("creature")}) OR (kind = 'object' AND id IN ${of("object")}) OR (kind = 'quest' AND id IN ${of("quest")})`],
       ["spawn", `(kind = 'creature' AND entity_id IN ${of("creature")}) OR (kind = 'object' AND entity_id IN ${of("object")})`],
       ["spawn_entry", `(kind = 'creature' AND entity_id IN ${of("creature")}) OR (kind = 'object' AND entity_id IN ${of("object")})`],
       ["path", `owner = 'creature' AND owner_id IN ${of("creature")}`],

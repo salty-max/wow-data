@@ -384,9 +384,19 @@ class Card {
   }
 
   // ── the cards ──────────────────────────────────────────────────────────────
+  // a thing the build left out, its names kept for the saved files holding
+  // its id (left_out: Season of Discovery's in Forever)
+  leftOut(label: string, kind: string, id: number): true | null {
+    const r = hasLeftOut(this.d) ? this.get("SELECT reason FROM left_out WHERE kind = ? AND id = ?", kind, id) : null;
+    if (!r) return null;
+    this.lines.push(`${label} ${id} ${this.name(kind, id) ?? "?"} · LEFT OUT (${String(r.reason).replace(/_/g, " ")}): its names only`);
+    this.add("names", this.namesLine(kind, id));
+    if (kind === "creature") this.add("title", this.namesLine("creature_subname", id));
+    return true;
+  }
   npcCard(id: number) {
     const c = this.get("SELECT * FROM creature WHERE id = ?", id);
-    if (!c) return this.add("npc", `${id}: no such creature`);
+    if (!c) return this.leftOut("npc", "creature", id) ?? this.add("npc", `${id}: no such creature`);
     const sub = this.name("creature_subname", id);
     this.lines.push(`npc ${id} ${this.name("creature", id) ?? "?"}${sub ? ` <${sub}>` : ""}${c.removed ? " · REMOVED" : ""}`);
     this.add("names", this.namesLine("creature", id));
@@ -449,7 +459,7 @@ class Card {
 
   objectCard(id: number) {
     const o = this.get("SELECT * FROM object WHERE id = ?", id);
-    if (!o) return this.add("object", `${id}: no such object`);
+    if (!o) return this.leftOut("object", "object", id) ?? this.add("object", `${id}: no such object`);
     this.lines.push(`object ${id} ${this.name("object", id) ?? "?"}${o.removed ? " · REMOVED" : ""}`);
     this.add("names", this.namesLine("object", id));
     const node = this.all("SELECT skill_line_id, min_skill FROM gathering_node WHERE object_id = ?", id);
@@ -756,7 +766,7 @@ class Card {
 
   questCard(id: number) {
     const q = this.get("SELECT * FROM quest WHERE id = ?", id);
-    if (!q) return this.add("quest", `${id}: no such quest`);
+    if (!q) return this.leftOut("quest", "quest", id) ?? this.add("quest", `${id}: no such quest`);
     this.lines.push(`quest ${this.quest(id)}${q.removed ? " · REMOVED" : ""}`);
     this.add("names", this.namesLine("quest", id));
     const sides = SIDES.filter(([, m]) => !q.races || (q.races & m) !== 0).map(([s]) => s);
@@ -842,6 +852,9 @@ class Card {
   }
 }
 
+// (a database built before left_out had none)
+const hasLeftOut = (d: Database) => !!d.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'left_out'").get();
+
 // an id, or a thing's exact name (any case; English first, then any
 // language): several of a name, the one with the most spawns, the others told
 export function resolve(d: Database, kind: Kind, key: string): { id: number; others: number[] } | null {
@@ -850,6 +863,11 @@ export function resolve(d: Database, kind: Kind, key: string): { id: number; oth
   let ids = (d.query("SELECT DISTINCT id FROM name WHERE kind = ? AND locale = 'enUS' AND name = ? COLLATE NOCASE ORDER BY id").all(nk, key) as Row[]).map((r) => r.id as number);
   if (!ids.length) ids = (d.query("SELECT DISTINCT id FROM name WHERE kind = ? AND name = ? COLLATE NOCASE ORDER BY id").all(nk, key) as Row[]).map((r) => r.id as number);
   if (!ids.length) return null;
+  // (what the build left out last: its names alone are kept)
+  if (ids.length > 1 && (kind === "npc" || kind === "object" || kind === "quest")) {
+    const out = new Set(hasLeftOut(d) ? (d.query("SELECT id FROM left_out WHERE kind = ?").all(nk) as Row[]).map((r) => r.id as number) : []);
+    ids.sort((a, b) => Number(out.has(a)) - Number(out.has(b)));
+  }
   if (ids.length > 1 && (kind === "npc" || kind === "object")) {
     const sk = kind === "npc" ? "creature" : "object";
     const n = (id: number) => (d.query("SELECT count(*) n FROM spawn WHERE kind = ? AND entity_id = ?").get(sk, id) as Row).n as number;

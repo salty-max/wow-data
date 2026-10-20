@@ -454,6 +454,17 @@ CREATE TABLE rare_zone (
   ui_map_id   INTEGER NOT NULL,
   source      TEXT NOT NULL
 );
+-- What the build leaves out of a game though a source had it (forever.db:
+-- Season of Discovery's, docs/sources.md): its names stay in `name`, in every
+-- language, and every other row naming it goes. A saved file may still hold
+-- its id: an addon's table that turns a journal's ids back into names keeps
+-- these as names, and nothing else reads them as the game's.
+CREATE TABLE left_out (
+  kind   TEXT NOT NULL,  -- creature, object, quest
+  id     INTEGER NOT NULL,
+  reason TEXT NOT NULL,  -- season_of_discovery
+  PRIMARY KEY (kind, id)
+);
 
 -- ── the client's own tables ──────────────────────────────────────────────────
 -- Imported whole from wago.tools at the pinned build, one table each, column
