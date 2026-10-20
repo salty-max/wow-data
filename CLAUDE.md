@@ -44,6 +44,8 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   (`openDb(game)`, read only; `dbPath`). IDs everywhere, names only in
   `name`, every row its `source`. `test/classic.test.ts` and `test/forever.test.ts` check them against
   facts from the game (skipped where they aren't built).
+- `bun bin/card.ts <npc|object|place|item|quest> <id or exact name> [--game classic|forever] [--full]`:
+  one thing on one card, 40 lines at most (`src/card.ts`), before any query by hand.
 - Wowhead, frozen: `data/wowhead/<game>/<locale>.json` (names Questie
   doesn't translate: Forever's own content; and the clients' own where
   Questie's French lags them: "Sentinelle de Dolanaar", Classic's "Goulet
