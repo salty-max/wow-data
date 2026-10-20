@@ -206,9 +206,13 @@ describe.skipIf(!built)("forever.db", () => {
     expect(all("SELECT kind, entity_id FROM quest_relation WHERE quest_id = 78088 AND role = 'start'")).toEqual([{ kind: "object", entity_id: 409289 }]);
     expect(name("object", 409289)).toBe("Strange Orb");
     expect(all("SELECT role FROM quest_relation WHERE quest_id = 78132 AND kind = 'creature' AND entity_id = 210995 ORDER BY role")).toEqual([{ role: "end" }, { role: "start" }]);
-    // (it gives a quest only Forever has: Wendel Mathers, The Cook in the Cage)
+    // (it gives a quest only Forever has: Wendel Mathers, The Cook in the Cage;
+    // what such a quest asks for still drops: its cage key from Colonel Kurzen;
+    // a kept quest's objective, Stalk With The Earthmother's Blasting Supplies)
     expect(all("SELECT kind, entity_id FROM quest_relation WHERE quest_id = 97047 AND role = 'start'")).toEqual([{ kind: "creature", entity_id: 218230 }]);
     expect(name("creature", 218230)).toBe("Wendel Mathers");
+    expect(all("SELECT source_id FROM loot WHERE kind = 'creature' AND item_id = 216616 ORDER BY source_id")).toContainEqual({ source_id: 813 });
+    expect(name("object", 403041)).toBe("Blasting Supplies");
     // (none of the rest, nor what named it: Polymorphed Apprentice, a Vengeful
     // Ancient of the Nightmare, Star Lotus, Starsilver Vein, a Duskwood Mission,
     // Metzen's (only its reward renamed DEPRECATED), Ataeric's (Wowhead unconfirmed))
@@ -229,6 +233,10 @@ describe.skipIf(!built)("forever.db", () => {
     expect(one("SELECT count(*) AS n FROM vendor WHERE item_id = 211779")).toEqual({ n: 0 });
     expect(one("SELECT count(*) AS n FROM recipe_source WHERE spell_id IN (470359, 470370)")).toEqual({ n: 0 });
     expect(all("SELECT source FROM loot WHERE kind = 'creature' AND source_id = 36 AND item_id = 211780")).toEqual([{ source: "questie" }]);
+    // (nor what an unseen SoD item holds: the Otherworldly Treasure's scrolls)
+    expect(one("SELECT count(*) AS n FROM loot WHERE kind = 'item' AND source_id = 220446")).toEqual({ n: 0 });
+    // (every item a quest asks for still somewhere, where it was before)
+    expect(one("SELECT count(*) AS n FROM quest_objective o WHERE o.kind = 'item' AND o.quest_id IN (97047, 95384, 78091, 78092, 76156) AND NOT EXISTS (SELECT 1 FROM loot WHERE item_id = o.target_id) AND NOT EXISTS (SELECT 1 FROM vendor WHERE item_id = o.target_id) AND o.target_id <> 216617")).toEqual({ n: 0 });
     // (every quest's giver, ender and target a creature or an object the tables have)
     expect(one("SELECT count(*) AS n FROM quest_relation WHERE (kind = 'creature' AND entity_id NOT IN (SELECT id FROM creature)) OR (kind = 'object' AND entity_id NOT IN (SELECT id FROM object))")).toEqual({ n: 0 });
     expect(one("SELECT count(*) AS n FROM quest_objective WHERE (kind = 'creature' AND target_id NOT IN (SELECT id FROM creature)) OR (kind = 'object' AND target_id NOT IN (SELECT id FROM object))")).toEqual({ n: 0 });

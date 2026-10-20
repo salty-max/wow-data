@@ -90,7 +90,7 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   A Questie or Wowhead row whose creature or object no source has is left
   out last (`unknownLoot`): Questie keeps an item's sources it can't
   resolve, and Wowhead's Forever lists carry Season of Discovery's (98 such
-  in Forever, 20 October 2026; 15 rows once the SoD pass below has run). The
+  in Forever, 20 October 2026; 19 rows once the SoD pass below has run). The
   46 with Forever's evidence (looted by its players in Questie's traces, or
   dropping an item only Forever has) had their Wowhead pages frozen instead:
   Forever kept SoD's world books.
@@ -100,22 +100,27 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   SoD wholesale. Of the ids in Questie's SoD base (`questieSeason`,
   `bin/questie-season.lua`, with its Forever traces), a creature, an object
   or a quest stays where Forever shows it: met by its players (Questie's
-  traces, the players' facts), holding something only Forever has (an item
-  or a quest Classic Era's client lacks), changed by Forever on Wowhead's
-  page (`changed`, its envChange lines: a value Forever has, not "no
-  longer", "none instead of" or a reward renamed DEPRECATED;
-  `wowheadChanged`), or starting, ending or asked for by a SoD quest that
-  stays. Not evidence: Wowhead's "unchanged" (SoD's copy), its "added in
-  patch" (SoD's world books say 1.15.0, Forever's players looted them),
-  Latest Additions, either client's tables (both hold SoD's quests and
-  items). The rest goes with every row naming it (217 creatures, 11
+  traces, the players' facts: seen, heard, giving or taking a quest),
+  holding something only Forever has (an item or a quest Classic Era's
+  client lacks), changed by Forever on Wowhead's page (`changed`, its
+  envChange lines: a value Forever has, "Classes none instead of Mage"
+  included, not a line saying "no longer", one starting "Level none", "Title
+  <none>" or "Family none", one ending "instead of", or a reward renamed
+  DEPRECATED; `wowheadChanged`), or starting, ending or asked for by a SoD
+  quest that stays or a quest only Forever has, or dropping an item such a
+  quest asks for. Not evidence: Wowhead's "unchanged" (SoD's copy), its
+  "added in patch" (SoD's world books say 1.15.0, Forever's players looted
+  them), Latest Additions, either client's tables (both hold SoD's quests
+  and items). The rest goes with every row naming it (217 creatures, 9
   objects, 28 quests: Ashenvale's battle, the Nightmare incursions, the
   Firelands in Searing Gorge, the Scarlet Enclave, SoD's herbs and veins,
   the Duskwood Missions). A SoD item stays (the client has it), its Questie
-  and Wowhead drops, vendors and recipe sources only where Forever's players
-  looted it (Waylaid Supplies dropped nowhere; the rune scrolls kept). Three
-  SoD things Forever's quests use had their Wowhead pages frozen: Wendel
-  Mathers (The Cook in the Cage), the Strange Orb, Illari's Loot Cache.
+  and Wowhead drops, contents, vendors and recipe sources only where
+  Forever's players looted it or such a quest asks for it (Waylaid Supplies
+  dropped nowhere; the rune scrolls and The Cook in the Cage's key kept).
+  Three SoD things Forever's quests use had their Wowhead pages frozen:
+  Wendel Mathers (The Cook in the Cage), the Strange Orb, Illari's Loot
+  Cache.
 - The trades' recipes (the cookbook's ground, 19 October 2026): `item_spell`
   (the client's ItemEffect: what an item casts, by trigger), `teaching` (a
   recipe item's use or a trainer's lesson and the recipe it teaches: the

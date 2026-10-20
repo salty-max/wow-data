@@ -29,9 +29,14 @@ local sets = { sod = {}, traced = {} }
 for _, k in ipairs({ "creature", "object", "quest", "item" }) do
   sets.sod[k], sets.traced[k] = {}, {}
 end
-local function add(set, kind, ids)
+-- (the fields that gave ids: one Questie renames gives none, said below)
+local got = {}
+local function add(set, kind, ids, field)
   for _, id in pairs(type(ids) == "table" and ids or { ids }) do
-    if type(id) == "number" then set[kind][id] = true end
+    if type(id) == "number" then
+      set[kind][id] = true
+      if field then got[field] = true end
+    end
   end
 end
 
@@ -57,21 +62,29 @@ local traced = sets.traced
 for _, f in ipairs({ { "foreverNpcTraces.lua", "ForeverNpcTraces", "creature" }, { "foreverObjectTraces.lua", "ForeverObjectTraces", "object" } }) do
   for id, r in pairs(load(TRACES .. f[1], f[2], "Load")) do
     add(traced, f[3], id)
-    add(traced, "quest", r.questStarts_add)
-    add(traced, "quest", r.questEnds_add)
+    add(traced, "quest", r.questStarts_add, "questStarts_add")
+    add(traced, "quest", r.questEnds_add, "questEnds_add")
   end
 end
 for id, r in pairs(load(TRACES .. "foreverQuestTraces.lua", "ForeverQuestTraces", "Load")) do
   add(traced, "quest", id)
-  for _, by in ipairs({ r.startedBy_add or {}, r.finishedBy_add or {} }) do
-    add(traced, "creature", by[1])
-    add(traced, "object", by[2])
+  for field, by in pairs({ startedBy_add = r.startedBy_add or {}, finishedBy_add = r.finishedBy_add or {} }) do
+    add(traced, "creature", by[1], field)
+    add(traced, "object", by[2], field)
   end
 end
 for id, r in pairs(load(TRACES .. "foreverItemTraces.lua", "ForeverItemTraces", "Load")) do
   add(traced, "item", id)
-  add(traced, "creature", r.npcDrops_add)
-  add(traced, "object", r.objectDrops_add)
+  add(traced, "creature", r.npcDrops_add, "npcDrops_add")
+  add(traced, "object", r.objectDrops_add, "objectDrops_add")
+end
+for _, field in ipairs({ "questStarts_add", "questEnds_add", "startedBy_add", "finishedBy_add", "npcDrops_add", "objectDrops_add" }) do
+  assert(got[field], "Questie's Forever traces give no " .. field .. ": renamed? (bin/questie-season.lua)")
+end
+for _, group in ipairs({ "sod", "traced" }) do
+  for kind, ids in pairs(sets[group]) do
+    assert(next(ids), "Questie gives no " .. kind .. " of " .. group .. " (bin/questie-season.lua)")
+  end
 end
 
 -- ── out, each set as its sorted ids ─────────────────────────────────────────

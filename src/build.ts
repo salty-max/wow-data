@@ -1295,19 +1295,26 @@ function chains(db: Database) {
 // what holds something only Forever has (an item or a quest Classic Era's
 // client lacks: a list of it was seen in Forever), what Wowhead saw Forever
 // change (wowheadChanged: the library's books turned in by any class), and
-// who starts, ends or is asked for by a SoD quest it keeps. Wowhead's "unchanged" is SoD's copy and its "added in patch" SoD's
-// (Forever's players looted the world books it dates 1.15.0): no evidence
-// either. The rest goes, with every row that names it. A SoD item stays
-// (Forever's client has it), its drops, vendors and recipe only where
-// Forever's players looted it.
+// who starts, ends or is asked for by a SoD quest it keeps or a quest only
+// it has, and who drops what such a quest asks for. Wowhead's "unchanged"
+// is SoD's copy and its "added in patch" SoD's (Forever's players looted the
+// world books it dates 1.15.0): no evidence either. The rest goes, with every row that names it. A SoD item stays
+// (Forever's client has it), its drops, contents, vendors and recipe only
+// where Forever's players looted it or such a quest asks for it.
 async function seasonOfDiscovery(db: Database, game: Game) {
   const { sod, traced } = await questieSeason();
   const seen = { creature: new Set(traced.creature), object: new Set(traced.object), quest: new Set(traced.quest), item: new Set(traced.item) };
-  // (the players': a creature, a quest, what a creature or an object gave)
-  for (const [, kind, entity, , value] of playerFacts(game)) {
-    if (kind === "npc") seen.creature.add(Number(entity));
-    else if (kind === "quest") seen.quest.add(Number(entity));
-    else if (kind === "loot") {
+  // (the players': a creature seen or heard, a quest and who gave or took it,
+  // what a creature or an object gave)
+  for (const [, kind, entity, field, value] of playerFacts(game)) {
+    if (kind === "npc" || kind === "say" || kind === "gossip") seen.creature.add(Number(entity));
+    else if (kind === "quest") {
+      seen.quest.add(Number(entity));
+      if ((field === "giver" || field === "ender") && /^(npc|object):\d+$/.test(value)) {
+        const [what, who] = value.split(":");
+        seen[what === "npc" ? "creature" : "object"].add(Number(who));
+      }
+    } else if (kind === "loot") {
       const [from, id] = entity.split(":");
       seen[from === "npc" ? "creature" : "object"].add(Number(id));
       seen.item.add(Number(value));
@@ -1332,16 +1339,23 @@ async function seasonOfDiscovery(db: Database, game: Game) {
   for (const { kind, id } of holds) seen[kind].add(id);
   const changed = wowheadChanged(game);
   for (const kind of ["creature", "object", "quest"] as const) for (const id of changed[kind]) seen[kind].add(id);
-  // (who starts and ends a SoD quest Forever keeps, what it asks for: the
-  // Dragonslayer's quests' Alonso)
+  // (who starts and ends a SoD quest Forever keeps or a quest only Forever has,
+  // what it asks for, and who drops an item it asks for: the Dragonslayer's
+  // quests' Alonso, The Cook in the Cage's key from Colonel Kurzen, Stalk With
+  // The Earthmother's charges from the Blasting Supplies)
   db.exec("CREATE TEMP TABLE kept_quest (id INTEGER PRIMARY KEY)");
-  const keep = db.prepare("INSERT INTO kept_quest VALUES (?)");
+  const keep = db.prepare("INSERT OR IGNORE INTO kept_quest VALUES (?)");
   db.transaction(() => {
     for (const id of sod.quest) if (seen.quest.has(id)) keep.run(id);
   })();
+  db.exec("INSERT OR IGNORE INTO kept_quest SELECT id FROM quest WHERE id NOT IN (SELECT id FROM classic_quest)");
+  const asked = (db.query("SELECT DISTINCT target_id AS id FROM quest_objective WHERE kind IN ('item', 'source') AND quest_id IN (SELECT id FROM kept_quest)").all() as { id: number }[]).map((r) => r.id);
+  for (const id of asked) seen.item.add(id);
   const ofKept = db.query(
     `SELECT kind, entity_id AS id FROM quest_relation WHERE kind IN ('creature', 'object') AND quest_id IN (SELECT id FROM kept_quest)
-     UNION SELECT kind, target_id FROM quest_objective WHERE kind IN ('creature', 'object') AND quest_id IN (SELECT id FROM kept_quest)`,
+     UNION SELECT kind, target_id FROM quest_objective WHERE kind IN ('creature', 'object') AND quest_id IN (SELECT id FROM kept_quest)
+     UNION SELECT kind, source_id FROM loot WHERE kind IN ('creature', 'object') AND source IN ('questie', 'wowhead')
+       AND item_id IN (SELECT target_id FROM quest_objective WHERE kind IN ('item', 'source') AND quest_id IN (SELECT id FROM kept_quest))`,
   ).all() as { kind: "creature" | "object"; id: number }[];
   for (const { kind, id } of ofKept) seen[kind].add(id);
 
@@ -1392,6 +1406,7 @@ async function seasonOfDiscovery(db: Database, game: Game) {
     // (a SoD item no player looted in Forever: where Questie's and Wowhead's lists put it)
     const unseen = "item_id IN (SELECT id FROM unseen_item)";
     n["items' drops"] = db.prepare(`DELETE FROM loot WHERE source IN ('questie', 'wowhead') AND ${unseen}`).run().changes;
+    n["items' contents"] = db.prepare("DELETE FROM loot WHERE kind = 'item' AND source IN ('questie', 'wowhead') AND source_id IN (SELECT id FROM unseen_item)").run().changes;
     n["items' vendors"] = db.prepare(`DELETE FROM vendor WHERE source IN ('questie', 'wowhead') AND ${unseen}`).run().changes;
     n["items' recipes"] = db.prepare("DELETE FROM recipe_source WHERE kind = 'item' AND ref_id IN (SELECT id FROM unseen_item)").run().changes;
   })();
