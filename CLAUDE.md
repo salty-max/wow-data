@@ -17,13 +17,13 @@ TypeScript (salty-max/wow-data). Read the family's CLAUDE.md
 | The tables | `schema.sql` |
 | Where the databases are going (the plan, its steps) | `PLAN.md` |
 | Getting the data, for a person | `README.md` |
-| The databases in a browser | `explorer/README.md` |
+| The databases in a browser | `README.md` ("The explorer") |
 
 ## Commands
 
 ```bash
 bun run check                                   # tsc, bun test ./test (classic/forever tests skip what isn't built)
-bun ../addon-kit/q.ts check -- bun run check    # the same, quiet, stamping the tree for the push
+bun "$(git rev-parse --path-format=absolute --git-common-dir)/../../addon-kit/q.ts" check -- bun run check   # the same, quiet, stamping the tree for the push
 bun bin/build.ts <classic|forever|all>          # .cache/db/<game>.db from the pins
 bun bin/get.ts [--tag db-<commit12>]            # the published databases instead of a build
 bun bin/card.ts <npc|object|place|item|quest> <id or exact name> [--game classic|forever] [--full]
