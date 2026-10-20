@@ -28,10 +28,11 @@ export type QuestPage = {
   classes?: number;
   start?: [Kind, number][];
   end?: [Kind, number][];
+  changed?: string[];
 };
 type Kind = "creature" | "object" | "item";
-export type NpcPage = { name?: string; title?: string; type?: number; family?: number; rank?: number; min?: number; max?: number; model?: number; lines?: [string, string][]; zones?: number[] };
-export type ObjectPage = { name?: string; type?: number; zones?: number[]; gathering?: [number, number]; yields?: number[]; added?: string };
+export type NpcPage = { name?: string; title?: string; type?: number; family?: number; rank?: number; min?: number; max?: number; model?: number; lines?: [string, string][]; zones?: number[]; changed?: string[] };
+export type ObjectPage = { name?: string; type?: number; zones?: number[]; gathering?: [number, number]; yields?: number[]; added?: string; changed?: string[] };
 // (sold: [vendor, its stock where limited]; dropped: the creatures; reward: the quests)
 export type ItemPage = { skinned?: number[]; mined?: number[]; sold?: [number, number | null][]; dropped?: number[]; reward?: number[] };
 export type BookPage = { title?: string; pages: string[] };
@@ -50,6 +51,12 @@ const clean = <T extends Record<string, unknown>>(o: T): T => Object.fromEntries
 const KINDS: Record<string, Kind> = { npc: "creature", object: "object", item: "item" };
 // (the speech's class on the page: s2 says, s1 yells, s3 whispers)
 const SPEECH: Record<string, string> = { s2: "say", s1: "yell", s3: "whisper", s4: "emote" };
+// (what Wowhead saw Forever change against Classic's record, Season of
+// Discovery's included: "Level 10 instead of 6", "Classes none instead of Mage")
+const changes = (info: Record<string, unknown>) => {
+  const env = info.envChange as { status?: unknown; lines?: unknown } | undefined;
+  return env?.status === "updated" && Array.isArray(env.lines) ? env.lines.filter((l): l is string => typeof l === "string") : undefined;
+};
 
 /** A page as the tab saved it, in the frozen file's form (null: Wowhead has none). */
 export function compactPage(kind: string, locale: string, raw: Raw): QuestPage | NpcPage | ObjectPage | ItemPage | BookPage | null {
@@ -78,6 +85,7 @@ export function compactPage(kind: string, locale: string, raw: Raw): QuestPage |
         classes: num(info.reqclass),
         start: who("start"),
         end: who("end"),
+        changed: changes(info),
       }),
     });
   }
@@ -93,6 +101,7 @@ export function compactPage(kind: string, locale: string, raw: Raw): QuestPage |
       model: num(raw.model),
       lines: (raw.quotes ?? []).filter((q) => SPEECH[q.kind]).map((q) => [SPEECH[q.kind], gameQuestText(q.text)] as [string, string]),
       zones: Array.isArray(info.location) ? (info.location as number[]) : undefined,
+      ...(locale === "enUS" && { changed: changes(info) }),
     });
   const ids = (rows: unknown) => Array.isArray(rows)
     ? [...new Set(rows.map(r => positive(r?.id)).filter((id): id is number => id !== undefined && Number.isSafeInteger(id)))].sort((a, b) => a - b)
@@ -106,6 +115,7 @@ export function compactPage(kind: string, locale: string, raw: Raw): QuestPage |
         gathering: profession && skill !== undefined && Number.isSafeInteger(skill) && skill >= 0 ? [profession, skill] as [number, number] : undefined,
         yields: ids(info.type === -4 ? raw.mining : info.type === -3 ? raw.herbs : undefined),
         added: (raw.box ?? "").match(/\[acronym="([\d.]+)"\]/)?.[1],
+        changed: changes(info),
       }),
     });
   }
@@ -123,6 +133,21 @@ export function compactPage(kind: string, locale: string, raw: Raw): QuestPage |
   if (kind === "itembook" || kind === "objbook")
     return raw.pages?.length ? clean({ title: typeof raw.title === "string" ? raw.title : undefined, pages: raw.pages.map(gamePage) }) : null;
   return null;
+}
+
+/** What Wowhead saw Forever change, by kind: a value Forever has (a level, a
+ * rank, a name, a class, its experience, an objective, a giver, a ware), not
+ * one it lacks ("no longer", "Level none instead of") nor a shared item renamed
+ * (a reward become "DEPRECATED ITEM"): Forever's own record of the thing. */
+const LACKS = /no longer|^Level none|^Title <none>|^Family none|instead of$|DEPRECATED/;
+export function wowheadChanged(game: string): Record<"creature" | "object" | "quest", Set<number>> {
+  const out = { creature: new Set<number>(), object: new Set<number>(), quest: new Set<number>() };
+  const file = path.join(ROOT, "data", "wowhead", game, "pages-enUS.json");
+  if (!existsSync(file)) return out;
+  const pages = JSON.parse(readFileSync(file, "utf8")) as Frozen;
+  for (const [kind, key] of [["creature", "npc"], ["object", "object"], ["quest", "quest"]] as const)
+    for (const [id, page] of Object.entries(pages[key] ?? {})) if ((page as { changed?: string[] }).changed?.some((line) => !LACKS.test(line))) out[kind].add(Number(id));
+  return out;
 }
 
 const PLACEHOLDER = /^\s*(<(UNUSED|NYI|TXT|DEPRECATED|PH|TEST)>|\[(DEPRECATED|PH|UNUSED)\]|zz|z?OLD\b)/i;

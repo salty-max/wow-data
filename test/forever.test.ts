@@ -40,7 +40,6 @@ describe.skipIf(!built)("forever.db", () => {
     expect(one("SELECT source_id FROM loot WHERE kind='skinning' AND item_id=249428 AND source='wowhead'")).toEqual({ source_id: 271334 });
     expect(one("SELECT min_skill FROM gathering_node WHERE object_id=566779")).toEqual({ min_skill: 300 });
     expect(one("SELECT count(*) AS n FROM loot WHERE kind='object' AND source_id=566779 AND source='wowhead'")).toEqual({ n: 0 });
-    expect(one("SELECT introduced_build FROM gathering_node WHERE object_id=439778")).toEqual({ introduced_build: "1.15.2.54092" });
     expect(one("SELECT source FROM loot WHERE kind='object' AND source_id=1733 AND item_id=249391")).toEqual({ source: "questie" });
     expect(one("SELECT source FROM loot WHERE kind='object' AND source_id=1610 AND item_id=249391")).toEqual({ source: "wowhead" });
     expect(one("SELECT source FROM loot WHERE kind='object' AND source_id=2040 AND item_id=249425")).toEqual({ source: "wowhead" });
@@ -157,7 +156,7 @@ describe.skipIf(!built)("forever.db", () => {
     // (Wowhead's own tip after a quest's text is no part of it)
     expect(one("SELECT text FROM quest_text WHERE quest_id = 1191 AND locale = 'enUS' AND field = 'details'").text).toBe("Let's go!");
     expect(one("SELECT type_id, rank, display_ids FROM creature WHERE id = 268690")).toEqual({ type_id: 4, rank: 0, display_ids: "145131" });
-    expect(all("SELECT kind, text FROM npc_line WHERE npc_id = 232929 AND locale = 'enUS'")).toContainEqual({ kind: "say", text: "Here they come!" });
+    expect(all("SELECT kind, text, source FROM npc_line WHERE npc_id = 205153 AND locale = 'enUS'")).toContainEqual({ kind: "say", text: "Please, listen to me. I have an offer to make.", source: "wowhead" });
     // (Blizzard's placeholders Wowhead lists, <UNUSED>, left out)
     expect(one("SELECT count(*) AS n FROM quest WHERE id IN (807, 820, 856, 8458) AND source = 'wowhead'").n).toBe(0);
   });
@@ -193,6 +192,46 @@ describe.skipIf(!built)("forever.db", () => {
     expect(name("object", 656681)).toBe("Dalaran Tome");
     expect(one("SELECT rank, source FROM creature WHERE id = 244766")).toEqual({ rank: 1, source: "wowhead" });
     expect(name("creature", 244766)).toBe("Balnazzar");
+  });
+  test("Season of Discovery's where Forever shows it (its players met it, it holds Forever's own, Wowhead saw Forever change it), none of the rest", () => {
+    // (Questie's traces: SoD's librarian, his books turned in, a world book)
+    expect(one("SELECT source FROM creature WHERE id = 211022")).toEqual({ source: "questie" });
+    expect(one("SELECT count(*) AS n FROM spawn WHERE kind = 'creature' AND entity_id = 211022").n).toBeGreaterThan(0);
+    expect(name("quest", 78124)).toBe("Nar'thalas Almanac");
+    expect(name("object", 386691)).toBe("Library Book");
+    // (Wowhead's Forever change alone: Spike Lakeman become Sam Otridge; A Strange
+    // Artifact at level 30, started at its Strange Orb; Dragonslayer's Helm, and Alonso who gives it)
+    expect(name("creature", 228173)).toBe("Sam Otridge");
+    expect(one("SELECT level FROM quest WHERE id = 78088")).toEqual({ level: 30 });
+    expect(all("SELECT kind, entity_id FROM quest_relation WHERE quest_id = 78088 AND role = 'start'")).toEqual([{ kind: "object", entity_id: 409289 }]);
+    expect(name("object", 409289)).toBe("Strange Orb");
+    expect(all("SELECT role FROM quest_relation WHERE quest_id = 78132 AND kind = 'creature' AND entity_id = 210995 ORDER BY role")).toEqual([{ role: "end" }, { role: "start" }]);
+    // (it gives a quest only Forever has: Wendel Mathers, The Cook in the Cage)
+    expect(all("SELECT kind, entity_id FROM quest_relation WHERE quest_id = 97047 AND role = 'start'")).toEqual([{ kind: "creature", entity_id: 218230 }]);
+    expect(name("creature", 218230)).toBe("Wendel Mathers");
+    // (none of the rest, nor what named it: Polymorphed Apprentice, a Vengeful
+    // Ancient of the Nightmare, Star Lotus, Starsilver Vein, a Duskwood Mission,
+    // Metzen's (only its reward renamed DEPRECATED), Ataeric's (Wowhead unconfirmed))
+    for (const [kind, ids] of [["creature", "202093, 221263"], ["object", "439762, 439778"], ["quest", "81730, 79492, 79096"]]) {
+      expect(one(`SELECT count(*) AS n FROM ${kind} WHERE id IN (${ids})`)).toEqual({ n: 0 });
+      expect(one(`SELECT count(*) AS n FROM name WHERE kind = '${kind}' AND id IN (${ids})`)).toEqual({ n: 0 });
+    }
+    expect(one("SELECT count(*) AS n FROM spawn WHERE (kind = 'creature' AND entity_id IN (202093, 221263)) OR (kind = 'object' AND entity_id IN (439762, 439778))")).toEqual({ n: 0 });
+    expect(one("SELECT count(*) AS n FROM gathering_node WHERE object_id IN (439762, 439778)")).toEqual({ n: 0 });
+    expect(one("SELECT count(*) AS n FROM quest_text WHERE quest_id = 81730")).toEqual({ n: 0 });
+    expect(one("SELECT start_quest_id FROM item WHERE id = 219962")).toEqual({ start_quest_id: null });
+    // (a SoD item stays, its drops, vendors and recipe only where Forever's players
+    // looted it: Waylaid Supplies dropped nowhere, a Comprehension Charm sold
+    // nowhere, Darkclaw Bisque and Smoked Redgill learned nowhere; the Harvest
+    // Golem's Scroll: KWYJIBO kept)
+    expect(one("SELECT source FROM item WHERE id = 210771")).toEqual({ source: "client" });
+    expect(one("SELECT count(*) AS n FROM loot WHERE item_id = 210771")).toEqual({ n: 0 });
+    expect(one("SELECT count(*) AS n FROM vendor WHERE item_id = 211779")).toEqual({ n: 0 });
+    expect(one("SELECT count(*) AS n FROM recipe_source WHERE spell_id IN (470359, 470370)")).toEqual({ n: 0 });
+    expect(all("SELECT source FROM loot WHERE kind = 'creature' AND source_id = 36 AND item_id = 211780")).toEqual([{ source: "questie" }]);
+    // (every quest's giver, ender and target a creature or an object the tables have)
+    expect(one("SELECT count(*) AS n FROM quest_relation WHERE (kind = 'creature' AND entity_id NOT IN (SELECT id FROM creature)) OR (kind = 'object' AND entity_id NOT IN (SELECT id FROM object))")).toEqual({ n: 0 });
+    expect(one("SELECT count(*) AS n FROM quest_objective WHERE (kind = 'creature' AND target_id NOT IN (SELECT id FROM creature)) OR (kind = 'object' AND target_id NOT IN (SELECT id FROM object))")).toEqual({ n: 0 });
   });
   test("what only Wowhead's pages name in English, every language names as its client shows: Harrigen <The Undermarket>, the Dalaran Tome", () => {
     expect(name("creature_subname", 228230)).toBe("The Undermarket");

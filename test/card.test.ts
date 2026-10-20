@@ -69,7 +69,7 @@ for (const game of ["classic", "forever"] as const) {
       if (game === "forever") expect(text("npc", "240482")).toContain("frFR,itIT,ruRU,zhCN,zhTW Berdun Cliffbrew (English)");
     });
     test.skipIf(game !== "forever")("an item inside another (Questie's containers), not a creature", () => {
-      expect(text("item", "210771")).toContain("in item 1: inside Otherworldly Treasure (220446)");
+      expect(text("item", "270001")).toContain("in item 1: inside Captain Sander's Locker (270257)");
     });
     test("every card 40 lines at most, a zone's and a herb's too; --full lifts the cap", () => {
       for (const [kind, key] of [

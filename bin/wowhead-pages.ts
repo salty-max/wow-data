@@ -4,7 +4,8 @@
 // another language but its objectives), its creatures' title, type, level,
 // rank, model and speech, its objects' types, and the books' and plaques' pages in
 // every language the databases lack (Spanish, Spain's and Latin America's,
-// for none). Wowhead refuses scripts its pages and its own pages won't reach
+// for none); in English, what Wowhead saw Forever change of a quest, a
+// creature or an object (`changed`: the evidence Season of Discovery's need). Wowhead refuses scripts its pages and its own pages won't reach
 // localhost (upgrade-insecure-requests), so a Wowhead tab fetches them
 // (bin/wowhead-tab.js, its how-to) into its own IndexedDB (a closed tab loses
 // nothing: it resumes from what it has) and its pages come here in exported

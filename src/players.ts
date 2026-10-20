@@ -40,10 +40,11 @@ export function pick(facts: PlayerFact[]): PlayerFact {
   });
 }
 
-export function loadPlayers(db: Database, game: Game) {
+/** A game's players' facts, every language's (none where it has no file). */
+export function playerFacts(game: Game): PlayerFact[] {
   const dir = path.join(ROOT, "data", "players", game);
-  if (!existsSync(dir)) return;
   const facts: PlayerFact[] = [];
+  if (!existsSync(dir)) return facts;
   for (const f of readdirSync(dir).filter((f) => /^[a-z]{2}[A-Z]{2}\.json$/.test(f))) {
     const locale = f.slice(0, -5);
     const { facts: lines } = JSON.parse(readFileSync(path.join(dir, f), "utf8")) as {
@@ -51,6 +52,12 @@ export function loadPlayers(db: Database, game: Game) {
     };
     for (const [kind, entity, field, value, build, who] of lines) facts.push([locale, kind, entity, field, value, build, who.length]);
   }
+  return facts;
+}
+
+export function loadPlayers(db: Database, game: Game) {
+  if (!existsSync(path.join(ROOT, "data", "players", game))) return;
+  const facts = playerFacts(game);
   db.prepare("INSERT OR IGNORE INTO source VALUES ('players', 'data/players', 'https://github.com/salty-max/ravenpost/tree/main/inbox', 'the players'' own, through the addons'' opt-in')").run();
   const told = players(db, facts);
   console.log(`  players: ${Object.entries(told).map(([k, n]) => `${n} ${k}`).join(", ") || "nothing new"}`);

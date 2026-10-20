@@ -3,7 +3,7 @@
 // Classic database's world, every link an id, every row its source.
 import { gamePage } from "./gametext";
 export { gamePage } from "./gametext";
-import { wowheadPages } from "./wowheadPages";
+import { wowheadChanged, wowheadPages } from "./wowheadPages";
 import { clientGathering } from "./gathering";
 import { loadLandmarks } from "./landmarks";
 import { Database } from "bun:sqlite";
@@ -12,8 +12,8 @@ import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { classicDump } from "./github";
 import { type Game, PINS, ROOT } from "./pins";
-import { loadPlayers } from "./players";
-import { questie, questieZoneMaps, type QuestieData, type QuestieRecord } from "./questie";
+import { loadPlayers, playerFacts } from "./players";
+import { questie, questieSeason, questieZoneMaps, type QuestieData, type QuestieRecord } from "./questie";
 import { rows } from "./sql";
 import { LOCALES, wago } from "./wago";
 
@@ -1285,6 +1285,120 @@ function chains(db: Database) {
 
 }
 
+// ── Season of Discovery's, where Forever shows none of it ──────────────────
+// Wowhead's Forever environment answers for Season of Discovery's ids (its
+// Molten Core's Baron Geddon, 228433), and Questie's Forever delta-base,
+// imported from its pages, carries SoD with them: creatures, objects and
+// quests, its items' drops and vendors. Of what Questie's SoD base has that
+// Classic Era hasn't (questieSeason), Forever keeps what it shows (20 October
+// 2026): what its players met (Questie's Forever traces, the players' facts),
+// what holds something only Forever has (an item or a quest Classic Era's
+// client lacks: a list of it was seen in Forever), what Wowhead saw Forever
+// change (wowheadChanged: the library's books turned in by any class), and
+// who starts, ends or is asked for by a SoD quest it keeps. Wowhead's "unchanged" is SoD's copy and its "added in patch" SoD's
+// (Forever's players looted the world books it dates 1.15.0): no evidence
+// either. The rest goes, with every row that names it. A SoD item stays
+// (Forever's client has it), its drops, vendors and recipe only where
+// Forever's players looted it.
+async function seasonOfDiscovery(db: Database, game: Game) {
+  const { sod, traced } = await questieSeason();
+  const seen = { creature: new Set(traced.creature), object: new Set(traced.object), quest: new Set(traced.quest), item: new Set(traced.item) };
+  // (the players': a creature, a quest, what a creature or an object gave)
+  for (const [, kind, entity, , value] of playerFacts(game)) {
+    if (kind === "npc") seen.creature.add(Number(entity));
+    else if (kind === "quest") seen.quest.add(Number(entity));
+    else if (kind === "loot") {
+      const [from, id] = entity.split(":");
+      seen[from === "npc" ? "creature" : "object"].add(Number(id));
+      seen.item.add(Number(value));
+    }
+  }
+  db.exec("CREATE TEMP TABLE classic_item (id INTEGER PRIMARY KEY); CREATE TEMP TABLE classic_quest (id INTEGER PRIMARY KEY)");
+  for (const [table, ids] of [
+    ["classic_item", await wago("classic", "Item")],
+    ["classic_quest", await wago("classic", "QuestV2")],
+  ] as const) {
+    const insert = db.prepare(`INSERT OR IGNORE INTO ${table} VALUES (?)`);
+    db.transaction(() => {
+      for (const r of ids) insert.run(Number(r.ID));
+    })();
+  }
+  const holds = db.query(
+    `SELECT kind, source_id AS id FROM loot WHERE kind IN ('creature', 'object') AND source IN ('questie', 'wowhead')
+       AND item_id IN (SELECT ID FROM client_Item) AND item_id NOT IN (SELECT id FROM classic_item)
+     UNION SELECT kind, entity_id FROM quest_relation WHERE kind IN ('creature', 'object')
+       AND quest_id IN (SELECT id FROM quest) AND quest_id NOT IN (SELECT id FROM classic_quest)`,
+  ).all() as { kind: "creature" | "object"; id: number }[];
+  for (const { kind, id } of holds) seen[kind].add(id);
+  const changed = wowheadChanged(game);
+  for (const kind of ["creature", "object", "quest"] as const) for (const id of changed[kind]) seen[kind].add(id);
+  // (who starts and ends a SoD quest Forever keeps, what it asks for: the
+  // Dragonslayer's quests' Alonso)
+  db.exec("CREATE TEMP TABLE kept_quest (id INTEGER PRIMARY KEY)");
+  const keep = db.prepare("INSERT INTO kept_quest VALUES (?)");
+  db.transaction(() => {
+    for (const id of sod.quest) if (seen.quest.has(id)) keep.run(id);
+  })();
+  const ofKept = db.query(
+    `SELECT kind, entity_id AS id FROM quest_relation WHERE kind IN ('creature', 'object') AND quest_id IN (SELECT id FROM kept_quest)
+     UNION SELECT kind, target_id FROM quest_objective WHERE kind IN ('creature', 'object') AND quest_id IN (SELECT id FROM kept_quest)`,
+  ).all() as { kind: "creature" | "object"; id: number }[];
+  for (const { kind, id } of ofKept) seen[kind].add(id);
+
+  db.exec("CREATE TEMP TABLE gone (kind TEXT NOT NULL, id INTEGER NOT NULL, PRIMARY KEY (kind, id)); CREATE TEMP TABLE unseen_item (id INTEGER PRIMARY KEY)");
+  db.transaction(() => {
+    for (const kind of ["creature", "object", "quest"] as const) {
+      const gone = db.prepare(`INSERT INTO gone SELECT '${kind}', id FROM ${kind} WHERE id = ?`);
+      for (const id of sod[kind]) if (!seen[kind].has(id)) gone.run(id);
+    }
+    const unseen = db.prepare("INSERT INTO unseen_item VALUES (?)");
+    for (const id of sod.item) if (!seen.item.has(id)) unseen.run(id);
+  })();
+  const of = (kind: string) => `(SELECT id FROM gone WHERE kind = '${kind}')`;
+  const n: Record<string, number> = {};
+  db.transaction(() => {
+    for (const [table, where] of [
+      ["creature", `id IN ${of("creature")}`],
+      ["object", `id IN ${of("object")}`],
+      ["quest", `id IN ${of("quest")}`],
+      ["name", `(kind IN ('creature', 'creature_subname') AND id IN ${of("creature")}) OR (kind = 'object' AND id IN ${of("object")}) OR (kind = 'quest' AND id IN ${of("quest")})`],
+      ["spawn", `(kind = 'creature' AND entity_id IN ${of("creature")}) OR (kind = 'object' AND entity_id IN ${of("object")})`],
+      ["spawn_entry", `(kind = 'creature' AND entity_id IN ${of("creature")}) OR (kind = 'object' AND entity_id IN ${of("object")})`],
+      ["path", `owner = 'creature' AND owner_id IN ${of("creature")}`],
+      ["loot", `source IN ('questie', 'wowhead') AND ((kind = 'creature' AND source_id IN ${of("creature")}) OR (kind = 'object' AND source_id IN ${of("object")}))`],
+      ["vendor", `npc_id IN ${of("creature")}`],
+      ["trainer_spell", `npc_id IN ${of("creature")}`],
+      ["gossip", `npc_id IN ${of("creature")}`],
+      ["npc_line", `npc_id IN ${of("creature")}`],
+      ["creature_sighting", `npc_id IN ${of("creature")}`],
+      ["rare_zone", `creature_id IN ${of("creature")}`],
+      ["encounter", `credit_type = 0 AND credit_id IN ${of("creature")}`],
+      ["gathering_node", `object_id IN ${of("object")}`],
+      ["readable", `kind = 'object' AND id IN ${of("object")}`],
+      ["readable_page", `kind = 'object' AND id IN ${of("object")}`],
+      ["quest_relation", `quest_id IN ${of("quest")} OR (kind = 'creature' AND entity_id IN ${of("creature")}) OR (kind = 'object' AND entity_id IN ${of("object")})`],
+      ["quest_objective", `quest_id IN ${of("quest")} OR (kind = 'creature' AND target_id IN ${of("creature")}) OR (kind = 'object' AND target_id IN ${of("object")})`],
+      ["quest_text", `quest_id IN ${of("quest")}`],
+      ["quest_reward", `quest_id IN ${of("quest")}`],
+      ["quest_prereq", `quest_id IN ${of("quest")} OR abs(prev_id) IN ${of("quest")}`],
+      ["recipe_source", `(kind = 'trainer' AND ref_id IN ${of("creature")}) OR (kind = 'quest' AND ref_id IN ${of("quest")})`],
+    ] as const) {
+      const changes = db.prepare(`DELETE FROM ${table} WHERE ${where}`).run().changes;
+      if (changes) n[table] = changes;
+    }
+    n["items' quests"] = db.prepare(`UPDATE item SET start_quest_id = NULL WHERE start_quest_id IN ${of("quest")}`).run().changes;
+    for (const column of ["prev_id", "next_id", "next_in_chain"])
+      db.prepare(`UPDATE quest SET ${column} = NULL WHERE ${column} IN ${of("quest")}`).run();
+    // (a SoD item no player looted in Forever: where Questie's and Wowhead's lists put it)
+    const unseen = "item_id IN (SELECT id FROM unseen_item)";
+    n["items' drops"] = db.prepare(`DELETE FROM loot WHERE source IN ('questie', 'wowhead') AND ${unseen}`).run().changes;
+    n["items' vendors"] = db.prepare(`DELETE FROM vendor WHERE source IN ('questie', 'wowhead') AND ${unseen}`).run().changes;
+    n["items' recipes"] = db.prepare("DELETE FROM recipe_source WHERE kind = 'item' AND ref_id IN (SELECT id FROM unseen_item)").run().changes;
+  })();
+  db.exec("DROP TABLE gone; DROP TABLE unseen_item; DROP TABLE kept_quest; DROP TABLE classic_item; DROP TABLE classic_quest");
+  log(`season of discovery's left out: ${Object.entries(n).map(([k, v]) => `${v} ${k}`).join(", ")}`);
+}
+
 // ── loot from a creature or an object no source has ─────────────────────────
 // Questie's and Wowhead's loot names the creature or the object itself, and
 // Questie keeps an item's sources it can't resolve: in Forever, those of
@@ -1495,6 +1609,7 @@ export async function build(game: Game, file: string) {
   loadPlayers(db, game);
   loadLandmarks(db, game);
   shownInEnglishLater(db, shownLater);
+  if (game === "forever") await seasonOfDiscovery(db, game);
   unknownLoot(db);
   chains(db);
   db.exec("ANALYZE");

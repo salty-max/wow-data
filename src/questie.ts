@@ -86,3 +86,14 @@ export async function questieZoneMaps(): Promise<Map<number, number>> {
   }
   return out;
 }
+
+// What Season of Discovery has that Classic Era hasn't (Questie's SoD base)
+// and what Forever's players met (its Forever traces, gathered in the game),
+// by kind, each by its ids: bin/questie-season.lua, a moment's run, never cached.
+type ByKind = Record<"creature" | "object" | "quest" | "item", number[]>;
+export async function questieSeason(): Promise<{ sod: ByKind; traced: ByKind }> {
+  const dir = await checkout();
+  const run = spawnSync(await lua51(dir), [path.join(ROOT, "bin", "questie-season.lua")], { cwd: dir, maxBuffer: 1 << 26 });
+  if (run.status !== 0) throw new Error(`questie-season.lua: ${run.stderr}`);
+  return JSON.parse(run.stdout.toString());
+}
