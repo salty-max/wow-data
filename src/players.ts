@@ -169,9 +169,12 @@ export function players(db: Database, all: PlayerFact[]): Record<string, number>
       const [what, sid] = source.split(":");
       const id = Number(sid);
       const kind = what === "npc" ? "creature" : "object";
+      // (the thing itself, which a player looted, even where another source
+      // gives its loot: Questie's of a creature or an object no other source
+      // has, which the build would else leave out)
+      count(kind === "creature" ? "creatures" : "objects", (kind === "creature" ? creature : object).run(id).changes);
       const template = (lootIdOf[kind].get(id) as { loot_id: number | null } | null)?.loot_id ?? id;
       if (looted.get(kind, template)) continue;
-      count(kind === "creature" ? "creatures" : "objects", (kind === "creature" ? creature : object).run(id).changes);
       setLoot[kind].run(template, id);
       for (const item of items) count("loot", drop.run(kind, template, item).changes);
     }

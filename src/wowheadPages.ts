@@ -217,6 +217,8 @@ export function wowheadPages(db: Database, game: string, log: (s: string) => voi
   }
 }
 
+const DROPPED = `SELECT 1 FROM loot l WHERE item_id = ? AND NOT (l.source IN ('questie', 'wowhead') AND (
+  (l.kind = 'creature' AND l.source_id NOT IN (SELECT id FROM creature)) OR (l.kind = 'object' AND l.source_id NOT IN (SELECT id FROM object))))`;
 /** Who sells, drops or rewards an item, where no other source says (Forever's
  * own recipes: Cookie drops the Blueprint: Cookie's Feast). A drop's odds are
  * left out: Wowhead's counts are its players', not the game's. */
@@ -231,7 +233,9 @@ function itemSources(db: Database, pages: Frozen, log: (s: string) => void) {
       const id = Number(sid);
       if (page.sold?.length && !has("SELECT 1 FROM vendor WHERE item_id = ?", id))
         for (const [npc, stock] of page.sold) n.vendors += vendor.run(npc, id, stock).changes;
-      if (page.dropped?.length && !has("SELECT 1 FROM loot WHERE item_id = ?", id))
+      // (Questie's or Wowhead's drop from a creature or an object no source
+      // has counts for nothing: the build leaves it out, build.ts's unknownLoot)
+      if (page.dropped?.length && !has(DROPPED, id))
         for (const npc of page.dropped) n.drops += loot.run(npc, id).changes;
       if (page.reward?.length && !has("SELECT 1 FROM quest_reward WHERE ref_id = ? AND kind IN ('item', 'choice')", id))
         for (const quest of page.reward) n.rewards += reward.run(quest, id).changes;
