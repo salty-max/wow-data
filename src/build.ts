@@ -1330,15 +1330,22 @@ async function seasonOfDiscovery(db: Database, game: Game) {
       for (const r of ids) insert.run(Number(r.ID));
     })();
   }
+  const changed = wowheadChanged(game);
+  for (const kind of ["creature", "object", "quest"] as const) for (const id of changed[kind]) seen[kind].add(id);
+  // (a quest's evidence is its own, settled here: a SoD quest without any is
+  // no quest only Forever has, though Classic Era's client lacks it too)
+  db.exec("CREATE TEMP TABLE unseen_quest (id INTEGER PRIMARY KEY)");
+  const unseenQuest = db.prepare("INSERT INTO unseen_quest VALUES (?)");
+  db.transaction(() => {
+    for (const id of sod.quest) if (!seen.quest.has(id)) unseenQuest.run(id);
+  })();
+  const onlyForever = "SELECT id FROM quest WHERE id NOT IN (SELECT id FROM classic_quest) AND id NOT IN (SELECT id FROM unseen_quest)";
   const holds = db.query(
     `SELECT kind, source_id AS id FROM loot WHERE kind IN ('creature', 'object') AND source IN ('questie', 'wowhead')
        AND item_id IN (SELECT ID FROM client_Item) AND item_id NOT IN (SELECT id FROM classic_item)
-     UNION SELECT kind, entity_id FROM quest_relation WHERE kind IN ('creature', 'object')
-       AND quest_id IN (SELECT id FROM quest) AND quest_id NOT IN (SELECT id FROM classic_quest)`,
+     UNION SELECT kind, entity_id FROM quest_relation WHERE kind IN ('creature', 'object') AND quest_id IN (${onlyForever})`,
   ).all() as { kind: "creature" | "object"; id: number }[];
   for (const { kind, id } of holds) seen[kind].add(id);
-  const changed = wowheadChanged(game);
-  for (const kind of ["creature", "object", "quest"] as const) for (const id of changed[kind]) seen[kind].add(id);
   // (who starts and ends a SoD quest Forever keeps or a quest only Forever has,
   // what it asks for, and who drops an item it asks for: the Dragonslayer's
   // quests' Alonso, The Cook in the Cage's key from Colonel Kurzen, Stalk With
@@ -1348,7 +1355,7 @@ async function seasonOfDiscovery(db: Database, game: Game) {
   db.transaction(() => {
     for (const id of sod.quest) if (seen.quest.has(id)) keep.run(id);
   })();
-  db.exec("INSERT OR IGNORE INTO kept_quest SELECT id FROM quest WHERE id NOT IN (SELECT id FROM classic_quest)");
+  db.exec(`INSERT OR IGNORE INTO kept_quest ${onlyForever}`);
   const asked = (db.query("SELECT DISTINCT target_id AS id FROM quest_objective WHERE kind IN ('item', 'source') AND quest_id IN (SELECT id FROM kept_quest)").all() as { id: number }[]).map((r) => r.id);
   for (const id of asked) seen.item.add(id);
   const ofKept = db.query(
@@ -1410,7 +1417,7 @@ async function seasonOfDiscovery(db: Database, game: Game) {
     n["items' vendors"] = db.prepare(`DELETE FROM vendor WHERE source IN ('questie', 'wowhead') AND ${unseen}`).run().changes;
     n["items' recipes"] = db.prepare("DELETE FROM recipe_source WHERE kind = 'item' AND ref_id IN (SELECT id FROM unseen_item)").run().changes;
   })();
-  db.exec("DROP TABLE gone; DROP TABLE unseen_item; DROP TABLE kept_quest; DROP TABLE classic_item; DROP TABLE classic_quest");
+  db.exec("DROP TABLE gone; DROP TABLE unseen_item; DROP TABLE kept_quest; DROP TABLE unseen_quest; DROP TABLE classic_item; DROP TABLE classic_quest");
   log(`season of discovery's left out: ${Object.entries(n).map(([k, v]) => `${v} ${k}`).join(", ")}`);
 }
 
