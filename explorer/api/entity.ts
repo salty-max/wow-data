@@ -15,7 +15,7 @@ import {
   RANKS,
   SLOTS,
   UNIT_CLASSES,
-} from "./game";
+} from "../../src/game";
 import { type MapGroup, mapsOf } from "./maps";
 import { CLIENT_TABLE, Namer, type Ref } from "./names";
 

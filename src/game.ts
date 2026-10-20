@@ -1,4 +1,4 @@
-// The game's numbers the database keeps as numbers, worded for a page (the
+// The game's numbers the database keeps as numbers, worded for a page or a card (the
 // 1.x client's own enums; the client has no table for these).
 export const NPC_FLAGS: [number, string][] = [
   [1, "Gossip"],
