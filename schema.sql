@@ -415,9 +415,9 @@ CREATE TABLE gossip (
   text_female  TEXT,
   chance       REAL,              -- the variant's odds, as the database weighs them
   broadcast_id INTEGER,           -- speech.id, where it is a broadcast text
-  condition_id INTEGER,           -- shown only when this condition holds (the database's conditions); null: always
+  condition_id INTEGER NOT NULL,  -- shown only while this condition holds (the database's conditions); 0: always
   source       TEXT NOT NULL,
-  PRIMARY KEY (npc_id, text_id, idx, locale)
+  PRIMARY KEY (npc_id, text_id, idx, locale, condition_id)
 );
 
 -- What an npc was heard to say, by the npc: Wowhead's pages' quotes and

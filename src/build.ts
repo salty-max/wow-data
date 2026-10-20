@@ -934,7 +934,7 @@ async function classicDb(db: Database, q: QuestieData) {
       if (!menu) continue;
       for (const m of menus.get(menu) ?? []) {
         const textId = num(m.text_id)!,
-          condition = nz(m.condition_id);
+          condition = num(m.condition_id) ?? 0;
         const b = broadcast.get(textId),
           t = npcText.get(textId);
         for (let i = 0; i < 8; i++) {
