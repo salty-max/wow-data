@@ -9,7 +9,7 @@ import type { Game } from "../src/pins";
 const args = process.argv.slice(2);
 const flag = (name: string) => {
   const i = args.indexOf(name);
-  return i === -1 ? undefined : args.splice(i, 2)[1];
+  return i === -1 ? undefined : (args.splice(i, 2)[1] ?? "");
 };
 const full = args.includes("--full");
 if (full) args.splice(args.indexOf("--full"), 1);

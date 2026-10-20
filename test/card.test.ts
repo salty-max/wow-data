@@ -33,8 +33,20 @@ for (const game of ["classic", "forever"] as const) {
       expect(c).toContain("in      Swamp of Sorrows (8)");
       expect(c).toContain("1424 Pool of Tears (43): Atal'ai Artifact from Atal'ai Artifact");
       expect(c).toContain("1475 Into The Temple of Atal'Hakkar (50): Atal'ai Tablet from Atal'ai Tablet");
-      // (a world drop, a gem from any mob, isn't a quest working there)
+      // (a world drop, a gem or cloth from any mob, isn't a quest working there;
+      // the pool's three look-alike artifacts share their spots)
+      expect(c).toContain("quests  6 · +");
       expect(c).not.toContain("Citrine");
+      expect(c).not.toContain("Mageweave");
+      expect(c).toMatch(/objects Atal'ai Artifact \(30854,30855,30856\) ×6\d · Atal'ai Tablet \(37099\) ×15/);
+    });
+    test("who attacks whom: a guard a member of its side, each race's own standing, a pooled neighbour named", () => {
+      expect(text("npc", "68")).toContain("faction Stormwind (template 11): member of the Alliance, attacks the Horde and the monsters");
+      expect(text("npc", "3296")).toContain("reputation: Alliance hated, Horde friendly (Undead neutral)");
+      expect(text("npc", "5243")).toContain("drops   Fetish of Hakkar (6181) for 1445 · Flask of Big Mojo (8152) for 8785 · +");
+      const near = text("object", "1981");
+      expect(near).toContain("near    Bloodsail Sea Dog (1565)");
+      expect(near).not.toContain("(0)");
     });
     test("a subzone's place card and an npc card agree: the dog stands in Freewind Post", () => {
       expect(text("place", "Freewind Post", true)).toMatch(/Dog 10\b/);
@@ -55,6 +67,9 @@ for (const game of ["classic", "forever"] as const) {
     test("a missing language flagged, the English a client shows marked", () => {
       expect(text("quest", "1475")).toContain("MISSING itIT");
       if (game === "forever") expect(text("npc", "240482")).toContain("frFR,itIT,ruRU,zhCN,zhTW Berdun Cliffbrew (English)");
+    });
+    test.skipIf(game !== "forever")("an item inside another (Questie's containers), not a creature", () => {
+      expect(text("item", "210771")).toContain("in item 1: inside Otherworldly Treasure (220446)");
     });
     test("every card 40 lines at most, a zone's and a herb's too; --full lifts the cap", () => {
       for (const [kind, key] of [

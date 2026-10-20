@@ -12,6 +12,7 @@ type Row = Record<string, any>;
 export const KINDS = ["npc", "object", "place", "item", "quest"] as const;
 export type Kind = (typeof KINDS)[number];
 export const MAX_LINES = 40;
+const WORLD_ZONES = 10;
 const NAME_KIND: Record<Kind, string> = { npc: "creature", object: "object", place: "area", item: "item", quest: "quest" };
 const ALL_LOCALES = ["enUS", ...LOCALES];
 // the ChrRaces bits of each side's races (human, dwarf, night elf, gnome; orc, undead, tauren, troll)
@@ -26,6 +27,15 @@ const GROUPS: [number, string][] = [
   [4, "the Horde"],
   [8, "the monsters"],
 ];
+// FactionGroup: what it is a member of (the player bit beside a side's says nothing more)
+const MEMBERS: [number, string][] = [
+  [1, "the players"],
+  [2, "the Alliance"],
+  [4, "the Horde"],
+  [8, "the monsters"],
+];
+// each side's races (ChrRaces ids; a race's bit in a mask: 1 << (id - 1))
+const RACES: Record<string, number[]> = { Alliance: [1, 3, 4, 7], Horde: [2, 5, 6, 8] };
 // a reputation's standing, from its value
 const standing = (v: number) =>
   v <= -6001 ? "hated" : v <= -3001 ? "hostile" : v < 0 ? "unfriendly" : v < 3000 ? "neutral" : v < 9000 ? "friendly" : v < 21000 ? "honored" : v < 42000 ? "revered" : "exalted";
@@ -120,7 +130,7 @@ class Card {
     // (every player said once: the Alliance and the Horde are in it)
     const group = (m: number) => flagWords(m & 1 ? m & ~6 : m, GROUPS).join(" and ");
     const words: string[] = [];
-    if (t.FactionGroup) words.push(`member of ${group(t.FactionGroup)}`);
+    if (t.FactionGroup) words.push(`member of ${flagWords(t.FactionGroup & 6 ? t.FactionGroup & ~1 : t.FactionGroup, MEMBERS).join(" and ")}`);
     if (t.EnemyGroup) words.push(`attacks ${group(t.EnemyGroup)}`);
     if (t.FriendGroup) words.push(`friend of ${group(t.FriendGroup)}`);
     const slots = (prefix: string) => [0, 1, 2, 3, 4, 5, 6, 7].map((i) => t[`${prefix}_${i}`]).filter((f) => f && f !== t.Faction);
@@ -130,9 +140,17 @@ class Card {
     if (friends.length) words.push(`friend of ${friends.map((f) => this.name("faction", f) ?? f).join(", ")}`);
     const f = this.get("SELECT * FROM client_Faction WHERE ID = ?", t.Faction);
     if (f && f.ReputationIndex >= 0) {
-      const rep = SIDES.map(([side, races]) => {
-        for (let i = 0; i < 4; i++) if ((f[`ReputationRaceMasks${i}_0`] ?? 0) & races) return `${side} ${standing(f[`ReputationBase_${i}`])}`;
-        return `${side} neutral`;
+      // (each race's own base: Orgrimmar's undead start neutral, its orcs friendly)
+      const of = (race: number) => {
+        for (let i = 0; i < 4; i++) if ((f[`ReputationRaceMasks${i}_0`] ?? 0) & (1 << (race - 1))) return standing(f[`ReputationBase_${i}`]);
+        return "neutral";
+      };
+      const rep = SIDES.map(([side]) => {
+        const by = RACES[side].map((r) => [r, of(r)] as const);
+        const count = (w: string) => by.filter(([, x]) => x === w).length;
+        const most = by.map(([, w]) => w).sort((a, b) => count(b) - count(a))[0];
+        const odd = by.filter(([, w]) => w !== most).map(([r, w]) => `${this.name("race", r) ?? `race ${r}`} ${w}`);
+        return `${side} ${most}${odd.length ? ` (${odd.join(", ")})` : ""}`;
       });
       words.push(`reputation: ${rep.join(", ")}`);
     }
@@ -179,6 +197,18 @@ class Card {
       }
     }
     return out;
+  }
+  // the things a pooled spawn (the Classic database's entity 0) may be
+  pooled(kind: string, spawnId: number): number[] {
+    return this.all(
+      `SELECT entity_id FROM spawn_entry WHERE kind = ? AND spawn_id = ?
+       UNION SELECT ge.entity_id FROM spawn_group_spawn gs JOIN spawn_group g ON g.id = gs.group_id AND g.kind = ?
+       JOIN spawn_group_entry ge ON ge.group_id = gs.group_id WHERE gs.spawn_id = ?`,
+      kind,
+      spawnId,
+      kind,
+      spawnId,
+    ).map((e) => e.entity_id as number);
   }
   // the spawns that stand for a thing: Questie's, else the Classic database's,
   // else Wowhead's points alone
@@ -274,7 +304,43 @@ class Card {
   // a world drop (a reference table's: gems, potions) or a rarer one only
   // with --full
   tied = (r: Row) =>
-    this.full || r.chance == null || r.chance < 0 || (!r.via && (r.chance >= 1 || r.chance === 0)) || this.get("SELECT class_id FROM item WHERE id = ?", r.item_id)?.class_id === 12;
+    this.full ||
+    r.chance == null ||
+    r.chance < 0 ||
+    this.get("SELECT class_id FROM item WHERE id = ?", r.item_id)?.class_id === 12 ||
+    (!r.via && (r.chance >= 1 || r.chance === 0) && this.zonesDropping(r.item_id) <= WORLD_ZONES);
+  // how many zones an item drops in (its creatures' and objects' zones,
+  // Questie's): more than WORLD_ZONES, a world drop (gems, cloth, potions in
+  // 15 to 47; Stranglethorn's pages, Un'Goro Soil, the meats in 1 to 9)
+  private owners: Map<string, { kind: string; id: number }[]> | null = null;
+  private zonesOfThing: Map<string, Set<number>> | null = null;
+  private dropZones = new Map<number, number>();
+  zonesDropping(item: number): number {
+    if (!this.owners || !this.zonesOfThing) {
+      const owners = new Map<string, { kind: string; id: number }[]>();
+      const own = (key: string, kind: string, id: number) => owners.set(key, [...(owners.get(key) ?? []), { kind, id }]);
+      for (const r of this.all("SELECT id, loot_id, pick_loot_id, skin_loot_id FROM creature"))
+        for (const [k, t] of [["creature", r.loot_id], ["pickpocket", r.pick_loot_id], ["skinning", r.skin_loot_id]]) if (t) own(`${k}:${t}`, "creature", r.id);
+      for (const r of this.all("SELECT id, loot_id FROM object WHERE loot_id IS NOT NULL")) own(`object:${r.loot_id}`, "object", r.id);
+      const zones = new Map<string, Set<number>>();
+      for (const r of this.all("SELECT DISTINCT kind, entity_id, area_id FROM spawn WHERE source = 'questie' AND area_id IS NOT NULL")) {
+        const k = `${r.kind}:${r.entity_id}`;
+        zones.set(k, (zones.get(k) ?? new Set()).add(r.area_id));
+      }
+      this.owners = owners;
+      this.zonesOfThing = zones;
+    }
+    if (!this.dropZones.has(item)) {
+      const zones = new Set<number>();
+      for (const r of this.all("SELECT kind, source_id, source FROM loot WHERE item_id = ? AND chance >= 0 AND kind IN ('creature', 'pickpocket', 'skinning', 'object')", item)) {
+        const things =
+          r.source === "questie" || r.source === "wowhead" ? [{ kind: r.kind === "object" ? "object" : "creature", id: r.source_id }] : (this.owners.get(`${r.kind}:${r.source_id}`) ?? []);
+        for (const t of things) for (const z of this.zonesOfThing.get(`${t.kind}:${t.id}`) ?? []) zones.add(z);
+      }
+      this.dropZones.set(item, zones.size);
+    }
+    return this.dropZones.get(item)!;
+  }
   // the items among some loot that quests ask for or that start a quest
   // ("Item (id) for 123"), and how many quests asked a world drop among it
   questItems(rows: Row[]): { lines: string[]; world: number } {
@@ -361,17 +427,17 @@ class Card {
     if (sellsAsked.length) this.add("sells q", this.few(sellsAsked, 4, (s) => s));
     if (sells.length) this.add("sells", `${sells.length}: ${this.few(sells, 8, (i) => this.name("item", i) ?? String(i), ", ")}`);
     // what it says
-    const gossip = this.all("SELECT * FROM gossip WHERE npc_id = ? ORDER BY condition_id IS NOT NULL, text_id, idx", id);
+    const gossip = this.all("SELECT * FROM gossip WHERE npc_id = ? ORDER BY condition_id != 0, text_id, idx", id);
     if (gossip.length) {
       const en = gossip.filter((g) => g.locale === "enUS");
       const first = en[0] ?? gossip[0];
       const texts = new Set(en.map((g) => `${g.text_id}:${g.idx}`)).size;
       const locales = [...new Set(gossip.map((g) => g.locale))];
-      const conditional = new Set(en.filter((g) => g.condition_id != null).map((g) => g.text_id)).size;
+      const conditional = new Set(en.filter((g) => g.condition_id).map((g) => g.text_id)).size;
       this.add(
         "gossip",
         `"${clip(first.text ?? first.text_female ?? "", this.full ? 100000 : 220)}"` +
-          (texts > 1 ? ` (+${texts - 1} more${conditional ? `, ${conditional} on a condition` : ""})` : first.condition_id != null ? " (on a condition)" : "") +
+          (texts > 1 ? ` (+${texts - 1} more${conditional ? `, ${conditional} on a condition` : ""})` : first.condition_id ? " (on a condition)" : "") +
           ` · ${locales.join(",")}`,
       );
     }
@@ -416,7 +482,7 @@ class Card {
     let unit = "yd";
     for (const w of world.slice(0, 50))
       for (const r of this.all(
-        "SELECT entity_id, x, y FROM spawn WHERE kind = 'creature' AND map_id = ? AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?",
+        "SELECT entity_id, spawn_id, x, y FROM spawn WHERE kind = 'creature' AND map_id = ? AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?",
         w.map_id,
         w.x - 20,
         w.x + 20,
@@ -424,7 +490,9 @@ class Card {
         w.y + 20,
       )) {
         const dist = Math.hypot(r.x - w.x, r.y - w.y);
-        if (dist <= 20 && (r.entity_id !== id || kind !== "creature")) best.set(r.entity_id, Math.min(best.get(r.entity_id) ?? Infinity, dist));
+        if (dist > 20) continue;
+        for (const e of r.entity_id ? [r.entity_id] : this.pooled("creature", r.spawn_id))
+          if (e !== id || kind !== "creature") best.set(e, Math.min(best.get(e) ?? Infinity, dist));
       }
     if (!world.length) {
       unit = "%";
@@ -481,11 +549,13 @@ class Card {
     const family = new Set([id, ...subs]);
     const inside = (ui: number | null, x: number, y: number) => ui === zone && (zone === own && !a.ParentAreaID ? true : family.has(subzoneAt(this.d, zone, x, y) ?? -1));
     const ents = new Map<string, { kind: string; id: number; n: number }>();
-    const note = (kind: string, eid: number) => {
+    const spotsOf = new Map<string, Set<string>>();
+    const note = (kind: string, eid: number, x: number, y: number) => {
       const k = `${kind}:${eid}`;
       const e = ents.get(k) ?? { kind, id: eid, n: 0 };
       e.n++;
       ents.set(k, e);
+      spotsOf.set(k, (spotsOf.get(k) ?? new Set()).add(`${r1(x)},${r1(y)}`));
     };
     const areas = this.all("SELECT AreaID FROM client_UiMapAssignment WHERE UiMapID = ? AND AreaID > 0", zone).map((r) => r.AreaID);
     for (const r of this.all(
@@ -493,7 +563,7 @@ class Card {
       ...areas,
       zone,
     ))
-      if (inside(r.ui_map_id ?? areaMap(this.d, r.area_id), r.ux, r.uy)) note(r.kind, r.entity_id);
+      if (inside(r.ui_map_id ?? areaMap(this.d, r.area_id), r.ux, r.uy)) note(r.kind, r.entity_id, r.ux, r.uy);
     // (the Classic database's spawns of what Questie places nowhere, a
     // pooled spawn's every candidate)
     const region = this.get("SELECT * FROM client_UiMapAssignment WHERE UiMapID = ? ORDER BY OrderIndex LIMIT 1", zone);
@@ -512,18 +582,11 @@ class Card {
         region.Region_1,
         region.Region_4,
       )) {
-        const candidates = r.entity_id
-          ? [r.entity_id]
-          : this.all(
-              `SELECT entity_id FROM spawn_entry WHERE kind = ? AND spawn_id = ?
-               UNION SELECT ge.entity_id FROM spawn_group_spawn gs JOIN spawn_group g ON g.id = gs.group_id AND g.kind = ?
-               JOIN spawn_group_entry ge ON ge.group_id = gs.group_id WHERE gs.spawn_id = ?`,
-              r.kind, r.spawn_id, r.kind, r.spawn_id,
-            ).map((e) => e.entity_id as number);
+        const candidates = r.entity_id ? [r.entity_id] : this.pooled(r.kind, r.spawn_id);
         const own = candidates.filter((e) => !questiePlaces(r.kind, e));
         if (!own.length) continue;
         const p = worldToMap(this.d, r.map_id, r.x, r.y, new Set([zone]));
-        if (p && inside(p.ui, p.x, p.y)) for (const e of own) note(r.kind, e);
+        if (p && inside(p.ui, p.x, p.y)) for (const e of own) note(r.kind, e, p.x, p.y);
       }
     const creatures = [...ents.values()].filter((e) => e.kind === "creature").sort((x, y) => y.n - x.n);
     const objects = [...ents.values()].filter((e) => e.kind === "object").sort((x, y) => y.n - x.n);
@@ -540,7 +603,18 @@ class Card {
       list.sort((x, y) => (y.c.max_level ?? 0) - (x.c.max_level ?? 0) || y.n - x.n);
       this.add("", `${s}: ${this.few(list, 6, (e) => `${this.name("creature", e.id) ?? e.id} ${range(e.c.min_level, e.c.max_level)}${e.n > 1 ? ` ×${e.n}` : ""}`)}`);
     }
-    if (objects.length) this.add("objects", this.few(objects, 6, (e) => `${this.object(e.id)}${e.n > 1 ? ` ×${e.n}` : ""}`));
+    // (look-alikes of one name together, counted by their spots: a pool's
+    // three Atal'ai Artifacts share 68)
+    const looks = new Map<string, { ids: number[]; spots: Set<string> }>();
+    for (const e of objects) {
+      const n = this.name("object", e.id) ?? String(e.id);
+      const l = looks.get(n) ?? { ids: [], spots: new Set() };
+      l.ids.push(e.id);
+      for (const k of spotsOf.get(`object:${e.id}`) ?? []) l.spots.add(k);
+      looks.set(n, l);
+    }
+    const alike = [...looks].sort((x, y) => y[1].spots.size - x[1].spots.size);
+    if (objects.length) this.add("objects", this.few(alike, 6, ([n, l]) => `${n} (${l.ids.join(",")})${l.spots.size > 1 ? ` ×${l.spots.size}` : ""}`));
     // every quest working inside: its givers and enders, its targets, the items
     // its targets drop or hold, and the quests the log files under the area
     // (strongest first: given, ended or asked here, then a quest's own drop,
@@ -601,7 +675,8 @@ class Card {
       sub = this.subzone(s);
     return `${this.zoneOf(s)} ${this.at(s)}${sub ? ` (${this.area(sub)})` : ""}${main.length > 1 ? ` ×${main.length}` : ""}`;
   }
-  // who drops or holds an item: creatures and objects by the source's key
+  // who drops or holds an item: creatures and objects by the source's key, a
+  // container item (kind item), a zone's fishing (kind fishing, an area)
   droppers(item: number): { kind: string; id: number; chance: number | null }[] {
     const out = new Map<string, { kind: string; id: number; chance: number | null }>();
     const put = (kind: string, id: number, chance: number | null) => {
@@ -613,11 +688,13 @@ class Card {
         ? this.all(`SELECT id FROM ${kind} WHERE loot_id = ?`, template).map((r) => ({ kind, id: r.id as number }))
         : kind === "skinning" || kind === "pickpocket"
           ? this.all(`SELECT id FROM creature WHERE ${kind === "skinning" ? "skin_loot_id" : "pick_loot_id"} = ?`, template).map((r) => ({ kind: "creature", id: r.id as number }))
-          : [];
+          : kind === "item" || kind === "fishing"
+            ? [{ kind, id: template }]
+            : [];
     for (const r of this.all("SELECT * FROM loot WHERE item_id = ?", item)) {
       if (r.kind === "reference") {
         for (const p of this.all("SELECT * FROM loot WHERE ref_id = ?", r.source_id)) for (const o of owners(p.kind, p.source_id)) put(o.kind, o.id, r.chance);
-      } else if (r.source === "questie" || r.source === "wowhead") put(r.kind === "object" ? "object" : "creature", r.source_id, r.chance);
+      } else if (r.source === "questie" || r.source === "wowhead") put(r.kind === "object" || r.kind === "item" ? r.kind : "creature", r.source_id, r.chance);
       else for (const o of owners(r.kind, r.source_id)) put(o.kind, o.id, r.chance);
     }
     return [...out.values()].sort((a, b) => Math.abs(b.chance ?? 0) - Math.abs(a.chance ?? 0));
@@ -627,15 +704,20 @@ class Card {
   sameNamed(list: { kind: string; id: number; chance: number | null }[]): { kind: string; ids: number[]; chance: number | null }[] {
     const out = new Map<string, { kind: string; ids: number[]; chance: number | null }>();
     for (const x of list) {
-      const key = `${x.kind}|${this.name(x.kind, x.id)}|${x.chance}`;
+      const key = `${x.kind}|${this.dropperName(x.kind, x.id)}|${x.chance}`;
       const g = out.get(key) ?? { kind: x.kind, ids: [], chance: x.chance };
       g.ids.push(x.id);
       out.set(key, g);
     }
     return [...out.values()];
   }
+  dropperName = (kind: string, id: number) => (kind === "fishing" ? this.area(id) : this.name(kind, id)) ?? `unknown ${kind}`;
   dropper = (x: { kind: string; ids: number[]; chance: number | null }) =>
-    `${this.name(x.kind, x.ids[0]) ?? "?"} (${x.ids.join(",")})${odds(x.chance)}, ${this.where(x.kind as "creature" | "object", x.ids[0])}`;
+    x.kind === "item"
+      ? `inside ${this.dropperName(x.kind, x.ids[0])} (${x.ids.join(",")})${odds(x.chance)}`
+      : x.kind === "fishing"
+        ? `fished in ${x.ids.map((a) => this.area(a)).join(", ")}${odds(x.chance)}`
+        : `${this.dropperName(x.kind, x.ids[0])} (${x.ids.join(",")})${odds(x.chance)}, ${this.where(x.kind as "creature" | "object", x.ids[0])}`;
 
   itemCard(id: number) {
     const i = this.get("SELECT * FROM item WHERE id = ?", id);
@@ -658,9 +740,14 @@ class Card {
     const handed = this.all("SELECT id FROM quest WHERE src_item_id = ? ORDER BY id", id).map((r) => r.id as number);
     if (handed.length) this.add("handed", `at the start of ${this.few(handed, 4, this.quest)}`);
     const drops = this.droppers(id);
-    for (const kind of ["creature", "object"] as const) {
+    for (const [kind, label] of [
+      ["creature", "dropped"],
+      ["object", "in"],
+      ["item", "in item"],
+      ["fishing", "fished"],
+    ]) {
       const list = this.sameNamed(drops.filter((x) => x.kind === kind));
-      if (list.length) this.add(kind === "creature" ? "dropped" : "in", `${list.length}: ${this.few(list, 4, (x) => this.dropper(x))}`);
+      if (list.length) this.add(label, `${list.length}: ${this.few(list, 4, (x) => this.dropper(x))}`);
     }
     const sold = this.all("SELECT DISTINCT npc_id FROM vendor WHERE item_id = ? ORDER BY npc_id", id).map((r) => r.npc_id as number);
     if (sold.length) this.add("sold by", `${sold.length}: ${this.few(sold, 4, (n) => `${this.npc(n)}, ${this.where("creature", n)}`)}`);
