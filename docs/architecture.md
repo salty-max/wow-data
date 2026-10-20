@@ -107,4 +107,7 @@ addon's daily job checks out wow-data's main beside it and builds its data
 again from the pins. A table decoding a journal's ids reads `left_out` too
 (Hearthtale's English_Forever.lua, Second Wind's and Yonder's
 creatures.json): an id leaves no saved file bare when the build leaves its
-thing out.
+thing out. Each addon's check proves it: addon-kit's `ids.ts` compares
+every table its `saved-ids.json` lists with the fork point from origin/main,
+so a daily job whose regeneration drops an id fails before its pull request
+(the run's summary names the ids) and the owner is told.
