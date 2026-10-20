@@ -87,6 +87,12 @@ every addon queries (PLAN.md: the tables, Classic and Forever, the order).
   --ids ID,ID` and optional `--locale`. The overlay has a Materials row.
   Loot IDs are provider-specific: ClassicDB/players use templates,
   Questie/Wowhead use entities. Keep Wowhead counts out of server odds.
+  A Questie or Wowhead row whose creature or object no source has is left
+  out last (`unknownLoot`): Questie keeps an item's sources it can't
+  resolve, and Wowhead's Forever lists carry Season of Discovery's (98 such
+  in Forever, 20 October 2026). The 46 with Forever's evidence (looted by
+  its players in Questie's traces, or dropping an item only Forever has)
+  had their Wowhead pages frozen instead: Forever kept SoD's world books.
 - The trades' recipes (the cookbook's ground, 19 October 2026): `item_spell`
   (the client's ItemEffect: what an item casts, by trigger), `teaching` (a
   recipe item's use or a trainer's lesson and the recipe it teaches: the

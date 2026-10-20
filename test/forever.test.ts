@@ -181,4 +181,25 @@ describe.skipIf(!built)("forever.db", () => {
     expect(one("SELECT count(*) AS n FROM vendor WHERE item_id = 273102").n).toBe(0);
     expect(all("SELECT npc_id FROM vendor WHERE item_id = 274415 AND source = 'wowhead'")).toEqual([{ npc_id: 256629 }]);
   });
+  test("every loot row leads to its creature or object: none of Season of Discovery's that no source has (Waylaid Supplies' Artifact Storage), Forever's own kept (the Dalaran Tome, Balnazzar)", () => {
+    for (const kind of ["creature", "object"]) {
+      // (Questie's and Wowhead's by its id, the Classic database's and the players' by its template)
+      expect(one(`SELECT count(*) AS n FROM loot WHERE kind = ? AND source IN ('questie', 'wowhead') AND source_id NOT IN (SELECT id FROM ${kind})`, kind)).toEqual({ n: 0 });
+      expect(one(`SELECT count(*) AS n FROM loot WHERE kind = ? AND source IN ('classicdb', 'players') AND source_id NOT IN (SELECT loot_id FROM ${kind} WHERE loot_id IS NOT NULL)`, kind)).toEqual({ n: 0 });
+    }
+    expect(one("SELECT count(*) AS n FROM loot WHERE kind = 'object' AND source_id = 404352")).toEqual({ n: 0 });
+    expect(all("SELECT kind, source_id, source FROM loot WHERE item_id = 275996")).toEqual([{ kind: "object", source_id: 656681, source: "questie" }]);
+    expect(one("SELECT type, source FROM object WHERE id = 656681")).toEqual({ type: 3, source: "wowhead" });
+    expect(name("object", 656681)).toBe("Dalaran Tome");
+    expect(one("SELECT rank, source FROM creature WHERE id = 244766")).toEqual({ rank: 1, source: "wowhead" });
+    expect(name("creature", 244766)).toBe("Balnazzar");
+  });
+  test("what only Wowhead's pages name in English, every language names as its client shows: Harrigen <The Undermarket>, the Dalaran Tome", () => {
+    expect(name("creature_subname", 228230)).toBe("The Undermarket");
+    expect(one("SELECT name, source FROM name WHERE kind = 'creature' AND id = 228230 AND locale = 'deDE'")).toEqual({ name: "Harrigen", source: "english" });
+    expect(one("SELECT name, source FROM name WHERE kind = 'creature_subname' AND id = 228230 AND locale = 'frFR'")).toEqual({ name: "The Undermarket", source: "english" });
+    expect(one("SELECT name, source FROM name WHERE kind = 'object' AND id = 656681 AND locale = 'koKR'")).toEqual({ name: "Dalaran Tome", source: "english" });
+    // (a title Wowhead's pages give one of Questie's creatures, which Questie lacks: Rix Xizzix <Lost and Found>)
+    expect(name("creature_subname", 214954)).toBe("Lost and Found");
+  });
 });

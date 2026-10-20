@@ -30,7 +30,7 @@ export type QuestPage = {
   end?: [Kind, number][];
 };
 type Kind = "creature" | "object" | "item";
-export type NpcPage = { name?: string; type?: number; family?: number; rank?: number; min?: number; max?: number; model?: number; lines?: [string, string][]; zones?: number[] };
+export type NpcPage = { name?: string; title?: string; type?: number; family?: number; rank?: number; min?: number; max?: number; model?: number; lines?: [string, string][]; zones?: number[] };
 export type ObjectPage = { name?: string; type?: number; zones?: number[]; gathering?: [number, number]; yields?: number[]; added?: string };
 // (sold: [vendor, its stock where limited]; dropped: the creatures; reward: the quests)
 export type ItemPage = { skinned?: number[]; mined?: number[]; sold?: [number, number | null][]; dropped?: number[]; reward?: number[] };
@@ -84,6 +84,7 @@ export function compactPage(kind: string, locale: string, raw: Raw): QuestPage |
   if (kind === "npc")
     return clean({
       name: typeof info.name === "string" ? info.name : undefined,
+      title: typeof info.tag === "string" ? info.tag : undefined, // (<The Undermarket>)
       type: positive(info.type), // (0: Wowhead's "uncategorized")
       family: positive(info.family),
       rank: num(info.classification),
@@ -186,6 +187,7 @@ export function wowheadPages(db: Database, game: string, log: (s: string) => voi
         count("new creatures", newNpc.run(id, c.min ?? null, c.max ?? null, c.type ?? null, c.family ?? null, c.rank ?? null, model).changes);
         count("creatures filled", fillNpc.run(c.min ?? null, c.max ?? null, c.type ?? null, c.family ?? null, c.rank ?? null, model, id).changes);
         if (c.name) count("creature names", name.run("creature", id, locale, c.name).changes);
+        if (c.title) count("creature titles", name.run("creature_subname", id, locale, c.title).changes);
         for (const [kind, said] of c.lines ?? []) count("lines", line.run(id, locale, kind, said).changes);
       }
       // ── objects ──

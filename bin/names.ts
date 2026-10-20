@@ -1,6 +1,6 @@
 // A game's names in a language from Wowhead, for what the client doesn't
 // name: every creature (and its title), quest, and object (every one the world
-// spawns, a text, a quest's, a herb's or a vein's), into data/wowhead/<game>/<locale>.json.
+// spawns, a text, a quest's, a herb's or a vein's, one that gives loot), into data/wowhead/<game>/<locale>.json.
 // Resumable: what is fetched is cached, the file written as it goes.
 //   bun bin/names.ts <classic|forever> <locale> [--kinds creature,quest,object]
 //   bun bin/names.ts <classic|forever> <locale> --seed DIR...   tooltips an addon
@@ -52,7 +52,8 @@ const db = openDb(game);
 const names: Names = readNames(game, locale);
 const ids = (sql: string) => (db.query(sql).all() as { id: number }[]).map((r) => r.id);
 // the ids worth a name: every creature and quest; an object that is read, a
-// quest's, or a node's (herbs, veins)
+// quest's, a node's (herbs, veins), or one that gives loot (a chest, Forever's
+// world books: its own template, or Questie's and Wowhead's loot by its id)
 const wanted: Record<NameKind, number[]> = {
   creature: ids("SELECT id FROM creature ORDER BY id"),
   quest: ids("SELECT id FROM quest ORDER BY id"),
@@ -61,6 +62,8 @@ const wanted: Record<NameKind, number[]> = {
     UNION SELECT entity_id AS id FROM quest_relation WHERE kind = 'object'
     UNION SELECT target_id AS id FROM quest_objective WHERE kind = 'object'
     UNION SELECT id FROM object WHERE lock_id IS NOT NULL
+    UNION SELECT id FROM object WHERE loot_id IS NOT NULL
+    UNION SELECT source_id AS id FROM loot WHERE kind = 'object' AND source IN ('questie', 'wowhead')
     UNION SELECT entity_id AS id FROM spawn WHERE kind = 'object') ORDER BY id`),
   item: [],
 };

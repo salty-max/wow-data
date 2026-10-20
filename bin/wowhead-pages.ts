@@ -1,8 +1,8 @@
 // Wowhead's pages for what no other source has: Forever's own quests' texts,
 // givers, enders, levels and zones (every quest, in English first, then in
 // German, French and Spain's Spanish: the databases have no quest's text in
-// another language but its objectives), its creatures' type, level, rank,
-// model and speech, its objects' types, and the books' and plaques' pages in
+// another language but its objectives), its creatures' title, type, level,
+// rank, model and speech, its objects' types, and the books' and plaques' pages in
 // every language the databases lack (Spanish, Spain's and Latin America's,
 // for none). Wowhead refuses scripts its pages and its own pages won't reach
 // localhost (upgrade-insecure-requests), so a Wowhead tab fetches them

@@ -993,10 +993,13 @@ function tbcItems(db: Database) {
 }
 
 // ── Wowhead's names (data/wowhead/<game>/<locale>.json, bin/names.ts) ────────
-// where the client has none: its own win (inserted first)
-function wowheadNames(db: Database, game: Game) {
+// where the client has none: its own win (inserted first). What the client
+// shows in English, of a thing whose English comes later, is handed back.
+type Shown = [kind: string, id: number, locale: string];
+function wowheadNames(db: Database, game: Game): Shown[] {
+  const later: Shown[] = [];
   const dir = path.join(ROOT, "data", "wowhead", game);
-  if (!existsSync(dir)) return;
+  if (!existsSync(dir)) return later;
   const insert = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'wowhead')");
   const shownInEnglish = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'english')");
   // The game's own names (Wowhead mines them from each client), which win over
@@ -1026,6 +1029,8 @@ function wowheadNames(db: Database, game: Game) {
             const en = (english.get(kind, Number(id)) as { name: string } | null)?.name;
             // (not a placeholder of the English's own: "[DNT] Kill Credit")
             if (en && !en.startsWith("[")) shown += shownInEnglish.run(kind, Number(id), locale, en).changes;
+            // (an English of Wowhead's pages or the players', Forever's own: the Dalaran Tome)
+            else if (!en) later.push([kind, Number(id), locale]);
             continue;
           }
           const had = current.get(kind, Number(id), locale) as { name: string; source: string } | null;
@@ -1041,6 +1046,21 @@ function wowheadNames(db: Database, game: Game) {
       `names wowhead ${locale}: ${n}${renamed ? `, ${renamed} of the game's own over Questie's` : ""}${shown ? `, ${shown} the client shows in English` : ""}`,
     );
   }
+  return later;
+}
+// (once Wowhead's pages and the players have named them in English: Harrigen
+// <The Undermarket> in every language Wowhead gives him in brackets)
+function shownInEnglishLater(db: Database, later: Shown[]) {
+  const english = db.prepare("SELECT name FROM name WHERE kind = ? AND id = ? AND locale = 'enUS'");
+  const insert = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'english')");
+  let n = 0;
+  db.transaction(() => {
+    for (const [kind, id, locale] of later) {
+      const en = (english.get(kind, id) as { name: string } | null)?.name;
+      if (en && !en.startsWith("[")) n += insert.run(kind, id, locale, en).changes;
+    }
+  })();
+  log(`names the client shows in English, named in English later: ${n} of ${later.length}`);
 }
 
 // ── Wowhead's ranks (data/wowhead/<game>/ranks.json) ──────────────────────
@@ -1265,6 +1285,19 @@ function chains(db: Database) {
 
 }
 
+// ── loot from a creature or an object no source has ─────────────────────────
+// Questie's and Wowhead's loot names the creature or the object itself, and
+// Questie keeps an item's sources it can't resolve: in Forever, those of
+// Wowhead's Forever pages, which carry Season of Discovery's too (Waylaid
+// Supplies' Artifact Storage, 404352). A row whose creature or object no
+// source has is left out, once every source of them is in (the players' too).
+function unknownLoot(db: Database) {
+  for (const kind of ["creature", "object"] as const) {
+    const n = db.prepare(`DELETE FROM loot WHERE kind = ? AND source IN ('questie', 'wowhead') AND source_id NOT IN (SELECT id FROM ${kind})`).run(kind).changes;
+    log(`loot left out: ${n} rows of ${kind === "object" ? "an object" : "a creature"} no source has`);
+  }
+}
+
 // ── what an item casts, what a spell teaches ────────────────────────────────
 // The items' spells from the client's ItemEffect (Classic Era's names the
 // item; Forever's through ItemXItemEffect). Then what teaches what: a recipe
@@ -1451,7 +1484,7 @@ export async function build(game: Game, file: string) {
   questieZones(db, await questieZoneMaps());
   clientGathering(db);
   await teachings(db, game);
-  wowheadNames(db, game);
+  const shownLater = wowheadNames(db, game);
   if (game === "classic") tbcItems(db);
   wowheadRanks(db, game);
   wowheadPoints(db, game);
@@ -1461,6 +1494,8 @@ export async function build(game: Game, file: string) {
   wowheadPages(db, game, log);
   loadPlayers(db, game);
   loadLandmarks(db, game);
+  shownInEnglishLater(db, shownLater);
+  unknownLoot(db);
   chains(db);
   db.exec("ANALYZE");
   db.close();
