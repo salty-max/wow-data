@@ -180,10 +180,11 @@ CREATE TABLE gathering_node (
   PRIMARY KEY (object_id, skill_line_id)
 );
 -- The Classic database's: another creature that may stand at a spawn instead
--- (a rare in an ordinary mob's place), and spawn groups, whose spawns share
--- their entries
+-- (a rare in an ordinary mob's place), the objects a spawn may be (its
+-- entity 0: one of them, picked by the server), and spawn groups, whose
+-- spawns share their entries
 CREATE TABLE spawn_entry (
-  kind      TEXT NOT NULL,     -- creature
+  kind      TEXT NOT NULL,     -- creature, object
   spawn_id  INTEGER NOT NULL,  -- spawn.spawn_id
   entity_id INTEGER NOT NULL,
   source    TEXT NOT NULL,
@@ -396,6 +397,27 @@ CREATE TABLE speech (
   language_id INTEGER,           -- Languages id
   source      TEXT NOT NULL,
   PRIMARY KEY (id, locale)
+);
+
+-- What an npc says when its window opens: its gossip menu's text (the Classic
+-- database's creature_template.GossipMenuId -> gossip_menu ->
+-- npc_text_broadcast_text, broadcast texts in every language the database
+-- translates, or npc_text, English alone). A menu may hold several texts:
+-- one without a condition, others shown in its place while their condition
+-- holds. A text has up to eight variants, one picked by chance.
+CREATE TABLE gossip (
+  npc_id       INTEGER NOT NULL,
+  menu_id      INTEGER NOT NULL,  -- the creature's GossipMenuId
+  text_id      INTEGER NOT NULL,  -- the menu's text (npc_text's id)
+  idx          INTEGER NOT NULL,  -- the variant, 0-7
+  locale       TEXT NOT NULL,
+  text         TEXT,              -- male (as speech)
+  text_female  TEXT,
+  chance       REAL,              -- the variant's odds, as the database weighs them
+  broadcast_id INTEGER,           -- speech.id, where it is a broadcast text
+  condition_id INTEGER,           -- shown only when this condition holds (the database's conditions); null: always
+  source       TEXT NOT NULL,
+  PRIMARY KEY (npc_id, text_id, idx, locale)
 );
 
 -- What an npc was heard to say, by the npc: Wowhead's pages' quotes and

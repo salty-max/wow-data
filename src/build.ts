@@ -488,13 +488,19 @@ async function classicDb(db: Database, q: QuestieData) {
   }
 
   // the spawns another creature may take (a rare in an ordinary mob's place),
-  // and spawn groups, whose spawns share their entries
-  const spawnEntries = rows(sql, "creature_spawn_entry");
-  const insertSpawnEntry = db.prepare("INSERT OR IGNORE INTO spawn_entry VALUES ('creature', ?, ?, 'classicdb')");
-  run("spawn_entry", () => {
-    for (const r of spawnEntries) insertSpawnEntry.run(num(r.guid), num(r.entry));
-    return spawnEntries.length;
-  });
+  // the things an object's spawn may be (one of a pool's chests, Atal'ai
+  // artifacts), and spawn groups, whose spawns share their entries
+  const insertSpawnEntry = db.prepare("INSERT OR IGNORE INTO spawn_entry VALUES (?, ?, ?, 'classicdb')");
+  for (const [table, kind] of [
+    ["creature_spawn_entry", "creature"],
+    ["gameobject_spawn_entry", "object"],
+  ]) {
+    const entries = rows(sql, table);
+    run(`spawn_entry ${kind}`, () => {
+      for (const r of entries) insertSpawnEntry.run(kind, num(r.guid), num(r.entry));
+      return entries.length;
+    });
+  }
   const groups = rows(sql, "spawn_group"),
     groupEntries = rows(sql, "spawn_group_entry"),
     groupSpawns = rows(sql, "spawn_group_spawn");
@@ -908,6 +914,38 @@ async function classicDb(db: Database, q: QuestieData) {
     for (const r of translated)
       insertSpeech.run(num(r.Id), r.Locale, r.Text_lang || null, r.Text1_lang || null, language.get(num(r.Id)!) ?? null);
     return translated.length;
+  });
+
+  // what npcs say when their window opens: a creature's gossip menu, its
+  // texts broadcast texts (every language speech has) or npc_text's (English)
+  const menus = new Map<number, Row[]>();
+  for (const r of rows(sql, "gossip_menu")) menus.set(num(r.entry)!, [...(menus.get(num(r.entry)!) ?? []), r]);
+  const broadcast = new Map<number, Row>(rows(sql, "npc_text_broadcast_text").map((r) => [num(r.Id)!, r]));
+  const npcText = new Map<number, Row>(rows(sql, "npc_text").map((r) => [num(r.ID)!, r]));
+  const insertGossip = db.prepare("INSERT OR IGNORE INTO gossip VALUES (?, ?, ?, ?, 'enUS', ?, ?, ?, NULL, ?, 'classicdb')");
+  const insertBroadcast = db.prepare(
+    `INSERT OR IGNORE INTO gossip SELECT ?, ?, ?, ?, locale, text, text_female, ?, id, ?, 'classicdb'
+     FROM speech WHERE id = ? AND COALESCE(text, text_female) IS NOT NULL`,
+  );
+  run("gossip", () => {
+    let n = 0;
+    for (const c of creatures) {
+      const menu = nz(c.GossipMenuId);
+      if (!menu) continue;
+      for (const m of menus.get(menu) ?? []) {
+        const textId = num(m.text_id)!,
+          condition = nz(m.condition_id);
+        const b = broadcast.get(textId),
+          t = npcText.get(textId);
+        for (let i = 0; i < 8; i++) {
+          if (b && nz(b[`BroadcastTextId${i}`]))
+            n += insertBroadcast.run(num(c.Entry), menu, textId, i, num(b[`Prob${i}`]), condition, num(b[`BroadcastTextId${i}`])).changes;
+          else if (t && (t[`text${i}_0`] || t[`text${i}_1`]))
+            n += insertGossip.run(num(c.Entry), menu, textId, i, t[`text${i}_0`] || null, t[`text${i}_1`] || null, num(t[`prob${i}`]), condition).changes;
+        }
+      }
+    }
+    return n;
   });
 
   // the way creatures walk: one spawn's own path, a creature's

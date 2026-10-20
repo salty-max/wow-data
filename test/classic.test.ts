@@ -112,6 +112,15 @@ describe.skipIf(!built)("classic.db", () => {
       { entity_id: 684 },
       { entity_id: 772 },
     ]);
+    // (an object's spawn of entity 0: one of its entries, the server's pick)
+    expect(all("SELECT entity_id FROM spawn_entry WHERE kind = 'object' AND spawn_id = 11427 ORDER BY entity_id")).toEqual([
+      { entity_id: 126049 },
+      { entity_id: 128293 },
+    ]);
+    expect(
+      one(`SELECT count(*) AS n FROM spawn s WHERE s.entity_id = 0 AND NOT EXISTS (SELECT 1 FROM spawn_entry e WHERE e.kind = s.kind AND e.spawn_id = s.spawn_id)
+           AND NOT EXISTS (SELECT 1 FROM spawn_group_spawn g JOIN spawn_group gr ON gr.id = g.group_id AND gr.kind = s.kind WHERE g.spawn_id = s.spawn_id)`),
+    ).toEqual({ n: 0 });
     expect(one("SELECT credit_type, credit_id FROM encounter WHERE credit_id = 11502")).toEqual({ credit_type: 0, credit_id: 11502 });
     expect(one("SELECT count(*) AS n FROM graveyard")).toEqual({ n: 122 });
     // (Winter Squid bites only in its season)
@@ -123,8 +132,24 @@ describe.skipIf(!built)("classic.db", () => {
     expect(one("SELECT faction_id FROM creature WHERE id = 13099")).toEqual({ faction_id: 1214 });
     expect(one("SELECT movement_type, wander_distance FROM spawn WHERE kind = 'creature' AND spawn_id = 1")).toBeTruthy();
   });
+  test("an npc's gossip, its window's text: a broadcast text in English and the dump's translations, npc_text's in English alone", () => {
+    expect(one("SELECT text, broadcast_id IS NOT NULL AS broadcast FROM gossip WHERE npc_id = 6740 AND locale = 'enUS'")).toEqual({
+      text: "Welcome to my Inn, weary traveler. What can I do for you?",
+      broadcast: 1,
+    });
+    expect(name("creature", 6740, "frFR")).toBe("Aubergiste Allison");
+    expect(one("SELECT text FROM gossip WHERE npc_id = 6740 AND locale = 'frFR'")).toEqual({
+      text: "Bienvenue dans mon auberge, $gvoyageur épuisé:voyageuse épuisée;. Que puis-je faire pour vous\u00a0?",
+    });
+    expect(all("SELECT locale FROM gossip WHERE npc_id = 240 ORDER BY locale")).toEqual([{ locale: "enUS" }]);
+    expect(one("SELECT text FROM gossip WHERE npc_id = 240")).toEqual({
+      text: "Ach, it's hard enough keeping order around here without all these new troubles popping up!  I hope you have good news, $n...",
+    });
+    // (every creature with a menu has its text)
+    expect(one("SELECT count(DISTINCT npc_id) AS n FROM gossip WHERE locale = 'enUS'")).toEqual({ n: 1845 });
+  });
   test("every row its source", () => {
-    for (const table of ["creature", "spawn", "object", "item", "quest", "loot", "name", "path", "spawn_entry", "encounter", "graveyard", "game_event"]) {
+    for (const table of ["creature", "spawn", "object", "item", "quest", "loot", "name", "path", "spawn_entry", "encounter", "graveyard", "game_event", "gossip"]) {
       expect(one(`SELECT count(*) AS n FROM ${table} WHERE source IS NULL OR source = ''`)).toEqual({ n: 0 });
     }
   });
