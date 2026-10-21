@@ -133,8 +133,9 @@ before the others know it.
   --ui-map N` reads the tiles' ADT files at the pinned build (wago.tools,
   into the cache) and prints each placement of the models: its unique id,
   world position, the area of its map chunk and its percent on the zone's
-  map. The evidence names the file, the model and the unique id, and says
-  whether the other game places it the same. Yonder's smiling log on the
+  map. The evidence names the build read, the file, the model and the
+  unique id, and whether the other game places it the same: the landmark is
+  frozen there, and a moved pin doesn't vouch for it (read it again). Yonder's smiling log on the
   Webwinder Path (Stonetalon 57.9, 67.6) is the first.
 
 ## The TBC Anniversary client's items

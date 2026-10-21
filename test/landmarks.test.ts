@@ -34,7 +34,9 @@ test("a log's grin comes from the client's own map, sourced so, never a spawn", 
       expect(db.query("SELECT ui_map_id, ux, uy, source FROM landmark WHERE id = 'stonetalon-smiling-log'").get())
         .toEqual({ ui_map_id: 1442, ux: 57.9, uy: 67.6, source: "client-map" });
       expect((db.query("SELECT version FROM source WHERE name = 'client-map'").get() as { version: string }).version)
-        .toContain(game === "classic" ? "wow_classic_era" : "wow_classic_beta");
+        .toBe("data/landmarks.json (frozen: the build each evidence names)");
+      expect((db.query("SELECT evidence FROM landmark WHERE id = 'stonetalon-smiling-log'").get() as { evidence: string }).evidence)
+        .toMatch(/1\.15\.9\.70003.*1\.60\.1\.70450/);
       expect(db.query("SELECT count(*) AS n FROM spawn").get()).toEqual({ n: 0 });
     } finally { db.close(); }
   }
@@ -42,7 +44,7 @@ test("a log's grin comes from the client's own map, sourced so, never a spawn", 
 
 test("invalid or wrongly mapped landmarks fail before any are inserted", () => {
   const good = { id: "test-camp", games: ["classic" as const], uiMap: 1426, x: 39.2, y: 67.6, observedAt: "2026-10-17", evidence: "A reviewed scene." };
-  for (const bad of [{ ...good, x: 101 }, { ...good, uiMap: 0 }, { ...good, uiMap: 999 }, { ...good, evidence: "" }, { ...good, source: "wowhead" as "client-map" }]) {
+  for (const bad of [{ ...good, x: 101 }, { ...good, uiMap: 0 }, { ...good, uiMap: 999 }, { ...good, evidence: "" }, { ...good, source: "wowhead" as "client-map" }, { ...good, source: "constructor" as "client-map" }]) {
     const db = fixture();
     try {
       expect(() => loadLandmarks(db, "classic", [good, { ...bad, id: "bad-camp" }])).toThrow();

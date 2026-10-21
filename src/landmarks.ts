@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { PINS, ROOT, type Game } from "./pins";
+import { ROOT, type Game } from "./pins";
 
 type Landmark = {
   id: string;
@@ -17,10 +17,11 @@ type Landmark = {
 // owner-report: the owner's own eyes in the game. client-map: a placement
 // in the pinned client's map files (bin/placements.ts), its file, model and
 // unique id in the evidence.
+// A client-map landmark is frozen hand data: the build it was read in is in
+// its evidence, never the pin of the day.
 const SOURCES = {
-  "owner-report": () => ["data/landmarks.json (reviewed)", null, "Owner supplied observations"],
-  "client-map": (game: Game) =>
-    [`${PINS.builds[game].product} ${PINS.builds[game].build} map files (data/landmarks.json)`, "https://wago.tools", "Blizzard's"],
+  "owner-report": ["data/landmarks.json (reviewed)", null, "Owner supplied observations"],
+  "client-map": ["data/landmarks.json (frozen: the build each evidence names)", "https://wago.tools", "Blizzard's"],
 } as const;
 
 /** Explicitly reviewed scenery, kept apart from automatic NPC sightings.
@@ -40,7 +41,7 @@ export function loadLandmarks(
       || ![r.x, r.y].every(n => Number.isFinite(n) && n >= 0 && n <= 100)
       || typeof r.observedAt !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r.observedAt)
       || typeof r.evidence !== "string" || !r.evidence.trim()
-      || (r.source !== undefined && !(r.source in SOURCES)))
+      || (r.source !== undefined && !Object.hasOwn(SOURCES, r.source)))
       throw new Error(`landmarks: invalid or duplicate record ${r?.id}`);
     seen.add(r.id);
   }
@@ -53,7 +54,7 @@ export function loadLandmarks(
     const insert = db.prepare("INSERT INTO landmark VALUES (?, ?, ?, ?, ?, ?, ?)");
     for (const r of selected) {
       const s = r.source ?? "owner-report";
-      source.run(s, ...SOURCES[s](game));
+      source.run(s, ...SOURCES[s]);
       insert.run(r.id, r.uiMap, r.x, r.y, r.observedAt, r.evidence, s);
     }
   })();
