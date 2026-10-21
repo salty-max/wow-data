@@ -7,5 +7,15 @@
     "y": 67.6,
     "observedAt": "2026-10-17",
     "evidence": "Owner's in-game correction: the abandoned camp is at 39.2, 67.6 in Dun Morogh. The earlier association with Young Black Bear spawn 270 at 41.9, 66.8 was incorrect. The coordinate report did not state a client version. Applied to the shared original-world location, not separately playtested on Classic."
+  },
+  {
+    "id": "stonetalon-smiling-log",
+    "games": ["classic", "forever"],
+    "uiMap": 1442,
+    "x": 57.9,
+    "y": 67.6,
+    "observedAt": "2026-10-22",
+    "evidence": "The pinned client's map file kalimdor_31_30_obj0.adt (file 784631) places stonetreelog02.m2 (file 202634), unique id 230720, at world 716.0, 416.1, 64.4, in a Webwinder Path map chunk: 57.9, 67.6 on Stonetalon's map. Forever's 1.60.1.70450 places it the same. The model's end texture (file 198335) carries the grin the WoWWiki archive's Easter eggs page shows (Webwinder smile.jpg, 2008): two knots for eyes, the rings mirrored into a smile. Forever's remastered texture keeps both knots. Read with bin/placements.ts, not checked in game.",
+    "source": "client-map"
   }
 ]

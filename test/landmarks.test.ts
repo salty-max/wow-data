@@ -8,7 +8,7 @@ import { loadLandmarks } from "../src/landmarks";
 function fixture() {
   const db = new Database(":memory:");
   db.exec(readFileSync(path.join(ROOT, "schema.sql"), "utf8"));
-  db.exec("CREATE TABLE client_UiMap (ID INTEGER PRIMARY KEY); INSERT INTO client_UiMap VALUES (1426)");
+  db.exec("CREATE TABLE client_UiMap (ID INTEGER PRIMARY KEY); INSERT INTO client_UiMap VALUES (1426), (1442)");
   return db;
 }
 
@@ -26,9 +26,23 @@ test("the camp uses the owner's corrected landmark, never a fabricated spawn", (
   }
 });
 
+test("a log's grin comes from the client's own map, sourced so, never a spawn", () => {
+  for (const game of ["classic", "forever"] as const) {
+    const db = fixture();
+    try {
+      loadLandmarks(db, game);
+      expect(db.query("SELECT ui_map_id, ux, uy, source FROM landmark WHERE id = 'stonetalon-smiling-log'").get())
+        .toEqual({ ui_map_id: 1442, ux: 57.9, uy: 67.6, source: "client-map" });
+      expect((db.query("SELECT version FROM source WHERE name = 'client-map'").get() as { version: string }).version)
+        .toContain(game === "classic" ? "wow_classic_era" : "wow_classic_beta");
+      expect(db.query("SELECT count(*) AS n FROM spawn").get()).toEqual({ n: 0 });
+    } finally { db.close(); }
+  }
+});
+
 test("invalid or wrongly mapped landmarks fail before any are inserted", () => {
   const good = { id: "test-camp", games: ["classic" as const], uiMap: 1426, x: 39.2, y: 67.6, observedAt: "2026-10-17", evidence: "A reviewed scene." };
-  for (const bad of [{ ...good, x: 101 }, { ...good, uiMap: 0 }, { ...good, uiMap: 999 }, { ...good, evidence: "" }]) {
+  for (const bad of [{ ...good, x: 101 }, { ...good, uiMap: 0 }, { ...good, uiMap: 999 }, { ...good, evidence: "" }, { ...good, source: "wowhead" as "client-map" }]) {
     const db = fixture();
     try {
       expect(() => loadLandmarks(db, "classic", [good, { ...bad, id: "bad-camp" }])).toThrow();

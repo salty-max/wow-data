@@ -127,6 +127,15 @@ before the others know it.
   a game object or spawn. Per-game applicability and unverified clients stay
   in its evidence. Yonder reads this table for the abandoned Dun Morogh camp,
   corrected in game to 39.2, 67.6, instead of borrowing a bear's spawn.
+- Source `client-map` (22 October 2026): a placement in the pinned client's
+  own map files, for scenery the tables don't hold (a model's texture, a
+  painted slope). `bin/placements.ts <game> <map> <model ids> <tiles>
+  --ui-map N` reads the tiles' ADT files at the pinned build (wago.tools,
+  into the cache) and prints each placement of the models: its unique id,
+  world position, the area of its map chunk and its percent on the zone's
+  map. The evidence names the file, the model and the unique id, and says
+  whether the other game places it the same. Yonder's smiling log on the
+  Webwinder Path (Stonetalon 57.9, 67.6) is the first.
 
 ## The TBC Anniversary client's items
 

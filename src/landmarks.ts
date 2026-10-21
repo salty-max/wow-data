@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { ROOT, type Game } from "./pins";
+import { PINS, ROOT, type Game } from "./pins";
 
 type Landmark = {
   id: string;
@@ -11,7 +11,17 @@ type Landmark = {
   y: number;
   observedAt: string;
   evidence: string;
+  source?: "owner-report" | "client-map";
 };
+
+// owner-report: the owner's own eyes in the game. client-map: a placement
+// in the pinned client's map files (bin/placements.ts), its file, model and
+// unique id in the evidence.
+const SOURCES = {
+  "owner-report": () => ["data/landmarks.json (reviewed)", null, "Owner supplied observations"],
+  "client-map": (game: Game) =>
+    [`${PINS.builds[game].product} ${PINS.builds[game].build} map files (data/landmarks.json)`, "https://wago.tools", "Blizzard's"],
+} as const;
 
 /** Explicitly reviewed scenery, kept apart from automatic NPC sightings.
  * A map position names a place. It does not invent a creature or object ID. */
@@ -29,7 +39,8 @@ export function loadLandmarks(
       || !Number.isSafeInteger(r.uiMap) || r.uiMap <= 0
       || ![r.x, r.y].every(n => Number.isFinite(n) && n >= 0 && n <= 100)
       || typeof r.observedAt !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r.observedAt)
-      || typeof r.evidence !== "string" || !r.evidence.trim())
+      || typeof r.evidence !== "string" || !r.evidence.trim()
+      || (r.source !== undefined && !(r.source in SOURCES)))
       throw new Error(`landmarks: invalid or duplicate record ${r?.id}`);
     seen.add(r.id);
   }
@@ -38,9 +49,12 @@ export function loadLandmarks(
     if (!db.query("SELECT 1 FROM client_UiMap WHERE ID = ?").get(r.uiMap))
       throw new Error(`landmark ${r.id}: no ${game} map ${r.uiMap}`);
   db.transaction(() => {
-    if (selected.length)
-      db.query("INSERT OR IGNORE INTO source VALUES ('owner-report', 'data/landmarks.json (reviewed)', NULL, 'Owner supplied observations')").run();
-    const insert = db.prepare("INSERT INTO landmark VALUES (?, ?, ?, ?, ?, ?, 'owner-report')");
-    for (const r of selected) insert.run(r.id, r.uiMap, r.x, r.y, r.observedAt, r.evidence);
+    const source = db.prepare("INSERT OR IGNORE INTO source VALUES (?, ?, ?, ?)");
+    const insert = db.prepare("INSERT INTO landmark VALUES (?, ?, ?, ?, ?, ?, ?)");
+    for (const r of selected) {
+      const s = r.source ?? "owner-report";
+      source.run(s, ...SOURCES[s](game));
+      insert.run(r.id, r.uiMap, r.x, r.y, r.observedAt, r.evidence, s);
+    }
   })();
 }

@@ -35,7 +35,9 @@ bun run explore                                 # the explorer (explore:dev; bun
 Hand tools, never run by a job: `bin/names.ts` (`--gaps`, `--readable`,
 `--ids`), `bin/wowhead-points.ts`, `bin/wowhead-pages.ts` (`queue --keys`,
 `pull`, `freeze`; the tab is `bin/wowhead-tab.js`), `bin/tbc-items.ts
-<ids>`. `bin/players.ts pull|done` is the players' facts job's.
+<ids>`, `bin/placements.ts` (a model's placements in the client's map
+files, for a `client-map` landmark). `bin/players.ts pull|done` is the
+players' facts job's.
 
 ## Hard rules
 
