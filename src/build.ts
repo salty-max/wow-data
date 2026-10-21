@@ -947,6 +947,46 @@ async function classicDb(db: Database, q: QuestieData) {
     }
     return n;
   });
+  // every menu's text by the menu, and the choices that lead from one to the
+  // next: the pages of a tale an npc tells over several windows
+  const insertMenuText = db.prepare("INSERT OR IGNORE INTO gossip_page VALUES (?, ?, ?, 'enUS', ?, ?, ?, NULL, ?, 'classicdb')");
+  const insertMenuTextBroadcast = db.prepare(
+    `INSERT OR IGNORE INTO gossip_page SELECT ?, ?, ?, locale, text, text_female, ?, id, ?, 'classicdb'
+     FROM speech WHERE id = ? AND COALESCE(text, text_female) IS NOT NULL`,
+  );
+  run("gossip page", () => {
+    let n = 0;
+    for (const [menu, rows] of menus)
+      for (const m of rows) {
+        const textId = num(m.text_id)!,
+          condition = num(m.condition_id) ?? 0;
+        const b = broadcast.get(textId),
+          t = npcText.get(textId);
+        for (let i = 0; i < 8; i++) {
+          if (b && nz(b[`BroadcastTextId${i}`])) n += insertMenuTextBroadcast.run(menu, textId, i, num(b[`Prob${i}`]), condition, num(b[`BroadcastTextId${i}`])).changes;
+          else if (t && (t[`text${i}_0`] || t[`text${i}_1`]))
+            n += insertMenuText.run(menu, textId, i, t[`text${i}_0`] || null, t[`text${i}_1`] || null, num(t[`prob${i}`]), condition).changes;
+        }
+      }
+    return n;
+  });
+  const insertChoice = db.prepare("INSERT OR IGNORE INTO gossip_option VALUES (?, ?, 'enUS', ?, NULL, NULL, ?, ?, 'classicdb')");
+  const insertChoiceBroadcast = db.prepare(
+    `INSERT OR IGNORE INTO gossip_option SELECT ?, ?, locale, text, text_female, id, ?, ?, 'classicdb'
+     FROM speech WHERE id = ? AND COALESCE(text, text_female) IS NOT NULL`,
+  );
+  const options = rows(sql, "gossip_menu_option");
+  run("gossip option", () => {
+    let n = 0;
+    for (const o of options) {
+      const next = (num(o.action_menu_id) ?? 0) > 0 ? num(o.action_menu_id) : null,
+        condition = num(o.condition_id) ?? 0,
+        said = nz(o.option_broadcast_text);
+      if (said) n += insertChoiceBroadcast.run(num(o.menu_id), num(o.id), next, condition, said).changes;
+      else n += insertChoice.run(num(o.menu_id), num(o.id), o.option_text || null, next, condition).changes;
+    }
+    return n;
+  });
 
   // the way creatures walk: one spawn's own path, a creature's
   const insertPath = db.prepare("INSERT OR IGNORE INTO path VALUES (?, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, NULL, NULL, ?, 'classicdb')");

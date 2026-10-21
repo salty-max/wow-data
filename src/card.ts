@@ -450,6 +450,25 @@ class Card {
           (texts > 1 ? ` (+${texts - 1} more${conditional ? `, ${conditional} on a condition` : ""})` : first.condition_id ? " (on a condition)" : "") +
           ` · ${locales.join(",")}`,
       );
+      // the tale it tells over several windows: a choice, the page it opens, the next
+      const seen = new Set<number>([first.menu_id]);
+      const pages: string[] = [];
+      const walk = (menu: number) => {
+        const choices = this.all(
+          "SELECT text, text_female, next_menu_id FROM gossip_option WHERE menu_id = ? AND locale = 'enUS' AND next_menu_id IS NOT NULL ORDER BY option_id",
+          menu,
+        );
+        for (const o of choices) {
+          if (seen.has(o.next_menu_id) || (!this.full && pages.length >= 6)) continue;
+          seen.add(o.next_menu_id);
+          const page = this.get("SELECT text, text_female FROM gossip_page WHERE menu_id = ? AND locale = 'enUS' ORDER BY condition_id != 0, text_id, idx", o.next_menu_id);
+          if (!page) continue;
+          pages.push(`"${clip(o.text ?? o.text_female ?? "", 60)}" → "${clip(page.text ?? page.text_female ?? "", this.full ? 100000 : 160)}"`);
+          walk(o.next_menu_id);
+        }
+      };
+      walk(first.menu_id);
+      for (const p of pages) this.add("tale", p);
     }
     const heard = this.all("SELECT kind, locale, text, source FROM npc_line WHERE npc_id = ? AND locale = 'enUS' ORDER BY kind", id);
     if (heard.length) this.add("says", this.few(heard, 2, (l) => `${l.kind} "${clip(l.text, 120)}" (${l.source})`));

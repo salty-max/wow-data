@@ -148,8 +148,19 @@ describe.skipIf(!built)("classic.db", () => {
     // (every creature with a menu has its text)
     expect(one("SELECT count(DISTINCT npc_id) AS n FROM gossip WHERE locale = 'enUS'")).toEqual({ n: 1845 });
   });
+  test("a tale over several windows: each choice and the page it opens, in every language the dump has", () => {
+    // Zamael Lunthistle (8436), caged in the Searing Gorge: his first menu, "I wish to hear your tale.", two pages
+    const menu = one("SELECT DISTINCT menu_id FROM gossip WHERE npc_id = 8436").menu_id as number;
+    const choice = one("SELECT text, next_menu_id FROM gossip_option WHERE menu_id = ? AND locale = 'enUS' AND next_menu_id IS NOT NULL", menu) as { text: string; next_menu_id: number };
+    expect(choice.text).toBe("I wish to hear your tale.");
+    expect(one("SELECT text FROM gossip_page WHERE menu_id = ? AND locale = 'enUS'", choice.next_menu_id).text as string).toStartWith("As a young night elf in Darkshore");
+    expect(all("SELECT DISTINCT locale FROM gossip_page WHERE menu_id = ? ORDER BY locale", choice.next_menu_id).map((r) => r.locale)).toContain("frFR");
+    // (a first menu's text is the same in gossip and gossip_page; a vendor's choice opens no page)
+    expect(one("SELECT text FROM gossip_page WHERE menu_id = ? AND locale = 'enUS'", menu).text).toBe(one("SELECT text FROM gossip WHERE npc_id = 8436 AND locale = 'enUS'").text);
+    expect(one("SELECT count(*) AS n FROM gossip_option WHERE next_menu_id IS NULL")).not.toEqual({ n: 0 });
+  });
   test("every row its source", () => {
-    for (const table of ["creature", "spawn", "object", "item", "quest", "loot", "name", "path", "spawn_entry", "encounter", "graveyard", "game_event", "gossip"]) {
+    for (const table of ["creature", "spawn", "object", "item", "quest", "loot", "name", "path", "spawn_entry", "encounter", "graveyard", "game_event", "gossip", "gossip_option", "gossip_page"]) {
       expect(one(`SELECT count(*) AS n FROM ${table} WHERE source IS NULL OR source = ''`)).toEqual({ n: 0 });
     }
   });

@@ -420,6 +420,40 @@ CREATE TABLE gossip (
   PRIMARY KEY (npc_id, text_id, idx, locale, condition_id)
 );
 
+-- The choices a gossip menu offers (the Classic database's
+-- gossip_menu_option): the player's line and the menu it opens. A tale told
+-- over several windows is a chain of them: gossip.menu_id, its option ("I
+-- wish to hear your tale."), the next menu's text in gossip_page, its option,
+-- and so on. Every menu's options, a vendor's or a flight master's too.
+CREATE TABLE gossip_option (
+  menu_id      INTEGER NOT NULL,  -- the menu offering it
+  option_id    INTEGER NOT NULL,  -- its place in the menu
+  locale       TEXT NOT NULL,
+  text         TEXT,              -- the player's line (male)
+  text_female  TEXT,
+  broadcast_id INTEGER,           -- speech.id, where it is a broadcast text
+  next_menu_id INTEGER,           -- the menu it opens; NULL when it closes the window or acts (a vendor, a taxi, a script)
+  condition_id INTEGER NOT NULL,  -- offered only while this condition holds; 0: always
+  source       TEXT NOT NULL,
+  PRIMARY KEY (menu_id, option_id, locale)
+);
+
+-- Every gossip menu's text, by the menu (gossip has a creature's first menu
+-- by the creature): the pages an option opens. Its rows read as gossip's.
+CREATE TABLE gossip_page (
+  menu_id      INTEGER NOT NULL,
+  text_id      INTEGER NOT NULL,
+  idx          INTEGER NOT NULL,
+  locale       TEXT NOT NULL,
+  text         TEXT,
+  text_female  TEXT,
+  chance       REAL,
+  broadcast_id INTEGER,
+  condition_id INTEGER NOT NULL,
+  source       TEXT NOT NULL,
+  PRIMARY KEY (menu_id, text_id, idx, locale, condition_id)
+);
+
 -- What an npc was heard to say, by the npc: Wowhead's pages' quotes and
 -- players' facts (the broadcast texts above know no speaker). kind: say, yell, emote, whisper, gossip (its
 -- window's text).

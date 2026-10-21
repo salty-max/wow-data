@@ -64,6 +64,11 @@ for (const game of ["classic", "forever"] as const) {
       expect(c).toContain('gossip  "Welcome to my Inn, weary traveler. What can I do for you?" · deDE,enUS,esES,esMX,frFR,ptBR,ruRU');
       expect(c).toMatch(/sells {3}15: Refreshing Spring Water/);
     });
+    test("npc 8479: a tale told over several windows, each choice and its page", () => {
+      const c = text("npc", "8479");
+      expect(c).toContain('tale    "Tell me what drives this vengeance?" → "My father was slain by the filth that inhabits the cauldron.');
+      expect(c).toContain('tale    "Continue please." → "As you can see, I am but one man with a lumbering oaf of a squire.');
+    });
     test("a missing language flagged, the English a client shows marked", () => {
       expect(text("quest", "1475")).toContain("MISSING itIT");
       if (game === "forever") expect(text("npc", "240482")).toContain("frFR,itIT,ruRU,zhCN,zhTW Berdun Cliffbrew (English)");
