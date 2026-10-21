@@ -1432,6 +1432,8 @@ async function seasonOfDiscovery(db: Database, game: Game) {
       ["loot", `source IN ('questie', 'wowhead') AND ((kind = 'creature' AND source_id IN ${of("creature")}) OR (kind = 'object' AND source_id IN ${of("object")}))`],
       ["vendor", `npc_id IN ${of("creature")}`],
       ["trainer_spell", `npc_id IN ${of("creature")}`],
+      // (gossip_option and gossip_page are by the menu, reached only from gossip: a
+      // menu of a creature gone here is left unreachable, harmless)
       ["gossip", `npc_id IN ${of("creature")}`],
       ["npc_line", `npc_id IN ${of("creature")}`],
       ["creature_sighting", `npc_id IN ${of("creature")}`],

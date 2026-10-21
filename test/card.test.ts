@@ -69,6 +69,11 @@ for (const game of ["classic", "forever"] as const) {
       expect(c).toContain('tale    "Tell me what drives this vengeance?" → "My father was slain by the filth that inhabits the cauldron.');
       expect(c).toContain('tale    "Continue please." → "As you can see, I am but one man with a lumbering oaf of a squire.');
     });
+    test("an innkeeper's choices: those on a condition (an event's, a level's) say so, and a cut list says how many more", () => {
+      const c = text("npc", "Innkeeper Farley");
+      expect(c).toMatch(/tale {4}"Does that heart mean you're looking for love\?" → .* \(on a condition\)/);
+      expect(c).toMatch(/tale {4}\+\d+ more \(--full\)/);
+    });
     test("a missing language flagged, the English a client shows marked", () => {
       expect(text("quest", "1475")).toContain("MISSING itIT");
       if (game === "forever") expect(text("npc", "240482")).toContain("frFR,itIT,ruRU,zhCN,zhTW Berdun Cliffbrew (English)");

@@ -451,24 +451,40 @@ class Card {
           ` · ${locales.join(",")}`,
       );
       // the tale it tells over several windows: a choice, the page it opens, the next
+      // (a choice or a page shown only on a condition, an event's or a quest's, says so; the
+      // ones always there first; the same choice and page once)
       const seen = new Set<number>([first.menu_id]);
       const pages: string[] = [];
+      const told = new Set<string>();
+      let more = 0;
       const walk = (menu: number) => {
         const choices = this.all(
-          "SELECT text, text_female, next_menu_id FROM gossip_option WHERE menu_id = ? AND locale = 'enUS' AND next_menu_id IS NOT NULL ORDER BY option_id",
+          "SELECT text, text_female, next_menu_id, condition_id FROM gossip_option WHERE menu_id = ? AND locale = 'enUS' AND next_menu_id IS NOT NULL ORDER BY condition_id != 0, option_id",
           menu,
         );
         for (const o of choices) {
-          if (seen.has(o.next_menu_id) || (!this.full && pages.length >= 6)) continue;
+          if (seen.has(o.next_menu_id)) continue;
           seen.add(o.next_menu_id);
-          const page = this.get("SELECT text, text_female FROM gossip_page WHERE menu_id = ? AND locale = 'enUS' ORDER BY condition_id != 0, text_id, idx", o.next_menu_id);
+          const page = this.get(
+            "SELECT text, text_female, condition_id FROM gossip_page WHERE menu_id = ? AND locale = 'enUS' ORDER BY condition_id != 0, text_id, idx",
+            o.next_menu_id,
+          );
           if (!page) continue;
-          pages.push(`"${clip(o.text ?? o.text_female ?? "", 60)}" → "${clip(page.text ?? page.text_female ?? "", this.full ? 100000 : 160)}"`);
+          const choice = clip(o.text ?? o.text_female ?? "", 60),
+            said = clip(page.text ?? page.text_female ?? "", this.full ? 100000 : 160);
+          if (told.has(`${choice}\n${said}`)) continue;
+          told.add(`${choice}\n${said}`);
+          if (!this.full && pages.length >= 6) {
+            more++;
+            continue;
+          }
+          pages.push(`"${choice}" → "${said}"${o.condition_id || page.condition_id ? " (on a condition)" : ""}`);
           walk(o.next_menu_id);
         }
       };
       walk(first.menu_id);
       for (const p of pages) this.add("tale", p);
+      if (more) this.add("tale", `+${more} more (--full)`);
     }
     const heard = this.all("SELECT kind, locale, text, source FROM npc_line WHERE npc_id = ? AND locale = 'enUS' ORDER BY kind", id);
     if (heard.length) this.add("says", this.few(heard, 2, (l) => `${l.kind} "${clip(l.text, 120)}" (${l.source})`));
