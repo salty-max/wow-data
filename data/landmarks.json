@@ -25,7 +25,7 @@
     "x": 77.2,
     "y": 43.3,
     "observedAt": "2026-10-22",
-    "evidence": "Owner located the carved LOL on 22 October 2026 in classicwowmapexplorer, a viewer of Classic's map tiles: Eastern Kingdoms tile 38_34, world -1172, -3646, 59, which is 77.2, 43.3 on Arathi's map, in Hammerfall's area (321), at the foot of a slope rising to the east (57 to 95 yards high within 60 yards, Classic Era 1.15.9.70003's heightmap), so the carving faces west, toward the grass south-east of the town. Forever's 1.60.1.70450 heightmap is identical in the 42 map chunks around it. The WoWWiki archive's Easter eggs page: just south-east of Hammerfall, at the right angle, LOL carved into the mountain-side. Not checked in game.",
+    "evidence": "Owner located the carved LOL on 22 October 2026 in classicwowmapexplorer, a viewer of Classic's map tiles: Eastern Kingdoms tile 38_34, world -1172, -3646, 59, which is 77.2, 43.3 on Arathi's map, in Hammerfall's area (321), at the foot of a slope rising to the east (57 to 95 yards high within 60 yards, Classic Era 1.15.9.70003's heightmap), so the carving faces west, toward the grass south-east of the town. Forever's 1.60.1.70450 tile is the same: its heightmap identical across the whole tile, its texture layers the same textures painted in the same shapes (its alpha kept at 8 bits against Classic's 4), and its 150 doodads within 150 yards identical. The WoWWiki archive's Easter eggs page: just south-east of Hammerfall, at the right angle, LOL carved into the mountain-side. Not checked in game.",
     "source": "owner-report"
   }
 ]
