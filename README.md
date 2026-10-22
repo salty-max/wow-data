@@ -102,10 +102,11 @@ bun bin/latest.ts --write    # and move the pins
 
 `.github/workflows/pins.yml` does it every day and opens a pull request when
 a build moves. Each addon's own daily job then builds its data again from
-the new pins. A build moves only within its major version (wago.tools lists
-Forever's beta, 1.60, beside Mists of Pandaria's, 5.5). Forever's builds
-under another product and the databases' newer commits are reported, never
-followed: those changes are made by hand.
+the new pins. A build moves only within its product and major version
+(Forever on its own product, `wowf`, since 23 October 2026: its beta was
+filed beside Mists of Pandaria's, 5.5). A game's builds under another
+product and the databases' newer commits are reported, never followed:
+those changes are made by hand.
 
 ## License
 

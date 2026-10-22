@@ -1,6 +1,7 @@
 // The game's version numbers ("1.60.1.70374"): which is newer, and which go
-// together (a major version: Forever's beta, 1.x, shares wago.tools'
-// product with Mists of Pandaria's, 5.x; a family: 1.60, the same game).
+// together (a major version: Forever's beta, 1.x, shared wago.tools'
+// product with Mists of Pandaria's, 5.x, until Forever's own, wowf, which
+// holds only 1.60; a family: 1.60, the same game).
 export function newer(a: string, b: string): boolean {
   const x = a.split(".").map(Number),
     y = b.split(".").map(Number);
