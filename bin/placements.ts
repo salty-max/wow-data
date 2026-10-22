@@ -65,7 +65,16 @@ function onMap(x: number, y: number) {
 for (const tile of tiles) {
   const [ta, tb] = tile.split("_").map(Number);
   const objName = `${map.toLowerCase()}_${ta}_${tb}_obj0.adt`, rootName = `${map.toLowerCase()}_${ta}_${tb}.adt`;
-  const obj = await file(await fileId(objName)), root = await file(await fileId(rootName));
+  if (!(ta >= 0 && tb >= 0)) { console.warn(`${tile}: not a tile (a_b)`); continue; }
+  let obj: Buffer, root: Buffer;
+  try {
+    obj = await file(await fileId(objName));
+    root = await file(await fileId(rootName));
+  } catch (e) {
+    // open sea, or past the map's edge: the client has no tile there
+    console.warn(`${tile}: ${(e as Error).message}`);
+    continue;
+  }
   // the area of each map chunk, by its north-west corner (MCNK's position)
   const areas: { x: number; y: number; area: number }[] = [];
   for (const c of chunks(root))

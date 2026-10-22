@@ -27,5 +27,25 @@
     "observedAt": "2026-10-22",
     "evidence": "Owner located the carved LOL on 22 October 2026 in classicwowmapexplorer, a viewer of Classic's map tiles: Eastern Kingdoms tile 38_34, world -1172, -3646, 59, which is 77.2, 43.3 on Arathi's map, in Hammerfall's area (321), at the foot of a slope rising to the east (57 to 95 yards high within 60 yards, Classic Era 1.15.9.70003's heightmap), so the carving faces west, toward the grass south-east of the town. Forever's 1.60.1.70450 tile is the same: its heightmap identical across the whole tile, its texture layers the same textures painted in the same shapes (its alpha kept at 8 bits against Classic's 4), and its 150 doodads within 150 yards identical. The WoWWiki archive's Easter eggs page: just south-east of Hammerfall, at the right angle, LOL carved into the mountain-side. Not checked in game.",
     "source": "owner-report"
+  },
+  {
+    "id": "tanaris-rocket-car-wreck",
+    "games": ["classic", "forever"],
+    "uiMap": 1446,
+    "x": 48.2,
+    "y": 25.5,
+    "observedAt": "2026-10-22",
+    "evidence": "Classic Era 1.15.9.70003's map file kalimdor_38_45_obj0.adt places crashedgnomerc.m2 (file 197705), unique id 397465, at world -7048.1, -3541.3, 15.7, in a Tanaris map chunk: 48.2, 25.5 on Tanaris's map, just west of Gadgetzan. Forever's 1.60.1.70450 places it the same. The WoWWiki archive's In-jokes and references (games, TV and movies) page, Buckaroo Banzai: skid marks in Thousand Needles lead into the side of the mountain near the path to Tanaris, and on the Tanaris side, just west of Gadgetzan, they continue to the crashed wreckage of a rocket car. Read with bin/placements.ts, not checked in game.",
+    "source": "client-map"
+  },
+  {
+    "id": "shimmering-flats-cliff-racer",
+    "games": ["classic", "forever"],
+    "uiMap": 1441,
+    "x": 89.6,
+    "y": 76.5,
+    "observedAt": "2026-10-22",
+    "evidence": "Classic Era 1.15.9.70003's map file kalimdor_40_43_obj0.adt places crashedgoblinrc.m2 (file 197777), unique id 397464, at world -6209.9, -4373.9, -16.7, in a Shimmering Flats map chunk: 89.6, 76.5 on Thousand Needles' map, some 42 yards above the flats' floor (the raceway's racers stand at about -59). Forever's 1.60.1.70450 places it the same. The WoWWiki archive's In-jokes and references (games, TV and movies) page, The Phantom Menace: skid marks leave the track towards a cliff face, and the racer like Sebulba's hangs crashed about halfway up. Read with bin/placements.ts, not checked in game.",
+    "source": "client-map"
   }
 ]
