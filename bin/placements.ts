@@ -29,6 +29,7 @@ const ORIGIN = 17066.666666, TILE = 533.333333, CHUNK = TILE / 16;
 // a map file's id, by its name in wago.tools' file list
 async function fileId(name: string): Promise<number> {
   const res = await fetchRetry(`https://wago.tools/api/files?search=${encodeURIComponent(`maps/${map}/${name}`)}`);
+  if (!res.ok) throw new Error(`wago.tools' file list: ${res.status}`);
   const hit = Object.entries((await res.json()) as Record<string, string>).find(([, v]) => v.endsWith(`/${name}`));
   if (!hit) throw new Error(`${name}: not in wago.tools' file list`);
   return Number(hit[0]);
@@ -71,7 +72,10 @@ for (const tile of tiles) {
     obj = await file(await fileId(objName));
     root = await file(await fileId(rootName));
   } catch (e) {
-    // open sea, or past the map's edge: the client has no tile there
+    // open sea, or past the map's edge: the client has no tile there. Any
+    // other failure (the network, wago.tools refusing) stops the run, so an
+    // empty answer always means no placement, never no download
+    if (!(e as Error).message.endsWith("not in wago.tools' file list")) throw e;
     console.warn(`${tile}: ${(e as Error).message}`);
     continue;
   }
