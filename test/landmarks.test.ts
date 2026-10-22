@@ -8,7 +8,7 @@ import { loadLandmarks } from "../src/landmarks";
 function fixture() {
   const db = new Database(":memory:");
   db.exec(readFileSync(path.join(ROOT, "schema.sql"), "utf8"));
-  db.exec("CREATE TABLE client_UiMap (ID INTEGER PRIMARY KEY); INSERT INTO client_UiMap VALUES (1426), (1442)");
+  db.exec("CREATE TABLE client_UiMap (ID INTEGER PRIMARY KEY); INSERT INTO client_UiMap VALUES (1426), (1442), (1417)");
   return db;
 }
 
