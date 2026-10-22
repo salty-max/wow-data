@@ -55,7 +55,7 @@
     "x": 7.9,
     "y": 55.1,
     "observedAt": "2026-10-22",
-    "evidence": "Classic Era 1.15.9.70003's map file azeroth_36_44_obj0.adt places funeralpyre01.m2 (file 202295), unique id 355310, at world -6803.6, -2274.8, 280.8, in a Badlands map chunk: 7.9, 55.1 on the Badlands' map, the middle of three pyres. Around them, in the same file: tauren mummies (taurenmummy.m2), troll mummies (mummytroll01.m2), tiki masks, tauren kites, orc weapons and shields, laid out on the ledge south of Kargath where the Spirit Healer stands (the dump's spawn, 13 yards off). Forever's 1.60.1.70450 places the three pyres the same. Read with bin/placements.ts, not checked in game.",
+    "evidence": "Classic Era 1.15.9.70003's map file azeroth_36_44_obj0.adt places funeralpyre01.m2 (file 202295), unique id 355310, at world -6803.6, -2274.8, 280.8, in a Badlands map chunk: 7.9, 55.1 on the Badlands' map, the middle of three pyres. Around them, in the same file: tauren mummies (taurenmummy.m2), troll mummies (mummytroll01.m2), tiki masks, tauren kites, orc weapons and shields, laid out on the ledge south of Kargath where the Spirit Healer stands (the dump's spawn, some 15 yards off). Forever's 1.60.1.70450 places the three pyres the same. Read with bin/placements.ts, not checked in game.",
     "source": "client-map"
   }
 ]
