@@ -47,5 +47,15 @@
     "observedAt": "2026-10-22",
     "evidence": "Classic Era 1.15.9.70003's map file kalimdor_40_43_obj0.adt places crashedgoblinrc.m2 (file 197777), unique id 397464, at world -6209.9, -4373.9, -16.7, in a Shimmering Flats map chunk: 89.6, 76.5 on Thousand Needles' map, some 42 yards above the flats' floor (the raceway's racers stand at about -59). Forever's 1.60.1.70450 places it the same. The WoWWiki archive's In-jokes and references (games, TV and movies) page, The Phantom Menace: skid marks leave the track towards a cliff face, and the racer like Sebulba's hangs crashed about halfway up. Read with bin/placements.ts, not checked in game.",
     "source": "client-map"
+  },
+  {
+    "id": "badlands-funeral-ground",
+    "games": ["classic", "forever"],
+    "uiMap": 1418,
+    "x": 7.9,
+    "y": 55.1,
+    "observedAt": "2026-10-22",
+    "evidence": "Classic Era 1.15.9.70003's map file azeroth_36_44_obj0.adt places funeralpyre01.m2 (file 202295), unique id 355310, at world -6803.6, -2274.8, 280.8, in a Badlands map chunk: 7.9, 55.1 on the Badlands' map, the middle of three pyres. Around them, in the same file: tauren mummies (taurenmummy.m2), troll mummies (mummytroll01.m2), tiki masks, tauren kites, orc weapons and shields, laid out on the ledge south of Kargath where the Spirit Healer stands (the dump's spawn, 13 yards off). Forever's 1.60.1.70450 places the three pyres the same. Read with bin/placements.ts, not checked in game.",
+    "source": "client-map"
   }
 ]
