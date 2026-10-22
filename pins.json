@@ -5,7 +5,7 @@
       "build": "1.15.9.70003"
     },
     "forever": {
-      "product": "wow_classic_beta",
+      "product": "wowf",
       "build": "1.60.1.70532"
     }
   },

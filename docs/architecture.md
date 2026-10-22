@@ -7,8 +7,9 @@ comes from, and the rules for them: `docs/sources.md`.
 ## The pins, the cache, the fetchers
 
 - `pins.json`: the clients' builds on wago.tools (`builds.classic`: Classic
-  Era; `builds.forever`: Forever, whose beta wago files under
-  `wow_classic_beta` beside Mists of Pandaria's) and the databases' commits
+  Era; `builds.forever`: Forever, on its own product `wowf` since 23
+  October 2026, its beta filed before under `wow_classic_beta` beside Mists
+  of Pandaria's) and the databases' commits
   (`repos`: questie, classicdb). The one place a build or a database is
   pinned: an addon never pins its own. What other sources alone had is
   frozen in `data/` (Wowhead's, AllTheThings' rewards and prerequisites for

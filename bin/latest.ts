@@ -5,11 +5,12 @@
 //   bun bin/latest.ts --next FILE      writes the moved pins there instead
 //   ... --summary FILE                 writes what it found, in Markdown
 // A pinned build moves to the newest of its product with the same major
-// version (wago.tools files Forever's beta, 1.60, under the same product as
-// Mists of Pandaria's, 5.5). Forever's builds under another product (wowf,
-// its own at launch) are told, never followed: changing a product is a
-// person's call. The community databases' newer commits are told too, never
-// followed (their data changes what the addons say: a person reads it).
+// version (wago.tools filed Forever's beta, 1.60, under the same product as
+// Mists of Pandaria's, 5.5, until Forever's own, wowf, pinned since 23
+// October 2026). A game's builds under another product are told, never
+// followed: changing a product is a person's call. The community databases'
+// newer commits are told too, never followed (their data changes what the
+// addons say: a person reads it).
 import { readFileSync, writeFileSync } from "node:fs";
 import { family, newer, newest } from "../src/builds";
 import { fetchRetry } from "../src/fetch";
