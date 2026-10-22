@@ -14,7 +14,9 @@ type Landmark = {
   source?: "owner-report" | "client-map";
 };
 
-// owner-report: the owner's own eyes in the game. client-map: a placement
+// owner-report: the owner's own look, in the game or at the client's map in
+// a viewer (the evidence says which, and whether it was checked in game).
+// client-map: a placement
 // in the pinned client's map files (bin/placements.ts), its file, model and
 // unique id in the evidence.
 // A client-map landmark is frozen hand data: the build it was read in is in

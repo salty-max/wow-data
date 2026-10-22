@@ -123,7 +123,10 @@ before the others know it.
 - Reviewed scenery positions: `data/landmarks.json`, imported by
   `src/landmarks.ts` into `landmark`, with an owning map, observation date
   and evidence. Source `owner-report` is explicit human review, not an
-  automatic NPC sighting. A landmark has its own text ID and never invents
+  automatic NPC sighting: the owner's look in the game, or at the client's
+  map in a viewer (classicwowmapexplorer for Arathi's carved LOL, 22
+  October 2026), the evidence saying which and whether it was checked in
+  game. A landmark has its own text ID and never invents
   a game object or spawn. Per-game applicability and unverified clients stay
   in its evidence. Yonder reads this table for the abandoned Dun Morogh camp,
   corrected in game to 39.2, 67.6, instead of borrowing a bear's spawn.
