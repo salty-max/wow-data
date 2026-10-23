@@ -16,6 +16,7 @@ permissions:
   contents: write
   pull-requests: write
   actions: write
+  actions: write
 
 jobs:
   pins:
@@ -74,6 +75,12 @@ jobs:
           title: "chore: the game's builds moved"
           body-path: ${{ runner.temp }}/body.md
           add-paths: pins.json
+      # (its checks on the pull request: GitHub starts no pull_request run for this job's own token)
+      - name: Its checks
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml -R "$GITHUB_REPOSITORY" --ref pins
       - name: Merge, then the databases
         if: steps.pins.outputs.moved == 'true' && steps.built.outcome == 'success' && steps.pr.outputs.pull-request-number != ''
         env:

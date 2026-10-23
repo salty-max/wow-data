@@ -11,6 +11,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { absent } from "./cache";
+import { databaseTag } from "./dbRelease";
 import { classicDump } from "./github";
 import { type Game, PINS, ROOT } from "./pins";
 import { loadPlayers, playerFacts } from "./players";
@@ -440,7 +441,7 @@ async function classicDb(db: Database, q: QuestieData) {
   };
 
   // creatures and their spawns
-  const creatures = rows(sql, "creature_template");
+  const creatures = rows(sql, "creature_template", 1);
   const insertCreature = db.prepare(
     "INSERT INTO creature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb', ?, ?, ?, NULL)",
   );
@@ -588,7 +589,7 @@ async function classicDb(db: Database, q: QuestieData) {
   });
 
   // objects (a text's first page, a node's lock, a chest's loot)
-  const objects = rows(sql, "gameobject_template");
+  const objects = rows(sql, "gameobject_template", 1);
   const insertObject = db.prepare("INSERT INTO object VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb')");
   const objectColumns = db.prepare(
     "UPDATE object SET type = ?, display_id = ?, faction_id = ?, lock_id = ?, page_id = ?, loot_id = ?, data = ? WHERE id = ?",
@@ -617,7 +618,7 @@ async function classicDb(db: Database, q: QuestieData) {
   });
 
   // items: the client's and Questie's first (their rows won), the database's for the rest
-  const items = rows(sql, "item_template");
+  const items = rows(sql, "item_template", 1);
   const insertItem = db.prepare(
     "INSERT OR IGNORE INTO item VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb', ?)",
   );
@@ -657,7 +658,7 @@ async function classicDb(db: Database, q: QuestieData) {
   });
 
   // quests: the quest, its texts, what it asks, who starts and ends it, what it gives
-  const quests = rows(sql, "quest_template");
+  const quests = rows(sql, "quest_template", 1);
   const insertPrereq = db.prepare("INSERT OR IGNORE INTO quest_prereq VALUES (?, ?, 'all', 'classicdb')");
   const insertQuest = db.prepare(
     "INSERT INTO quest VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, 'classicdb', ?, ?, ?, ?)",
@@ -970,7 +971,7 @@ async function classicDb(db: Database, q: QuestieData) {
   });
 
   // what is written in the world: a text object's or an item's page chain
-  const pages = new Map<number, Row>(rows(sql, "page_text").map((r) => [num(r.entry)!, r]));
+  const pages = new Map<number, Row>(rows(sql, "page_text", 1).map((r) => [num(r.entry)!, r]));
   const insertReadable = db.prepare("INSERT OR IGNORE INTO readable VALUES (?, ?, ?, NULL, 'classicdb')");
   const insertPage = db.prepare("INSERT OR IGNORE INTO readable_page VALUES (?, ?, 'enUS', ?, ?, 'classicdb')");
   const readable = (kind: string, id: number, first: number) => {
@@ -1002,7 +1003,7 @@ async function classicDb(db: Database, q: QuestieData) {
 
   // what npcs say: English and the database's translations
   const insertSpeech = db.prepare("INSERT OR IGNORE INTO speech VALUES (?, ?, ?, ?, ?, 'classicdb')");
-  const speech = rows(sql, "broadcast_text");
+  const speech = rows(sql, "broadcast_text", 1);
   const language = new Map<number, number | null>();
   run("speech enUS", () => {
     for (const r of speech) {
@@ -1023,7 +1024,7 @@ async function classicDb(db: Database, q: QuestieData) {
   const menus = new Map<number, Row[]>();
   for (const r of rows(sql, "gossip_menu")) menus.set(num(r.entry)!, [...(menus.get(num(r.entry)!) ?? []), r]);
   const broadcast = new Map<number, Row>(rows(sql, "npc_text_broadcast_text").map((r) => [num(r.Id)!, r]));
-  const npcText = new Map<number, Row>(rows(sql, "npc_text").map((r) => [num(r.ID)!, r]));
+  const npcText = new Map<number, Row>(rows(sql, "npc_text", 1).map((r) => [num(r.ID)!, r]));
   const insertGossip = db.prepare("INSERT OR IGNORE INTO gossip VALUES (?, ?, ?, ?, 'enUS', ?, ?, ?, NULL, ?, 'classicdb')");
   const insertBroadcast = db.prepare(
     `INSERT OR IGNORE INTO gossip SELECT ?, ?, ?, ?, locale, text, text_female, ?, id, ?, 'classicdb'
@@ -1745,6 +1746,10 @@ export async function build(game: Game, file: string) {
   meta.run("built_at", new Date().toISOString());
   meta.run("pins", JSON.stringify(PINS));
   meta.run("schema", "1");
+  // (the inputs' revision, as the release names it: openDb tells a database of other inputs)
+  try {
+    meta.run("tag", databaseTag());
+  } catch {}
   const source = db.prepare("INSERT INTO source VALUES (?, ?, ?, ?)");
   const b = PINS.builds[game];
   source.run("client", `${b.product} ${b.build}`, "https://wago.tools", "Blizzard's");

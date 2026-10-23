@@ -3,7 +3,9 @@
 
 // One table's rows from the dump, by column name: its CREATE TABLE gives the
 // order, its INSERT statements the values (MySQL quoting).
-export function rows(sql: string, table: string): Record<string, string | number | null>[] {
+// (atLeast: a table the build can't do without; a dump of another shape,
+// its INSERTs gone, would otherwise read as an empty table and a quiet loss)
+export function rows(sql: string, table: string, atLeast = 0): Record<string, string | number | null>[] {
   const create = sql.match(new RegExp("CREATE TABLE `" + table + "` \\(([\\s\\S]*?)\\n\\)"));
   if (!create) throw new Error(`no table ${table}`);
   const cols = [...create[1].matchAll(/^\s+`(\w+)`/gm)].map((m) => m[1]);
@@ -46,5 +48,6 @@ export function rows(sql: string, table: string): Record<string, string | number
     }
     at = sql.indexOf(head, i);
   }
+  if (out.length < atLeast) throw new Error(`${table}: ${out.length} rows in the dump, ${atLeast} at least wanted`);
   return out;
 }

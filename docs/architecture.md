@@ -73,7 +73,20 @@ comes from, and the rules for them: `docs/sources.md`.
   stops it (`frozenFile`). The cache keeps nothing half written: a download, an
   unpacked archive or Questie's export lands beside its path and is moved in
   whole, and an empty body or a web page where a table or JSON was asked is
-  refused. Questie's export is keyed by the exporter's own hash too.
+  refused. Questie's export is keyed by the exporter's own hash too. The
+  dump's core tables (creatures, objects, items, quests, texts, pages)
+  can't come back empty (`rows(sql, table, 1)`).
+- What a database is made of (`buildInputs`, `src/dbRelease.ts`): the pins,
+  the schema, `data/`, db.yml, the Lua the build runs, and every file
+  `bin/build.ts` imports, followed when asked; its tag is the last commit
+  touching them, so a hand tool's edit (card.ts, tell.ts) is no new
+  database. The build writes the tag into `meta`; `openDb` (and the Python
+  `db()`) says once when a database was built from other inputs than the
+  checkout's, an error under `WOW_DATA_STRICT=1`.
+- A pull request a job opens (pins, players) gets no `pull_request` run:
+  GitHub starts none for a job's own token. The job dispatches ci.yml on
+  its branch instead (`actions: write`), so the pull request shows its
+  checks.
 - `.github/workflows/addon-data.yml`: an addon's game data built again,
   called by each addon's daily `game-data.yml` (Hearthtale, the Codex,
   Yonder, Second Wind, Palaver, Mealbook, Goodwill, Yours Truly; one run at

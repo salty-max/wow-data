@@ -1,11 +1,14 @@
 # Every push and pull request: the kit typechecks and its tests pass, the
-# explorer typechecks and builds.
+# explorer typechecks and builds. A pull request a job opened (pins, players)
+# gets no pull_request run (GitHub starts none for its own token's events):
+# that job dispatches this one on its branch instead.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read

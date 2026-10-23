@@ -1,12 +1,35 @@
 import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { ROOT } from "./pins";
+
+// What the databases are made of: the pins, the schema, the frozen data, the
+// workflow, the Lua the build runs, and every file bin/build.ts imports (its
+// closure, found when asked: a card.ts or tell.ts edit is no new database).
+const FIXED = ["pins.json", "schema.sql", "data", ".github/workflows/db.yml", "bin/*.lua"];
+export function buildInputs(root = ROOT): string[] {
+  const seen = new Set<string>();
+  const scan = new Bun.Transpiler({ loader: "ts" });
+  const walk = (file: string) => {
+    if (seen.has(file) || !existsSync(file)) return;
+    seen.add(file);
+    for (const i of scan.scanImports(readFileSync(file, "utf8"))) {
+      if (!i.path.startsWith(".")) continue;
+      const to = path.resolve(path.dirname(file), i.path);
+      walk(to.endsWith(".ts") ? to : `${to}.ts`);
+    }
+  };
+  const builder = path.join(root, "bin", "build.ts");
+  // (no build script to follow: every script counts, as before)
+  if (!existsSync(builder)) return [...FIXED, "src", "bin"];
+  walk(builder);
+  return [...FIXED, ...[...seen].map((f) => path.relative(root, f)).sort()];
+}
 
 // The publisher and its consumers must name the same data revision, even
 // when a test or documentation fix was committed after the data changed.
 export function databaseTag(root = ROOT): string {
-  const revision = execFileSync("git", [
-    "log", "-1", "--format=%H", "--", "pins.json", "schema.sql", "src", "bin", "data", ".github/workflows/db.yml",
-  ], { cwd: root, encoding: "utf8" }).trim();
+  const revision = execFileSync("git", ["log", "-1", "--format=%H", "--", ...buildInputs(root)], { cwd: root, encoding: "utf8" }).trim();
   if (!/^[0-9a-f]{40}$/.test(revision)) throw new Error("No database input revision found");
   return `db-${revision.slice(0, 12)}`;
 }
