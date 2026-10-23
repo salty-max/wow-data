@@ -124,9 +124,10 @@ describe.skipIf(!built)("forever.db", () => {
     const sources = all("SELECT name FROM source ORDER BY name").map((r) => r.name);
     // (allthethings: Forever's own quests' rewards and prerequisites, frozen)
     // (english: the English a client shows where its language has no name)
+    // (guides: data/kill-reputation.json, the kills by hand)
     // (players: present once a database has imported archived observations)
-    expect(sources.filter((source) => source !== "players")).toEqual(["allthethings", "classicdb", "client", "client-map", "english", "owner-report", "questie", "wowhead"]);
-    for (const table of ["creature", "creature_sighting", "landmark", "quest", "quest_objective", "quest_relation", "quest_reward", "quest_prereq", "spawn", "loot", "name"]) {
+    expect(sources.filter((source) => source !== "players")).toEqual(["allthethings", "classicdb", "client", "client-map", "english", "guides", "owner-report", "questie", "wowhead"]);
+    for (const table of ["creature", "creature_sighting", "landmark", "quest", "quest_objective", "quest_relation", "quest_reward", "quest_prereq", "spawn", "loot", "name", "kill_reputation"]) {
       const used = all(`SELECT DISTINCT source FROM ${table}`).map((r) => r.source as string);
       for (const s of used) expect(sources).toContain(s);
     }

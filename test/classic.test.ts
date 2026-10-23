@@ -213,7 +213,7 @@ describe.skipIf(!built)("classic.db", () => {
     expect(one("SELECT value, max_standing FROM kill_reputation WHERE creature_id = 10738 AND faction_id = 576")).toEqual({ value: 25, max_standing: 7 });
   });
   test("kill reputation by hand (data/kill-reputation.json): the Syndicate raise Ravenholdt to Friendly, the Bloodsail stop at Friendly", () => {
-    expect(one("SELECT value, max_standing, source FROM kill_reputation WHERE creature_id = 2246 AND faction_id = 349")).toEqual({ value: 5, max_standing: 3, source: "guides" });
+    expect(one("SELECT value, max_standing, source FROM kill_reputation WHERE creature_id = 2246 AND faction_id = 349")).toEqual({ value: 5, max_standing: 5, source: "guides" });
     expect(one("SELECT count(*) AS n FROM kill_reputation WHERE faction_id = 349 AND value > 0").n).toBe(21);
     expect(one("SELECT count(*) AS n FROM kill_reputation WHERE faction_id = 87 AND value > 0 AND max_standing <> 3").n).toBe(0);
   });

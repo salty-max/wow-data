@@ -380,7 +380,7 @@ CREATE TABLE quest_standing (
 CREATE INDEX quest_standing_faction ON quest_standing (faction_id);
 -- The reputation a kill gives (the Classic database's
 -- creature_onkill_reputation: its 1.12 figures, Era's own may differ in
--- places): a row per creature and faction, up to two a creature (the second
+-- places, and data/kill-reputation.json's by hand, source guides): a row per creature and faction, up to two a creature (the second
 -- is often its rivals' loss or a town's spillover).
 CREATE TABLE kill_reputation (
   creature_id  INTEGER NOT NULL,

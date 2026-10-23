@@ -132,7 +132,8 @@ before the others know it.
   you to reach. `item_reputation` is the standing an item asks: the
   client's ItemSparse first, the Classic database's item_template for the
   rest (Era's client gates no capital's goods). `kill_reputation` is the
-  Classic database's creature_onkill_reputation (its 1.12 figures): up to
+  Classic database's creature_onkill_reputation (its 1.12 figures, and
+  `data/kill-reputation.json`'s by hand, below): up to
   two factions a creature, the last standing a kill still counts at (the
   Brood of Nozdormu's Ahn'Qiraj trash: Hated, so until Hostile), the side
   where the source makes it the Alliance's or the Horde's. Forever has no
@@ -144,16 +145,20 @@ before the others know it.
   Forever's quests) is left out on purpose: filling `special_flags` with it
   would change what Hearthtale's scripts read.
 
-## Reviewed scenery (landmarks)
-
 - Kill reputation by hand: `data/kill-reputation.json` (the user's call, 23
   October 2026), loaded after the Classic database's
   `creature_onkill_reputation`, in both games, each entry with its why and
-  its source (`source` guides). `add`: rows the dump lacks (the Syndicate's
-  humanoids raising Ravenholdt, 5 a kill at most, to Friendly). `caps`: the
-  last standing a faction's kills count at where Era's guides disagree with
-  the dump (the Bloodsail stop at Friendly). Unverified in game: a test
-  there moves an entry or removes it.
+  its source (`source` guides, a row in `source`). `add`: rows the dump
+  lacks (the Syndicate's humanoids raising Ravenholdt, 5 a kill at most, to
+  the end of Honored); the build stops if the dump ever has one of them, so
+  the entry is dropped or made a cap rather than winning in silence. `caps`:
+  the last standing a faction's kills count at where Era's guides disagree
+  with the dump (the Bloodsail stop at Friendly); a capped row's `source`
+  says guides though its value, award and side stay the Classic database's.
+  Unverified in game: a test there moves an entry or removes it.
+
+## Reviewed scenery (landmarks)
+
 - Reviewed scenery positions: `data/landmarks.json`, imported by
   `src/landmarks.ts` into `landmark`, with an owning map, observation date
   and evidence. Source `owner-report` is explicit human review, not an

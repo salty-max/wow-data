@@ -776,10 +776,17 @@ async function classicDb(db: Database, q: QuestieData) {
       add: { faction: number; creatures: number[]; value: number; max_standing: number }[];
       caps: { faction: number; max_standing: number }[];
     } = JSON.parse(readFileSync(path.join(ROOT, "data", "kill-reputation.json"), "utf8"));
-    const add = db.prepare("INSERT OR REPLACE INTO kill_reputation VALUES (?, ?, ?, ?, NULL, NULL, 'guides')");
+    db.prepare("INSERT INTO source VALUES (?, ?, ?, ?)").run("guides", "data/kill-reputation.json (frozen)", null, "the guides' figures, cited in each entry");
+    const has = db.prepare("SELECT source FROM kill_reputation WHERE creature_id = ? AND faction_id = ?");
+    const add = db.prepare("INSERT INTO kill_reputation VALUES (?, ?, ?, ?, NULL, NULL, 'guides')");
     const cap = db.prepare("UPDATE kill_reputation SET max_standing = ?, source = 'guides' WHERE faction_id = ? AND value > 0");
     let n = 0;
-    for (const a of file.add) for (const c of a.creatures) n += add.run(c, a.faction, a.value, a.max_standing).changes;
+    for (const a of file.add)
+      for (const c of a.creatures) {
+        const there = has.get(c, a.faction) as { source: string } | null;
+        if (there) throw new Error(`kill-reputation.json: ${c} for ${a.faction} is in ${there.source} now: drop the entry, or make it a cap`);
+        n += add.run(c, a.faction, a.value, a.max_standing).changes;
+      }
     for (const c of file.caps) n += cap.run(c.max_standing, c.faction).changes;
     return n;
   });
