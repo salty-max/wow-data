@@ -197,4 +197,29 @@ describe.skipIf(!built)("classic.db", () => {
     // (Fireball, a mage's, taught by trainers: no trade's)
     expect(one("SELECT count(*) AS n FROM recipe_source WHERE spell_id = 133").n).toBe(0);
   });
+
+  // ── reputation (the reputation road) ───────────────────────────────────────
+  test("a quest's standing before it's offered: The Root of All Evil at Exalted, Avast Ye Scallywag at Friendly with the Bloodsail and Hated with Booty Bay", () => {
+    expect(one("SELECT min_value, max_value FROM quest_standing WHERE quest_id = 8481 AND faction_id = 576")).toEqual({ min_value: 42000, max_value: null });
+    expect(all("SELECT faction_id, min_value, max_value FROM quest_standing WHERE quest_id = 1036 ORDER BY faction_id")).toEqual([
+      { faction_id: 21, min_value: null, max_value: -6000 },
+      { faction_id: 87, min_value: 3000, max_value: null },
+    ]);
+    // (the Naxxramas attunement's cheaper copy: from Neutral, no longer at Revered)
+    expect(one("SELECT min_value, max_value FROM quest_standing WHERE quest_id = 9121 AND faction_id = 529")).toEqual({ min_value: 0, max_value: 21000 });
+  });
+  test("the reputation a kill gives: a Deadwood Warrior the Timbermaw's until Honored, High Chief Winterfall until Exalted", () => {
+    expect(one("SELECT value, max_standing FROM kill_reputation WHERE creature_id = 7153 AND faction_id = 576")).toEqual({ value: 5, max_standing: 5 });
+    expect(one("SELECT value, max_standing FROM kill_reputation WHERE creature_id = 10738 AND faction_id = 576")).toEqual({ value: 25, max_standing: 7 });
+  });
+  test("an item's standing: the client's first, the Classic database's where Era's client has none (Lokhtos's plans)", () => {
+    expect(one("SELECT count(*) AS n FROM item_reputation WHERE source = 'client'").n).toBeGreaterThan(300);
+    expect(one("SELECT faction_id, standing, source FROM item_reputation WHERE item_id = 17018")).toEqual({ faction_id: 59, standing: 4, source: "classicdb" });
+  });
+  test("the repeatable turn-ins: Beads for Salfa takes five Winterfall Spirit Beads, Additional Runecloth twenty", () => {
+    expect(one("SELECT faction_id, value, item_id, item_count FROM reputation_turnin WHERE quest_id = 8469")).toEqual({ faction_id: 576, value: 50, item_id: 21383, item_count: 5 });
+    expect(one("SELECT item_id, item_count FROM reputation_turnin WHERE quest_id = 7796")).toEqual({ item_id: 14047, item_count: 20 });
+    // (a one-time donation is no turn-in)
+    expect(one("SELECT count(*) AS n FROM reputation_turnin WHERE quest_id = 7795").n).toBe(0);
+  });
 });

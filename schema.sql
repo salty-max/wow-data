@@ -152,6 +152,18 @@ CREATE TABLE item (
   source          TEXT NOT NULL,  -- client where the client has it, else classicdb
   allowable_class INTEGER         -- the classes that may use it (ChrClasses mask; null: every class)
 );
+-- The standing an item asks before it may be bought or used: the client's
+-- (ItemSparse MinFactionID, MinReputation), the Classic database's for the
+-- items whose client row has none (item_template RequiredReputationFaction,
+-- RequiredReputationRank: Era's client gates no capital's mount, the database
+-- does).
+CREATE TABLE item_reputation (
+  item_id    INTEGER PRIMARY KEY,
+  faction_id INTEGER NOT NULL,
+  standing   INTEGER NOT NULL,  -- 0 Hated, 1 Hostile, 2 Unfriendly, 3 Neutral, 4 Friendly, 5 Honored, 6 Revered, 7 Exalted
+  source     TEXT NOT NULL      -- client, classicdb
+);
+CREATE INDEX item_reputation_faction ON item_reputation (faction_id);
 -- What drops or gives what: a creature's, an object's, an item's (a box), a
 -- fishing area's, skinning's, pickpocketing's.
 CREATE TABLE loot (
@@ -351,6 +363,36 @@ CREATE TABLE quest_reward (
   count    INTEGER,
   source   TEXT NOT NULL
 );
+-- The standing a quest asks before it is offered (Questie's requiredMinRep
+-- and requiredMaxRep, the Classic database's RequiredMinRep and RequiredMaxRep
+-- for the quests Questie lacks): at least min_value, below max_value, in the
+-- reputation's own figures (0 Neutral, 3000 Friendly, 9000 Honored, 21000
+-- Revered, 42000 Exalted, negative below Neutral). Not quest_objective's
+-- kind reputation, which is a standing the quest asks you to reach.
+CREATE TABLE quest_standing (
+  quest_id   INTEGER NOT NULL,
+  faction_id INTEGER NOT NULL,
+  min_value  INTEGER,  -- null: no floor
+  max_value  INTEGER,  -- null: no ceiling (the quest is no longer offered at it)
+  source     TEXT NOT NULL,
+  PRIMARY KEY (quest_id, faction_id)
+);
+CREATE INDEX quest_standing_faction ON quest_standing (faction_id);
+-- The reputation a kill gives (the Classic database's
+-- creature_onkill_reputation: its 1.12 figures, Era's own may differ in
+-- places): a row per creature and faction, up to two a creature (the second
+-- is often its rivals' loss or a town's spillover).
+CREATE TABLE kill_reputation (
+  creature_id  INTEGER NOT NULL,
+  faction_id   INTEGER NOT NULL,
+  value        INTEGER NOT NULL,  -- negative: a loss
+  max_standing INTEGER,  -- the standing it stops counting at (0 Hated .. 7 Exalted, as item_reputation)
+  team_award   INTEGER,  -- 1: the source's IsTeamAward
+  side         TEXT,     -- A, H: the source's TeamDependent, the first faction the Alliance's, the second the Horde's
+  source       TEXT NOT NULL,
+  PRIMARY KEY (creature_id, faction_id)
+);
+CREATE INDEX kill_reputation_faction ON kill_reputation (faction_id);
 
 -- ── what trainers teach ──────────────────────────────────────────────────────
 CREATE TABLE trainer_spell (
@@ -528,6 +570,16 @@ CREATE VIEW quest_en AS
   SELECT q.*, n.name AS title
   FROM quest q
   LEFT JOIN name n ON n.kind = 'quest' AND n.id = q.id AND n.locale = 'enUS';
+-- The repeatable turn-ins: a quest the Classic database flags repeatable, the
+-- items it asks and the reputation each turn-in gives (Beads for Salfa, five
+-- Winterfall Spirit Beads, Timbermaw Hold). Forever's own quests carry no
+-- flag yet (special_flags is the Classic database's), so they're missing.
+CREATE VIEW reputation_turnin AS
+  SELECT DISTINCT q.id AS quest_id, r.ref_id AS faction_id, r.count AS value, o.target_id AS item_id, o.count AS item_count
+  FROM quest q
+  JOIN quest_reward r ON r.quest_id = q.id AND r.kind = 'reputation' AND r.count > 0
+  JOIN quest_objective o ON o.quest_id = q.id AND o.kind = 'item'
+  WHERE q.special_flags & 1 AND (q.removed IS NULL OR q.removed = 0);
 CREATE VIEW item_en AS
   SELECT i.*, n.name AS name
   FROM item i

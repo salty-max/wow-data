@@ -176,6 +176,10 @@ function clientItems(db: Database) {
            CASE WHEN s.AllowableClass > 0 AND (s.AllowableClass & 1503) <> 1503 THEN s.AllowableClass END
     FROM client_ItemSparse s LEFT JOIN client_Item i ON i.ID = s.ID`).changes;
   log(`item (client): ${n}`);
+  // (the standing an item asks: the client's, the Classic database's after)
+  const gated = db.run(`INSERT INTO item_reputation
+    SELECT ID, MinFactionID, MinReputation, 'client' FROM client_ItemSparse WHERE MinFactionID > 0`).changes;
+  log(`item_reputation (client): ${gated}`);
 }
 
 // ── Questie's world ──────────────────────────────────────────────────────────
@@ -287,6 +291,13 @@ function questieWorld(db: Database, q: QuestieData) {
   const relation = db.prepare("INSERT OR IGNORE INTO quest_relation VALUES (?, ?, ?, ?, 'questie')");
   const reward = db.prepare("INSERT INTO quest_reward VALUES (?, 'reputation', ?, ?, 'questie')");
   const prereq = db.prepare("INSERT OR IGNORE INTO quest_prereq VALUES (?, ?, ?, 'questie')");
+  // (the standing it asks before it is offered: a floor, a ceiling, each a
+  // [faction, value], the two merged when they name one faction)
+  const standing = db.prepare(
+    `INSERT INTO quest_standing VALUES (?, ?, ?, ?, 'questie')
+     ON CONFLICT (quest_id, faction_id) DO UPDATE SET min_value = COALESCE(min_value, excluded.min_value),
+       max_value = COALESCE(max_value, excluded.max_value)`,
+  );
   const KINDS = ["creature", "object", "item"];
   run("quest (questie)", () => {
     let n = 0;
@@ -342,6 +353,10 @@ function questieWorld(db: Database, q: QuestieData) {
         const [faction, value] = list(rr) as number[];
         if (typeof faction === "number") reward.run(id, faction, value ?? null);
       }
+      const [minFaction, minValue] = list(r.requiredMinRep) as number[];
+      if (typeof minFaction === "number" && minFaction) standing.run(id, minFaction, minValue ?? null, null);
+      const [maxFaction, maxValue] = list(r.requiredMaxRep) as number[];
+      if (typeof maxFaction === "number" && maxFaction) standing.run(id, maxFaction, null, maxValue ?? null);
       n++;
     }
     return n;
@@ -576,6 +591,7 @@ async function classicDb(db: Database, q: QuestieData) {
     "INSERT OR IGNORE INTO item VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'classicdb', ?)",
   );
   const display = db.prepare("UPDATE item SET display_id = ? WHERE id = ? AND display_id IS NULL");
+  const gate = db.prepare("INSERT OR IGNORE INTO item_reputation VALUES (?, ?, ?, 'classicdb')");
   const classes = db.prepare("UPDATE item SET allowable_class = ? WHERE id = ? AND allowable_class IS NULL");
   // (a mask holding every class is no limit: -1, 32767, 2047 as sources write it;
   // 1503 is the nine classes')
@@ -603,6 +619,8 @@ async function classicDb(db: Database, q: QuestieData) {
       display.run(nz(r.displayid), num(r.entry));
       if (allowed(r)) classes.run(allowed(r), num(r.entry));
       if (r.name) name.run("item", num(r.entry), r.name);
+      if (nz(r.RequiredReputationFaction))
+        gate.run(num(r.entry), num(r.RequiredReputationFaction), num(r.RequiredReputationRank) ?? 0);
     }
     return n;
   });
@@ -618,6 +636,12 @@ async function classicDb(db: Database, q: QuestieData) {
     "UPDATE quest SET type = ?, next_id = ?, special_flags = ?, exclusive_group = ?, src_item_id = COALESCE(src_item_id, ?), skill_line_id = COALESCE(skill_line_id, ?), skill_value = ? WHERE id = ?",
   );
   const exclusive = (r: Row) => ((num(r.ExclusiveGroup) ?? 0) > 0 ? num(r.ExclusiveGroup) : null);
+  // (the standing it asks, for a quest Questie lacks: Questie's own are its)
+  const standing = db.prepare(
+    `INSERT INTO quest_standing VALUES (?, ?, ?, ?, 'classicdb')
+     ON CONFLICT (quest_id, faction_id) DO UPDATE SET min_value = COALESCE(min_value, excluded.min_value),
+       max_value = COALESCE(max_value, excluded.max_value)`,
+  );
   // (Questie's objectives carry no count: the database's, where it asks the same thing)
   const objectiveCount = db.prepare(
     "UPDATE quest_objective SET count = ? WHERE quest_id = ? AND kind = ? AND target_id = ? AND source = 'questie' AND count IS NULL",
@@ -716,8 +740,35 @@ async function classicDb(db: Database, q: QuestieData) {
           insertReward.run(id, "reputation", num(r[`RewRepFaction${i}`]), num(r[`RewRepValue${i}`]));
       if (nz(r.RewSpell)) insertReward.run(id, "spell", num(r.RewSpell), null);
       if (nz(r.RewSpellCast)) insertReward.run(id, "cast", num(r.RewSpellCast), null);
+      if (nz(r.RequiredMinRepFaction)) standing.run(id, num(r.RequiredMinRepFaction), num(r.RequiredMinRepValue), null);
+      if (nz(r.RequiredMaxRepFaction)) standing.run(id, num(r.RequiredMaxRepFaction), null, num(r.RequiredMaxRepValue));
     }
     return quests.length;
+  });
+
+  // the reputation kills give, up to two factions a creature, each with the
+  // standing it stops counting at; TeamDependent: the first the Alliance's,
+  // the second the Horde's
+  const kill = db.prepare("INSERT OR IGNORE INTO kill_reputation VALUES (?, ?, ?, ?, ?, ?, 'classicdb')");
+  run("kill_reputation", () => {
+    let n = 0;
+    for (const r of rows(sql, "creature_onkill_reputation")) {
+      const team = num(r.TeamDependent) === 1;
+      for (const i of [1, 2]) {
+        const faction = num(r[`RewOnKillRepFaction${i}`]) ?? 0;
+        const value = num(r[`RewOnKillRepValue${i}`]) ?? 0;
+        if (faction <= 0 || value === 0) continue;
+        n += kill.run(
+          num(r.creature_id),
+          faction,
+          value,
+          num(r[`MaxStanding${i}`]),
+          num(r[`IsTeamAward${i}`]) ? 1 : null,
+          team ? (i === 1 ? "A" : "H") : null,
+        ).changes;
+      }
+    }
+    return n;
   });
   const insertRelation = db.prepare("INSERT INTO quest_relation VALUES (?, ?, ?, ?, 'classicdb')");
   for (const [table, role, kind] of [

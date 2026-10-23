@@ -118,6 +118,31 @@ before the others know it.
   vendor left out, no drop odds): Forever's own recipes, most of which no
   source knows before launch (players' facts will).
 
+## Reputation
+
+- Reputation (the reputation road's ground, 23 October 2026,
+  `ideas/reputation-road.md` §6): what a quest gives is `quest_reward` kind
+  `reputation`, Questie's figures (the Classic database's for a quest
+  Questie lacks). The two disagree on most quests they share (250 against
+  100, 350 against 150): neither is checked against Era's game yet, the
+  players' facts will settle it. `quest_standing` is the standing a quest
+  asks before it's offered (Questie's requiredMinRep and requiredMaxRep, the
+  Classic database's RequiredMinRep and RequiredMaxRep for its own quests),
+  apart from `quest_objective` kind `reputation`, a standing the quest asks
+  you to reach. `item_reputation` is the standing an item asks: the
+  client's ItemSparse first, the Classic database's item_template for the
+  rest (Era's client gates no capital's goods). `kill_reputation` is the
+  Classic database's creature_onkill_reputation (its 1.12 figures): up to
+  two factions a creature, the standing a kill stops counting at, the side
+  where the source makes it the Alliance's or the Horde's. Forever has no
+  source of its own for kills: the old factions' figures are Classic's (an
+  inference), its new factions' come with the players' facts.
+  `reputation_turnin` joins a repeatable quest's items to its reputation:
+  the repeatable flag is the Classic database's, so Forever's own quests
+  (the Craftsman's Writs) aren't in it. Questie's own flag (917 of
+  Forever's quests) is left out on purpose: filling `special_flags` with it
+  would change what Hearthtale's scripts read.
+
 ## Reviewed scenery (landmarks)
 
 - Reviewed scenery positions: `data/landmarks.json`, imported by
