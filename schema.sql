@@ -386,7 +386,7 @@ CREATE TABLE kill_reputation (
   creature_id  INTEGER NOT NULL,
   faction_id   INTEGER NOT NULL,
   value        INTEGER NOT NULL,  -- negative: a loss
-  max_standing INTEGER,  -- the standing it stops counting at (0 Hated .. 7 Exalted, as item_reputation)
+  max_standing INTEGER,  -- the last standing it still counts at (0 Hated .. 7 Exalted, as item_reputation): it counts while yours is at most this
   team_award   INTEGER,  -- 1: the source's IsTeamAward
   side         TEXT,     -- A, H: the source's TeamDependent, the first faction the Alliance's, the second the Horde's
   source       TEXT NOT NULL,
@@ -572,8 +572,10 @@ CREATE VIEW quest_en AS
   LEFT JOIN name n ON n.kind = 'quest' AND n.id = q.id AND n.locale = 'enUS';
 -- The repeatable turn-ins: a quest the Classic database flags repeatable, the
 -- items it asks and the reputation each turn-in gives (Beads for Salfa, five
--- Winterfall Spirit Beads, Timbermaw Hold). Forever's own quests carry no
--- flag yet (special_flags is the Classic database's), so they're missing.
+-- Winterfall Spirit Beads, Timbermaw Hold). A row per item and faction: a
+-- turn-in asking two items for two factions is four rows, so group by quest
+-- before summing value. Forever's own quests carry no flag yet (special_flags
+-- is the Classic database's), so they're missing.
 CREATE VIEW reputation_turnin AS
   SELECT DISTINCT q.id AS quest_id, r.ref_id AS faction_id, r.count AS value, o.target_id AS item_id, o.count AS item_count
   FROM quest q

@@ -747,7 +747,7 @@ async function classicDb(db: Database, q: QuestieData) {
   });
 
   // the reputation kills give, up to two factions a creature, each with the
-  // standing it stops counting at; TeamDependent: the first the Alliance's,
+  // last standing it still counts at; TeamDependent: the first the Alliance's,
   // the second the Horde's
   const kill = db.prepare("INSERT OR IGNORE INTO kill_reputation VALUES (?, ?, ?, ?, ?, ?, 'classicdb')");
   run("kill_reputation", () => {

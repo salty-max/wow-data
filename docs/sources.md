@@ -133,7 +133,8 @@ before the others know it.
   client's ItemSparse first, the Classic database's item_template for the
   rest (Era's client gates no capital's goods). `kill_reputation` is the
   Classic database's creature_onkill_reputation (its 1.12 figures): up to
-  two factions a creature, the standing a kill stops counting at, the side
+  two factions a creature, the last standing a kill still counts at (the
+  Brood of Nozdormu's Ahn'Qiraj trash: Hated, so until Hostile), the side
   where the source makes it the Alliance's or the Horde's. Forever has no
   source of its own for kills: the old factions' figures are Classic's (an
   inference), its new factions' come with the players' facts.
