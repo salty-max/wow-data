@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ROOT } from "../src/pins";
-import { gameText, type PlayerFact, pick, players } from "../src/players";
+import { gameText, type PlayerFact, pick, players, resolveMarks } from "../src/players";
 
 // A database with the schema, a creature type's names and what other sources had.
 function world() {
@@ -27,6 +27,22 @@ const fact = (locale: string, kind: string, entity: string, field: string, value
 ];
 
 describe("players' facts", () => {
+  test("a class or race word marked: the token where it varies or names nothing, the word inside a name", () => {
+    const names: Record<string, string[]> = { "enUS|Hunter": ["Hunter's Hill"], "enUS|Night Elf": [] };
+    const known = (locale: string, word: string) => names[`${locale}|${word}`] ?? [];
+    const one = (v: string, seen = 1) => fact("enUS", "quest", "9", "details", v, "1", seen);
+    // one player: the word inside a known name stays, the address is the token
+    expect(resolveMarks([one("Greetings, $C{Hunter}. Go to $C{Hunter}'s Hill.")], known)[0][4]).toBe("Greetings, $C. Go to Hunter's Hill.");
+    // two players of other classes: what differs was the token; the same values merged, their counts together
+    const two = resolveMarks([one("Well met, $c{hunter}.", 2), one("Well met, $c{mage}.", 3)], known);
+    expect(two.map((f) => [f[4], f[6]])).toEqual([["Well met, $c.", 5]]);
+    // a race word the database names nothing with: the token; a creature's name never one
+    expect(resolveMarks([one("The $R{Night Elf} sentinels watch.")], known)[0][4]).toBe("The $R sentinels watch.");
+    expect(resolveMarks([fact("enUS", "npc", "7", "name", "$R{Night Elf} Sentinel")], known)[0][4]).toBe("Night Elf Sentinel");
+    // no marks: as it was
+    expect(resolveMarks([one("Plain $N text.")], known)[0][4]).toBe("Plain $N text.");
+  });
+
   test("the value most players saw, then the newest build's", () => {
     expect(pick([fact("enUS", "quest", "1", "details", "a", "1", 1), fact("enUS", "quest", "1", "details", "b", "1", 3)])[4]).toBe("b");
     expect(pick([fact("enUS", "quest", "1", "details", "a", "70003", 2), fact("enUS", "quest", "1", "details", "b", "70290", 2)])[4]).toBe("b");

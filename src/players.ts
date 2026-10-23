@@ -32,6 +32,83 @@ const QUEST_TEXTS = new Set(["details", "objectives", "request", "reward"]);
 /** The game's line breaks as the other sources write them ($B). */
 export const gameText = (s: string) => s.replace(/\r?\n/g, "$B");
 
+// The kit's collector marks a word that is the sharer's own class or race,
+// where the game may have written its token: $C{Hunter}, $c{hunter}, $R{Night
+// Elf}, $r{night elf}. Where players of other classes or races saw the same
+// text, a marked word that differs among them was the token. One that never
+// differs, or that one player alone saw, stays as written where it is part
+// of a name the game knows in that language (Hunter's Hill, the Mage
+// Quarter), else it was the token. Names are never tokens.
+const MARK = /\$([CcRr])\{([^{}]*)\}/g;
+const TOKEN_KINDS = new Set(["quest", "say", "gossip"]);
+
+/** Every fact with its marks resolved: the game's tokens or the words as written, the same values merged. */
+export function resolveMarks(facts: PlayerFact[], known: (locale: string, word: string) => string[]): PlayerFact[] {
+  const marked = (f: PlayerFact) => f[4].search(/\$[CcRr]\{[^{}]*\}/) >= 0;
+  const byText = new Map<string, PlayerFact[]>();
+  const out: PlayerFact[] = [];
+  for (const f of facts) {
+    if (!marked(f)) {
+      out.push(f);
+      continue;
+    }
+    if (!TOKEN_KINDS.has(f[1])) {
+      out.push([f[0], f[1], f[2], f[3], f[4].replace(MARK, "$2"), f[5], f[6]]);
+      continue;
+    }
+    // (the same text with the marks' words left out: what players of other classes saw alike)
+    const key = `${f[0]}|${f[1]}|${f[2]}|${f[3]}|${f[4].replace(MARK, "\u0000$1")}`;
+    byText.set(key, [...(byText.get(key) ?? []), f]);
+  }
+  for (const group of byText.values()) {
+    const words = group.map((f) => [...f[4].matchAll(MARK)].map((m) => m[2]));
+    const varies = words[0].map((_, i) => new Set(words.map((w) => w[i])).size > 1);
+    const resolved = new Map<string, PlayerFact>();
+    for (const f of group) {
+      // (the text as written, and where each marked word lands in it)
+      const marks = [...f[4].matchAll(MARK)];
+      let restored = "", last = 0;
+      const at: number[] = [];
+      for (const m of marks) {
+        restored += f[4].slice(last, m.index);
+        at.push(restored.length);
+        restored += m[2];
+        last = m.index! + m[0].length;
+      }
+      restored += f[4].slice(last);
+      const inName = (i: number) =>
+        known(f[0], marks[i][2]).some((name) => {
+          for (let p = restored.indexOf(name); p >= 0; p = restored.indexOf(name, p + 1))
+            if (p <= at[i] && at[i] + marks[i][2].length <= p + name.length) return true;
+          return false;
+        });
+      let value = "";
+      last = 0;
+      marks.forEach((m, i) => {
+        value += f[4].slice(last, m.index) + (!varies[i] && inName(i) ? m[2] : `$${m[1]}`);
+        last = m.index! + m[0].length;
+      });
+      value += f[4].slice(last);
+      const had = resolved.get(value);
+      if (had) resolved.set(value, [had[0], had[1], had[2], had[3], value, Number(f[5] ?? 0) > Number(had[5] ?? 0) ? f[5] : had[5], had[6] + f[6]]);
+      else resolved.set(value, [f[0], f[1], f[2], f[3], value, f[5], f[6]]);
+    }
+    out.push(...resolved.values());
+  }
+  return out;
+}
+
+/** The names the database knows in a language that hold a word (Hunter's Hill holds Hunter), asked once each. */
+export function namesHolding(db: Database): (locale: string, word: string) => string[] {
+  const seen = new Map<string, string[]>();
+  const query = db.prepare("SELECT DISTINCT name FROM name WHERE locale = ? AND instr(name, ?) > 0 AND name <> ?");
+  return (locale, word) => {
+    const key = `${locale}|${word}`;
+    if (!seen.has(key)) seen.set(key, (query.all(locale, word, word) as { name: string }[]).map((r) => r.name));
+    return seen.get(key)!;
+  };
+}
+
 /** Of several values for one fact, the one most players saw, then the newest build's. */
 export function pick(facts: PlayerFact[]): PlayerFact {
   return facts.reduce((best, f) => {
@@ -65,7 +142,7 @@ export function loadPlayers(db: Database, game: Game) {
 
 /** Players' facts into the database, where no other source has them. */
 export function players(db: Database, all: PlayerFact[]): Record<string, number> {
-  const facts = all.filter((f) => f[6] >= MIN_SEEN);
+  const facts = resolveMarks(all, namesHolding(db)).filter((f) => f[6] >= MIN_SEEN);
   const told: Record<string, number> = {};
   const count = (what: string, n: number) => {
     if (n) told[what] = (told[what] ?? 0) + n;

@@ -9,7 +9,14 @@ Three sources (the user's call, 14 October 2026: fewer sources, fewer
 errors, less dependence): the client, Questie, the Classic database. Wowhead
 is frozen data, not a source a build or a job asks. Players' facts (15
 October 2026) fill what none of them has, first of all Forever's new content
-before the others know it.
+before the others know it. Their texts keep the sharer's name as `$N`; a
+word that is the sharer's class or race comes marked (`$C{Hunter}`,
+`$c{hunter}`, `$R{Night Elf}`, the kit's collector since 24 October 2026)
+and `resolveMarks` (`src/players.ts`) decides: where players of other
+classes or races saw the same text, a word that differs was the game's
+token; one that doesn't, or one player alone saw, stays as written inside a
+name the database knows in that language (Hunter's Hill, the Mage Quarter),
+else it was the token. Names are never tokens.
 
 ## Wowhead, frozen
 
