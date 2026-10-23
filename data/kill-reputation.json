@@ -1,0 +1,21 @@
+{
+  "about": "Kill reputation the Classic database (cmangos 1.12) lacks or gets wrong for Classic Era, by hand, each entry with its source (the user's call, 23 October 2026). Loaded after creature_onkill_reputation, both games: an add is a row of its own (source guides), a cap rewrites the last standing a faction's kills still count at. max_standing as kill_reputation's: 0 Hated .. 7 Exalted, counted while yours is at most this.",
+  "add": [
+    {
+      "faction": 349,
+      "creatures": [2240, 2241, 2242, 2243, 2244, 2245, 2246, 2247, 2260, 2261, 2319, 2586, 2587, 2588, 2589, 2590, 2591, 2597, 2599, 14221, 14281],
+      "value": 5,
+      "max_standing": 3,
+      "why": "The Syndicate's humanoids (faction template 87, Alterac, Hillsbrad and Arathi) raise Ravenholdt, 1 to 5 a kill by the character's level (5 the most), from Neutral to Friendly. Past Friendly only the junkbox turn-in counts. The cmangos dump has no row for any of them.",
+      "source": "the Classic Ravenholdt reference and guides (classicdb.ch faction 349, warcraft.wiki.gg Syndicate talk page), read 23 October 2026; unverified in game"
+    }
+  ],
+  "caps": [
+    {
+      "faction": 87,
+      "max_standing": 3,
+      "why": "Killing Booty Bay's people raises the Bloodsail Buccaneers to Friendly and no further: by normal means the climb ends at Friendly (the admiral's hat). cmangos lets the kills count through Honored.",
+      "source": "the Warcraft Tavern Bloodsail Buccaneers reputation guide, read 23 October 2026; unverified in game"
+    }
+  ]
+}

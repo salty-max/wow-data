@@ -770,6 +770,19 @@ async function classicDb(db: Database, q: QuestieData) {
     }
     return n;
   });
+  // what the Classic database lacks or gets wrong, by hand (data/kill-reputation.json)
+  run("kill_reputation guides", () => {
+    const file: {
+      add: { faction: number; creatures: number[]; value: number; max_standing: number }[];
+      caps: { faction: number; max_standing: number }[];
+    } = JSON.parse(readFileSync(path.join(ROOT, "data", "kill-reputation.json"), "utf8"));
+    const add = db.prepare("INSERT OR REPLACE INTO kill_reputation VALUES (?, ?, ?, ?, NULL, NULL, 'guides')");
+    const cap = db.prepare("UPDATE kill_reputation SET max_standing = ?, source = 'guides' WHERE faction_id = ? AND value > 0");
+    let n = 0;
+    for (const a of file.add) for (const c of a.creatures) n += add.run(c, a.faction, a.value, a.max_standing).changes;
+    for (const c of file.caps) n += cap.run(c.max_standing, c.faction).changes;
+    return n;
+  });
   const insertRelation = db.prepare("INSERT INTO quest_relation VALUES (?, ?, ?, ?, 'classicdb')");
   for (const [table, role, kind] of [
     ["creature_questrelation", "start", "creature"],

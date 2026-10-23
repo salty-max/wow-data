@@ -146,6 +146,14 @@ before the others know it.
 
 ## Reviewed scenery (landmarks)
 
+- Kill reputation by hand: `data/kill-reputation.json` (the user's call, 23
+  October 2026), loaded after the Classic database's
+  `creature_onkill_reputation`, in both games, each entry with its why and
+  its source (`source` guides). `add`: rows the dump lacks (the Syndicate's
+  humanoids raising Ravenholdt, 5 a kill at most, to Friendly). `caps`: the
+  last standing a faction's kills count at where Era's guides disagree with
+  the dump (the Bloodsail stop at Friendly). Unverified in game: a test
+  there moves an entry or removes it.
 - Reviewed scenery positions: `data/landmarks.json`, imported by
   `src/landmarks.ts` into `landmark`, with an owning map, observation date
   and evidence. Source `owner-report` is explicit human review, not an
