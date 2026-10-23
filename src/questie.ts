@@ -4,7 +4,7 @@
 // checkout at the pin); nothing of its layering is interpreted here.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { CACHE, cached } from "./cache";
 import { type Game, REPOS, ROOT } from "./pins";
@@ -49,27 +49,36 @@ async function checkout(): Promise<string> {
   const dir = path.join(CACHE, "github", r.repo, `${r.commit.slice(0, 12)}-full`);
   if (existsSync(path.join(dir, "generator", "flavor.lua"))) return dir;
   const archive = await cached(`https://codeload.github.com/${r.repo}/tar.gz/${r.commit}`, `github/${r.repo}/${r.commit.slice(0, 12)}.tar.gz`);
-  mkdirSync(dir, { recursive: true });
-  const run = spawnSync("tar", ["-xzf", archive, "-C", dir, "--strip-components", "1"], { stdio: "inherit" });
+  // (unpacked beside it and moved in whole: an unpacking cut short is never the checkout)
+  const part = `${dir}.part`;
+  rmSync(part, { recursive: true, force: true });
+  mkdirSync(part, { recursive: true });
+  const run = spawnSync("tar", ["-xzf", archive, "-C", part, "--strip-components", "1"], { stdio: "inherit" });
   if (run.status !== 0) throw new Error("QuestieDB's archive didn't unpack");
+  rmSync(dir, { recursive: true, force: true });
+  renameSync(part, dir);
   return dir;
 }
 
-// a game's data from Questie (cached as JSON by the pin)
+// a game's data from Questie (cached as JSON by the pin and by the exporter:
+// an edit to questie-export.lua exports anew)
 export async function questie(game: Game): Promise<QuestieData> {
   const r = REPOS.questie;
-  const out = path.join(CACHE, "questie", `${game}-${r.commit.slice(0, 12)}.json`);
+  const exporter = path.join(ROOT, "bin", "questie-export.lua");
+  const version = createHash("sha256").update(readFileSync(exporter)).digest("hex").slice(0, 8);
+  const out = path.join(CACHE, "questie", `${game}-${r.commit.slice(0, 12)}-${version}.json`);
   if (!existsSync(out)) {
     const dir = await checkout();
     const lua = await lua51(dir);
     const flavor = game === "classic" ? "Vanilla" : "Forever";
-    const run = spawnSync(lua, [path.join(ROOT, "bin", "questie-export.lua"), flavor, QUESTIE_LOCALES.join(",")], {
+    const run = spawnSync(lua, [exporter, flavor, QUESTIE_LOCALES.join(",")], {
       cwd: dir,
       maxBuffer: 1 << 30,
     });
     if (run.status !== 0) throw new Error(`questie-export.lua ${flavor}: ${run.stderr}`);
     mkdirSync(path.dirname(out), { recursive: true });
-    writeFileSync(out, run.stdout);
+    writeFileSync(`${out}.part`, run.stdout);
+    renameSync(`${out}.part`, out);
   }
   return JSON.parse(readFileSync(out, "utf8"));
 }

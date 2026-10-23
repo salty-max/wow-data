@@ -62,9 +62,22 @@ comes from, and the rules for them: `docs/sources.md`.
   addon jobs, including recovery builds after test-only fixes. `bin/get.ts`
   downloads them (`--tag`: one exact release, `--wait SECONDS`: wait for both
   uploads). Addon jobs wait up to ten minutes for a build still publishing.
+  A release a cancelled run left half uploaded is finished by the next run
+  (its assets uploaded again, marked latest), never made a second time.
+- A build stops rather than publish less than it should: a client table
+  wago.tools doesn't have (its 400, or a 404) is the one absence, every
+  other failed download stops it (`absent`, `src/cache.ts`; a 429 is tried
+  again after its Retry-After, `src/fetch.ts`); a language holding fewer
+  than 95% of English's names for a kind stops it (`nameFloor`: 99.9% at
+  least on 23 October 2026); a frozen file one of the games reads, missing,
+  stops it (`frozenFile`). The cache keeps nothing half written: a download, an
+  unpacked archive or Questie's export lands beside its path and is moved in
+  whole, and an empty body or a web page where a table or JSON was asked is
+  refused. Questie's export is keyed by the exporter's own hash too.
 - `.github/workflows/addon-data.yml`: an addon's game data built again,
   called by each addon's daily `game-data.yml` (Hearthtale, the Codex,
-  Yonder, Second Wind) with its own generators (`generate`), the files a
+  Yonder, Second Wind, Palaver, Mealbook, Goodwill, Yours Truly; one run at
+  a time in each, no husky hooks) with its own generators (`generate`), the files a
   pull request carries (`paths`), its checks (`check`), Hearthtale's
   journals compared (`before`, `report`), addon-kit beside it (`kit`): the
   databases of the wow-data checked out downloaded, a pull request only when

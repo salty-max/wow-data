@@ -10,6 +10,7 @@ import { Database } from "bun:sqlite";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
+import { absent } from "./cache";
 import { classicDump } from "./github";
 import { type Game, PINS, ROOT } from "./pins";
 import { loadPlayers, playerFacts } from "./players";
@@ -109,6 +110,8 @@ async function clientTables(db: Database, game: Game) {
     try {
       data = await wago(game, table);
     } catch (e) {
+      // (only wago.tools' "no such table" is an absence: a failed download stops the build)
+      if (!absent(e)) throw e;
       log(`client_${table}: not in ${game} (${(e as Error).message})`);
       continue;
     }
@@ -148,24 +151,52 @@ async function clientNames(db: Database, game: Game) {
   const insert = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, ?, 'client')");
   for (const n of NAMED) {
     let count = 0;
+    const per: Record<string, number> = {};
     for (const locale of ["enUS", ...LOCALES]) {
       let data: Record<string, string>[];
       try {
         data = await wago(game, n.table, locale);
-      } catch {
-        continue;
+      } catch (e) {
+        if (!absent(e)) throw e;
+        if (locale === "enUS") break; // (the table isn't in this game)
+        continue; // (the floor below says it)
       }
+      per[locale] = 0;
       db.transaction(() => {
         for (const r of data) {
           const name = r[n.name];
           if (!r.ID || !name) continue;
           const female = n.female && r[n.female] && r[n.female] !== name ? r[n.female] : null;
-          count += insert.run(n.kind, Number(r.ID), locale, name, female).changes;
+          const added = insert.run(n.kind, Number(r.ID), locale, name, female).changes;
+          count += added;
+          per[locale] += added;
         }
       })();
     }
     log(`names ${n.kind}: ${count}`);
+    nameFloor(n.kind, game, per);
   }
+}
+
+// Every language of a client table holds as many names as English, give or
+// take (99.9% at least on 23 October 2026, every kind, both games): one well
+// short is a download that went wrong, and its names would leave every addon.
+export function nameFloor(kind: string, game: Game, per: Record<string, number>, floor = 0.95) {
+  const english = per.enUS;
+  if (!english) return;
+  const short = LOCALES.filter((l) => (per[l] ?? 0) < english * floor);
+  if (short.length)
+    throw new Error(
+      `names ${kind} in ${game}: ${short.map((l) => `${l} ${per[l] ?? "missing"}`).join(", ")} against enUS ${english}`,
+    );
+}
+
+// A frozen file one of the games is meant to have: missing there, the build
+// stops rather than drop its facts without a word.
+function frozenFile(file: string, game: Game, games: Game[]): boolean {
+  if (existsSync(file)) return true;
+  if (games.includes(game)) throw new Error(`${path.relative(ROOT, file)} is missing: ${game}'s build reads it`);
+  return false;
 }
 
 // ── the client's items (its rows win) ───────────────────────────────────────
@@ -1091,7 +1122,7 @@ async function classicDb(db: Database, q: QuestieData) {
 // names no such item
 function tbcItems(db: Database) {
   const file = path.join(ROOT, "data", "tbc", "items.json");
-  if (!existsSync(file)) return;
+  if (!frozenFile(file, "classic", ["classic"])) return;
   const frozen = JSON.parse(readFileSync(file, "utf8")) as { product: string; build: string; items: Record<string, Record<string, string>> };
   db.prepare("INSERT INTO source VALUES (?, ?, ?, ?)").run("tbc", `${frozen.product} ${frozen.build} (frozen: data/tbc/items.json)`, "https://wago.tools", "Blizzard's");
   const insert = db.prepare("INSERT OR IGNORE INTO name VALUES ('item', ?, ?, ?, NULL, 'tbc')");
@@ -1110,7 +1141,7 @@ type Shown = [kind: string, id: number, locale: string];
 function wowheadNames(db: Database, game: Game): Shown[] {
   const later: Shown[] = [];
   const dir = path.join(ROOT, "data", "wowhead", game);
-  if (!existsSync(dir)) return later;
+  if (!frozenFile(dir, game, ["classic", "forever"])) return later;
   const insert = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'wowhead')");
   const shownInEnglish = db.prepare("INSERT OR IGNORE INTO name VALUES (?, ?, ?, ?, NULL, 'english')");
   // The game's own names (Wowhead mines them from each client), which win over
@@ -1180,7 +1211,7 @@ function shownInEnglishLater(db: Database, later: Shown[]) {
 // (Rare)"). Questie's own ranks are never changed.
 function wowheadRanks(db: Database, game: Game) {
   const file = path.join(ROOT, "data", "wowhead", game, "ranks.json");
-  if (!existsSync(file)) return;
+  if (!frozenFile(file, game, ["forever"])) return;
   const ranks = JSON.parse(readFileSync(file, "utf8")) as Record<string, number>;
   const set = db.prepare("UPDATE creature SET rank = ? WHERE id = ? AND rank IS NULL");
   let n = 0;
@@ -1197,7 +1228,7 @@ function wowheadRanks(db: Database, game: Game) {
 // Wowhead's order.
 function wowheadPoints(db: Database, game: Game) {
   const file = path.join(ROOT, "data", "wowhead", game, "points.json");
-  if (!existsSync(file)) return;
+  if (!frozenFile(file, game, ["classic", "forever"])) return;
   const points = JSON.parse(readFileSync(file, "utf8")) as Record<string, Record<string, Record<string, [number, number][]>>>;
   const insert = db.prepare("INSERT INTO spawn VALUES (?, NULL, ?, NULL, NULL, NULL, NULL, ?, NULL, ?, ?, 'wowhead', NULL, NULL)");
   let n = 0;
@@ -1222,7 +1253,7 @@ const ATT_COMMIT = "a21caf2a7ec636785505a7f4e7e4311d16ce28af";
 // of the Mines"), frozen as its rewards.
 function attPrereqs(db: Database, game: Game) {
   const file = path.join(ROOT, "data", "allthethings", game, "prereqs.json");
-  if (!existsSync(file)) return;
+  if (!frozenFile(file, game, ["forever"])) return;
   const prereqs = JSON.parse(readFileSync(file, "utf8")) as Record<string, number[]>;
   const has = db.prepare("SELECT 1 FROM quest_prereq WHERE quest_id = ? LIMIT 1");
   const known = db.prepare("SELECT prev_id FROM quest WHERE id = ?");
@@ -1241,7 +1272,7 @@ function attPrereqs(db: Database, game: Game) {
 
 function attRewards(db: Database, game: Game) {
   const file = path.join(ROOT, "data", "allthethings", game, "rewards.json");
-  if (!existsSync(file)) return;
+  if (!frozenFile(file, game, ["forever"])) return;
   const rewards = JSON.parse(readFileSync(file, "utf8")) as Record<string, number[]>;
   const has = db.prepare("SELECT 1 FROM quest_reward WHERE quest_id = ? AND kind IN ('item', 'choice') LIMIT 1");
   const known = db.prepare("SELECT 1 FROM quest WHERE id = ?");
@@ -1270,7 +1301,7 @@ function attRewards(db: Database, game: Game) {
 // (<texte illisible>, <unleserlicher Text>), kept.
 function wowheadBooks(db: Database, game: Game) {
   const dir = path.join(ROOT, "data", "wowhead", game);
-  if (!existsSync(dir)) return;
+  if (!frozenFile(path.join(dir, "books-enUS.json"), game, ["forever"])) return;
   const readable = db.prepare("INSERT OR IGNORE INTO readable VALUES (?, ?, NULL, NULL, 'wowhead')");
   const page = db.prepare("INSERT OR IGNORE INTO readable_page VALUES (?, ?, ?, ?, ?, 'wowhead')");
   for (const f of readdirSync(dir).filter((f) => /^books-[a-z]{2}[A-Z]{2}\.json$/.test(f))) {

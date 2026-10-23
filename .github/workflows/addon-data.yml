@@ -1,6 +1,6 @@
 # An addon's game data built again from wow-data's pins: each addon's daily
 # job (.github/workflows/game-data.yml in hearthtale, lorekeepers-codex,
-# yonder, second-wind) calls this. wow-data checked out beside the addon (and
+# yonder, second-wind, palaver, mealbook, goodwill, yours-truly) calls this. wow-data checked out beside the addon (and
 # addon-kit, for its glossary.py and subzones.py), the databases built from
 # that wow-data downloaded (bin/get.ts: the release of the last commit that
 # changed them, which must be published), the addon's own generators run.
@@ -56,8 +56,14 @@ on:
 jobs:
   data:
     runs-on: ubuntu-latest
+    # (one day's run at a time in each addon: two would push the same branch)
+    concurrency:
+      group: addon-data-${{ github.repository }}
+      cancel-in-progress: false
     env:
       REPO: ${{ github.event.repository.name }}
+      # (no husky hooks in the job: its commit is the generators', checked above it)
+      HUSKY: "0"
       INBOX_URL: ${{ vars.INBOX_URL }}
       INBOX_EVENTS_TOKEN: ${{ secrets.INBOX_EVENTS_TOKEN }}
     defaults:

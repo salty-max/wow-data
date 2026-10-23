@@ -48,9 +48,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag=$(bun bin/db-tag.ts)
-          if gh release view "$tag" --json assets --jq '.assets[].name' > "$RUNNER_TEMP/assets.txt" 2>/dev/null &&
-            grep -qx 'classic.db.gz' "$RUNNER_TEMP/assets.txt" && grep -qx 'forever.db.gz' "$RUNNER_TEMP/assets.txt"; then
-            echo "$tag is already published."
+          if gh release view "$tag" --json assets --jq '.assets[].name' > "$RUNNER_TEMP/assets.txt" 2>/dev/null; then
+            if grep -qx 'classic.db.gz' "$RUNNER_TEMP/assets.txt" && grep -qx 'forever.db.gz' "$RUNNER_TEMP/assets.txt"; then
+              echo "$tag is already published."
+              exit 0
+            fi
+            # (a run cancelled while uploading left the release half there: finished, not made again)
+            gzip -k -9 .cache/db/classic.db .cache/db/forever.db
+            gh release upload "$tag" .cache/db/classic.db.gz .cache/db/forever.db.gz --clobber
+            gh release edit "$tag" --latest
             exit 0
           fi
           gzip -k -9 .cache/db/classic.db .cache/db/forever.db
