@@ -1216,6 +1216,29 @@ function shownInEnglishLater(db: Database, later: Shown[]) {
   log(`names the client shows in English, named in English later: ${n} of ${later.length}`);
 }
 
+// ── a language's sibling (esMX takes esES's name where it has none) ───────────
+// Latin American Spanish is Spain's, bar a few names: where esMX has no name
+// of a thing (no row, or only the English its client shows) and esES has one,
+// esMX takes esES's, of the source `esES`, so an addon names it like any
+// real name and a real esMX name, once a source gives it, wins on the next
+// build (the user's call, 26 October 2026). The other languages have no
+// sibling: German, French, Russian and the rest stay as their sources leave
+// them (docs/sources.md).
+const SIBLINGS: [locale: string, from: string][] = [["esMX", "esES"]];
+function siblingNames(db: Database) {
+  db.prepare("INSERT INTO source VALUES (?, ?, ?, ?)").run("esES", "the esES name, where esMX has none", "https://wago.tools", "Blizzard's (Spain's Spanish, where Latin America's has no name)");
+  for (const [locale, from] of SIBLINGS) {
+    // (the English an esMX row holds is no name: replaced; only a real name is lent)
+    const gone = db.prepare("DELETE FROM name WHERE locale = ? AND source = 'english' AND EXISTS (SELECT 1 FROM name f WHERE f.kind = name.kind AND f.id = name.id AND f.locale = ? AND f.source <> 'english')").run(locale, from).changes;
+    const lent = db
+      .prepare(
+        `INSERT OR IGNORE INTO name SELECT kind, id, ?, name, female, 'esES' FROM name f WHERE locale = ? AND source <> 'english'`,
+      )
+      .run(locale, from).changes;
+    log(`names ${locale} from ${from}: ${lent} (${gone} of them the English it showed)`);
+  }
+}
+
 // ── Wowhead's ranks (data/wowhead/<game>/ranks.json) ──────────────────────
 // A creature's rank where Questie gives none (Forever's own: its traces
 // don't tell a rare from the rest), from the frozen tooltips ("Niveau 10 Bête
@@ -1796,6 +1819,7 @@ export async function build(game: Game, file: string) {
   if (game === "forever") await seasonOfDiscovery(db, game);
   unknownLoot(db);
   chains(db);
+  siblingNames(db);
   db.exec("ANALYZE");
   db.close();
 }

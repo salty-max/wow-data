@@ -40,6 +40,19 @@ else it was the token. Names are never tokens.
   language's name (the English one, of the source `english`: no
   translation, which a glossary leaves out), so every language names what
   its client shows.
+  Names fall back to a sibling language, at the build's last step
+  (`siblingNames`, the user's call, 26 October 2026: names are held once,
+  here, never in an addon): Latin American Spanish takes Spain's. Where
+  esMX has no name of a thing (no row, or only the English its client
+  shows, the source `english`) and esES has one, esMX takes esES's, of the
+  source `esES`: an addon takes it like any real name (the glossaries, card
+  and scripts count it a name), and a real esMX name, once a source gives
+  it, wins on the next build (Forever's Elaadrin Evengale and Ayessa
+  Dawnsinger, some 4,700 rows across the two games). No other language does: German, French,
+  Russian, Portuguese, Korean and Chinese have no sibling to lend (a gap
+  stays the English its client shows, `english`), Italian has no client
+  (English copies), and a lent name is never lent twice (esES's own gaps
+  stay gaps). enGB reads enUS in the addons themselves.
   `pages-<locale>.json`: Wowhead's pages of Forever, every quest (texts in
   English, German, French and Spanish; in English its info box's level,
   zone, giver and ender), the creatures' and objects' gaps, the books'

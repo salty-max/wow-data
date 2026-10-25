@@ -37,6 +37,7 @@ CREATE TABLE source (
 -- taxi_node, faction, creature_type, creature_family, readable_title, class,
 -- race. locale: enUS, deDE, esES, esMX, frFR, itIT, koKR, ptBR, ruRU, zhCN,
 -- zhTW. The client's own name wins over Wowhead's (the user's call).
+-- esMX takes esES's name where it has none (source esES, docs/sources.md).
 CREATE TABLE name (
   -- (every word the game has in each language, by kind and id: names, and the
   -- client's item_description, spell_description, aura_description,

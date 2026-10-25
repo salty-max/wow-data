@@ -124,9 +124,10 @@ describe.skipIf(!built)("forever.db", () => {
     const sources = all("SELECT name FROM source ORDER BY name").map((r) => r.name);
     // (allthethings: Forever's own quests' rewards and prerequisites, frozen)
     // (english: the English a client shows where its language has no name)
+    // (esES: esMX's name where it has none, esES's)
     // (guides: data/kill-reputation.json, the kills by hand)
     // (players: present once a database has imported archived observations)
-    expect(sources.filter((source) => source !== "players")).toEqual(["allthethings", "classicdb", "client", "client-map", "english", "guides", "owner-report", "questie", "wowhead"]);
+    expect(sources.filter((source) => source !== "players")).toEqual(["allthethings", "classicdb", "client", "client-map", "english", "esES", "guides", "owner-report", "questie", "wowhead"]);
     for (const table of ["creature", "creature_sighting", "landmark", "quest", "quest_objective", "quest_relation", "quest_reward", "quest_prereq", "spawn", "loot", "name", "kill_reputation"]) {
       const used = all(`SELECT DISTINCT source FROM ${table}`).map((r) => r.source as string);
       for (const s of used) expect(sources).toContain(s);
@@ -136,8 +137,18 @@ describe.skipIf(!built)("forever.db", () => {
   test("every language names what its client shows: Forever's own creatures translated, else the English", () => {
     const named = (locale: string) => one("SELECT name FROM name WHERE kind = 'creature' AND id = 269075 AND locale = ?", locale)?.name;
     expect(named("esES")).toBe("Leopardo de la nieve merodeador");
-    expect(named("esMX")).toBe("Snow Leopard Prowler");
-    expect(one("SELECT source FROM name WHERE kind = 'creature' AND id = 269075 AND locale = 'esMX'")?.source).toBe("english");
+    expect(named("frFR")).toBe(one("SELECT name FROM name WHERE kind = 'creature' AND id = 269075 AND locale = 'frFR'")?.name);
+    expect(named("itIT")).toBe("Snow Leopard Prowler");
+    expect(one("SELECT source FROM name WHERE kind = 'creature' AND id = 269075 AND locale = 'itIT'")?.source).toBe("english");
+  });
+  test("esMX takes esES's name where it has none, marked esES; a real esMX name stays", () => {
+    // (the High Order's magister: the esMX client names neither him nor Ayessa)
+    expect(one("SELECT name, source FROM name WHERE kind = 'creature' AND id = 252475 AND locale = 'esMX'")).toEqual({ name: "Elaadrin Vendaval del Atardecer", source: "esES" });
+    expect(one("SELECT name, source FROM name WHERE kind = 'creature' AND id = 251968 AND locale = 'esMX'")).toEqual({ name: "Ayessa Cantoalba", source: "esES" });
+    // (Questie's own esMX stays: Hemet's)
+    expect(one("SELECT name, source FROM name WHERE kind = 'creature' AND id = 715 AND locale = 'esMX'")).toEqual({ name: "Hemet Nesingwary", source: "questie" });
+    // (no esMX name the English, where esES has a real one)
+    expect(one("SELECT count(*) AS n FROM name m JOIN name e ON e.kind = m.kind AND e.id = m.id AND e.locale = 'esES' AND e.source <> 'english' WHERE m.locale = 'esMX' AND m.source = 'english'")).toEqual({ n: 0 });
   });
   test("no name is Wowhead's English in brackets (the client shows the English)", () => {
     expect(one("SELECT count(*) AS n FROM name WHERE source = 'wowhead' AND name LIKE '[%]'")).toEqual({ n: 0 });
