@@ -101,7 +101,7 @@ class Card {
     for (const l of ALL_LOCALES) {
       const r = by.get(l);
       if (!r) continue;
-      const key = r.name + (r.source === "english" ? " (English)" : "");
+      const key = r.name + (r.source === "english" ? " (English)" : r.source === "esES" ? " (esES's)" : "");
       groups.set(key, [...(groups.get(key) ?? []), l]);
     }
     const missing = ALL_LOCALES.filter((l) => !by.has(l));
