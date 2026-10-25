@@ -13,17 +13,17 @@ export const dbPath = (game: Game) => path.join(CACHE, "db", `${game}.db`);
 // One built from other inputs than this checkout's (its meta's tag, the
 // build's databaseTag) is said once, a script then reading tables the code
 // no longer makes; WOW_DATA_STRICT=1 makes it an error.
-const told = new Set<Game>();
+// (each game's verdict found once, then kept: said once, refused every time)
+const told = new Map<Game, string | undefined>();
 export function openDb(game: Game): Database {
   const file = dbPath(game);
   if (!existsSync(file)) throw new Error(`${file}: build it first (bun ../wow-data/bin/build.ts ${game})`);
   const db = new Database(file, { readonly: true });
-  if (!told.has(game)) {
-    told.add(game);
-    const stale = staleness(db, game);
-    if (stale && process.env.WOW_DATA_STRICT === "1") throw new Error(stale);
-    if (stale) console.warn(`wow-data: ${stale}`);
-  }
+  const first = !told.has(game);
+  if (first) told.set(game, staleness(db, game));
+  const stale = told.get(game);
+  if (stale && process.env.WOW_DATA_STRICT === "1") throw new Error(stale);
+  if (stale && first) console.warn(`wow-data: ${stale}`);
   return db;
 }
 

@@ -47,8 +47,12 @@ export function resolveMarks(facts: PlayerFact[], known: (locale: string, word: 
   const marked = (f: PlayerFact) => f[4].search(/\$[CcRr]\{[^{}]*\}/) >= 0;
   const byText = new Map<string, PlayerFact[]>();
   const out: PlayerFact[] = [];
+  // (an unmarked fact's place in out, by its text: a twin for a marked one)
+  const plainAt = new Map<string, number>();
+  const textKey = (f: PlayerFact, text: string) => `${f[0]}|${f[1]}|${f[2]}|${f[3]}|${text}`;
   for (const f of facts) {
     if (!marked(f)) {
+      plainAt.set(textKey(f, f[4]), out.length);
       out.push(f);
       continue;
     }
@@ -76,6 +80,14 @@ export function resolveMarks(facts: PlayerFact[], known: (locale: string, word: 
         last = m.index! + m[0].length;
       }
       restored += f[4].slice(last);
+      // (a player the mark doesn't fit saw the very same words, unmarked:
+      // they're literal, the two copies one fact)
+      const twin = plainAt.get(textKey(f, restored));
+      if (twin !== undefined) {
+        const t = out[twin];
+        out[twin] = [t[0], t[1], t[2], t[3], t[4], Number(f[5] ?? 0) > Number(t[5] ?? 0) ? f[5] : t[5], t[6] + f[6]];
+        continue;
+      }
       const inName = (i: number) =>
         known(f[0], marks[i][2]).some((name) => {
           for (let p = restored.indexOf(name); p >= 0; p = restored.indexOf(name, p + 1))

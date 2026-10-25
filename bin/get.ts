@@ -4,7 +4,7 @@
 // .github/workflows/addon-data.yml), which must be there.
 //   bun bin/get.ts [classic|forever|all] [--tag db-<commit12>] [--wait SECONDS]
 // into .cache/db/<game>.db, as bin/build.ts would have written them.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { parseArgs } from "node:util";
@@ -35,6 +35,9 @@ for (const game of games) {
   const file = await fetchRetry(asset.browser_download_url, { headers: auth });
   if (!file.ok) throw new Error(`${asset.name}: ${file.status}`);
   mkdirSync(path.dirname(dbPath(game)), { recursive: true });
-  writeFileSync(dbPath(game), gunzipSync(new Uint8Array(await file.arrayBuffer())));
+  // (written beside it, then moved: a stop halfway never leaves half a database)
+  const part = `${dbPath(game)}.part`;
+  writeFileSync(part, gunzipSync(new Uint8Array(await file.arrayBuffer())));
+  renameSync(part, dbPath(game));
   console.log(`✓ ${dbPath(game)} (${release.tag_name})`);
 }

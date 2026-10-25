@@ -32,14 +32,16 @@ def db(game):
 def staleness(con, game):
     """why a database isn't this checkout's (src/db.ts's twin), or None: its
     meta's tag against the inputs' last commit (src/dbRelease.ts)"""
-    import subprocess
-    run = subprocess.run(
-        ["git", "log", "-1", "--format=%H", "--", "pins.json", "schema.sql", "src", "bin", "data", ".github/workflows/db.yml"],
-        cwd=ROOT, capture_output=True, text=True,
-    )
-    if run.returncode != 0 or len(run.stdout.strip()) != 40:
+    import re, subprocess
+    # (the tag TypeScript gives, bin/db-tag.ts: one list of the inputs, the
+    # build's import closure, never a second one here)
+    try:
+        run = subprocess.run(["bun", os.path.join(ROOT, "bin", "db-tag.ts")], cwd=ROOT, capture_output=True, text=True)
+    except OSError:
         return None
-    want = f"db-{run.stdout.strip()[:12]}"
+    want = run.stdout.strip()
+    if run.returncode != 0 or not re.fullmatch(r"db-[0-9a-f]{12}", want):
+        return None
     row = con.execute("SELECT value FROM meta WHERE key = 'tag'").fetchone()
     fix = f"rebuild it (bun wow-data/bin/build.ts {game}) or get this checkout's (bun wow-data/bin/get.ts {game} --tag {want})"
     if row is None:

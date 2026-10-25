@@ -7,10 +7,10 @@ import { wowheadChanged, wowheadPages } from "./wowheadPages";
 import { clientGathering } from "./gathering";
 import { loadLandmarks } from "./landmarks";
 import { Database } from "bun:sqlite";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
-import { absent } from "./cache";
+import { absent, CACHE } from "./cache";
 import { databaseTag } from "./dbRelease";
 import { classicDump } from "./github";
 import { type Game, PINS, ROOT } from "./pins";
@@ -175,7 +175,17 @@ async function clientNames(db: Database, game: Game) {
       })();
     }
     log(`names ${n.kind}: ${count}`);
-    nameFloor(n.kind, game, per);
+    try {
+      nameFloor(n.kind, game, per);
+    } catch (e) {
+      // (a short language's download out of the cache, named: the next run
+      // fetches it again instead of failing on the same file)
+      const gone = LOCALES.filter((l) => (per[l] ?? 0) < (per.enUS ?? 0) * 0.95).map((l) =>
+        path.join(CACHE, "wago", game, PINS.builds[game].build, `${n.table}-${l}.csv`),
+      );
+      for (const f of gone) rmSync(f, { force: true });
+      throw new Error(`${(e as Error).message} (removed from the cache: ${gone.map((f) => path.relative(ROOT, f)).join(", ")})`);
+    }
   }
 }
 

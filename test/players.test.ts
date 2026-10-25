@@ -39,6 +39,9 @@ describe("players' facts", () => {
     // a race word the database names nothing with: the token; a creature's name never one
     expect(resolveMarks([one("The $R{Night Elf} sentinels watch.")], known)[0][4]).toBe("The $R sentinels watch.");
     expect(resolveMarks([fact("enUS", "npc", "7", "name", "$R{Night Elf} Sentinel")], known)[0][4]).toBe("Night Elf Sentinel");
+    // an unmarked twin (a player of another class saw the same words): literal, one fact
+    const twin = resolveMarks([one("Seek the $c{warlock} trainer.", 1), one("Seek the warlock trainer.", 4)], known);
+    expect(twin.map((f) => [f[4], f[6]])).toEqual([["Seek the warlock trainer.", 5]]);
     // no marks: as it was
     expect(resolveMarks([one("Plain $N text.")], known)[0][4]).toBe("Plain $N text.");
   });

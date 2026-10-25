@@ -65,8 +65,10 @@ jobs:
           body-path: ${{ runner.temp }}/body.md
           add-paths: data/players
       # (its checks on the pull request: GitHub starts no pull_request run for this job's own token)
+      # (asked for, not waited on: a hiccup of GitHub's API never stops the rest)
       - name: Its checks
         if: steps.pr.outputs.pull-request-number != ''
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run ci.yml -R "$GITHUB_REPOSITORY" --ref players
