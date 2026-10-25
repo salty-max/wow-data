@@ -71,25 +71,25 @@ jobs:
         working-directory: addon
         shell: bash
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: addon
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: salty-max/wow-data
           path: wow-data
           fetch-depth: 0
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: inputs.kit
         with:
           repository: salty-max/addon-kit
           path: addon-kit
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - run: bun install --frozen-lockfile
       - run: bun install --frozen-lockfile
         working-directory: wow-data
       # (the sources' downloads, kept: they change only when a pin moves)
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             wow-data/.cache/wago
@@ -105,6 +105,7 @@ jobs:
           mkdir -p "$HOME/bin" && cd "$HOME/bin"
           curl -sSLo stylua.zip https://github.com/JohnnyMorganz/StyLua/releases/download/v2.5.2/stylua-linux-x86_64.zip
           curl -sSLo selene.zip https://github.com/Kampfkarren/selene/releases/download/0.32.0/selene-0.32.0-linux.zip
+          printf '%s  %s\n' bcb0d855e91f102f28a370e850f8566b3b44b79e6274d806ea5246837c0fd5ab stylua.zip d3773393578580074386e69337d35b7acddfbaa9fc38964c07fa3e28436ade9b selene.zip | sha256sum -c --quiet -
           unzip -qo stylua.zip && unzip -qo selene.zip && chmod +x stylua selene
           echo "$HOME/bin" >> "$GITHUB_PATH"
       - name: wow-data's databases (built from the wow-data checked out)
@@ -184,7 +185,7 @@ jobs:
       - name: Pull request
         id: pr
         if: steps.data.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
           path: addon
           branch: game-data
