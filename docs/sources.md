@@ -48,7 +48,7 @@ else it was the token. Names are never tokens.
   source `esES`: an addon takes it like any real name (the glossaries, card
   and scripts count it a name), and a real esMX name, once a source gives
   it, wins on the next build (Forever's Elaadrin Evengale and Ayessa
-  Dawnsinger, some 4,700 rows across the two games). No other language does: German, French,
+  Dawnsinger, some 2,700 rows in Forever and 700 in Classic Era). No other language does: German, French,
   Russian, Portuguese, Korean and Chinese have no sibling to lend (a gap
   stays the English its client shows, `english`), Italian has no client
   (English copies), and a lent name is never lent twice (esES's own gaps

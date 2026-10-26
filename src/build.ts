@@ -1229,8 +1229,10 @@ function siblingNames(db: Database) {
   db.prepare("INSERT INTO source VALUES (?, ?, ?, ?)").run("esES", "the esES name, where esMX has none", "https://wago.tools", "Blizzard's (Spain's Spanish, where Latin America's has no name)");
   for (const [locale, from] of SIBLINGS) {
     // (the English an esMX row holds is no name: replaced; only a real name is lent)
-    // (nor a placeholder of the lender's: "[UNUSED] Sulhasa", "<PH>")
-    const real = `f.source <> 'english' AND f.name NOT LIKE '[%' AND f.name NOT LIKE '%<PH>%' AND f.name NOT LIKE '%UNUSED%'`;
+    // (nor a placeholder of the lender's: "[UNUSED] Sulhasa", "<PH>"; nor the English
+    // it holds untranslated: a name equal to enUS's is no Spanish, the esMX row stays
+    // english, unless the client itself writes it so)
+    const real = `f.source <> 'english' AND f.name NOT LIKE '[%' AND f.name NOT LIKE '%<PH>%' AND f.name NOT LIKE '%UNUSED%' AND (f.source = 'client' OR NOT EXISTS (SELECT 1 FROM name u WHERE u.kind = f.kind AND u.id = f.id AND u.locale = 'enUS' AND u.name = f.name))`;
     const gone = db.prepare(`DELETE FROM name WHERE locale = ? AND source = 'english' AND EXISTS (SELECT 1 FROM name f WHERE f.kind = name.kind AND f.id = name.id AND f.locale = ? AND ${real})`).run(locale, from).changes;
     const lent = db
       .prepare(

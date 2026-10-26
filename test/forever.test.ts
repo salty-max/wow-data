@@ -137,7 +137,6 @@ describe.skipIf(!built)("forever.db", () => {
   test("every language names what its client shows: Forever's own creatures translated, else the English", () => {
     const named = (locale: string) => one("SELECT name FROM name WHERE kind = 'creature' AND id = 269075 AND locale = ?", locale)?.name;
     expect(named("esES")).toBe("Leopardo de la nieve merodeador");
-    expect(named("frFR")).toBe(one("SELECT name FROM name WHERE kind = 'creature' AND id = 269075 AND locale = 'frFR'")?.name);
     expect(named("itIT")).toBe("Snow Leopard Prowler");
     expect(one("SELECT source FROM name WHERE kind = 'creature' AND id = 269075 AND locale = 'itIT'")?.source).toBe("english");
   });
@@ -149,6 +148,8 @@ describe.skipIf(!built)("forever.db", () => {
     expect(one("SELECT name, source FROM name WHERE kind = 'creature' AND id = 715 AND locale = 'esMX'")).toEqual({ name: "Hemet Nesingwary", source: "questie" });
     // (a placeholder is no name to lend: Sulhasa's esES is "[UNUSED] Sulhasa")
     expect(one("SELECT count(*) AS n FROM name WHERE locale = 'esMX' AND source = 'esES' AND (name LIKE '[%' OR name LIKE '%UNUSED%' OR name LIKE '%<PH>%')")).toEqual({ n: 0 });
+    // (an esES name equal to the English is no Spanish to lend)
+    expect(one("SELECT count(*) AS n FROM name m JOIN name u ON u.kind = m.kind AND u.id = m.id AND u.locale = 'enUS' AND u.name = m.name WHERE m.locale = 'esMX' AND m.source = 'esES' AND NOT EXISTS (SELECT 1 FROM name e WHERE e.kind = m.kind AND e.id = m.id AND e.locale = 'esES' AND e.source = 'client')")).toEqual({ n: 0 });
     // (no esMX name the English, where esES has a real one)
     expect(one("SELECT count(*) AS n FROM name m JOIN name e ON e.kind = m.kind AND e.id = m.id AND e.locale = 'esES' AND e.source <> 'english' AND e.name NOT LIKE '[%' AND e.name NOT LIKE '%UNUSED%' AND e.name NOT LIKE '%<PH>%' WHERE m.locale = 'esMX' AND m.source = 'english'")).toEqual({ n: 0 });
   });
