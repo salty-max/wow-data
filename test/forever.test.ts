@@ -151,7 +151,7 @@ describe.skipIf(!built)("forever.db", () => {
     // (an esES name equal to the English is no Spanish to lend)
     expect(one("SELECT count(*) AS n FROM name m JOIN name u ON u.kind = m.kind AND u.id = m.id AND u.locale = 'enUS' AND u.name = m.name WHERE m.locale = 'esMX' AND m.source = 'esES' AND NOT EXISTS (SELECT 1 FROM name e WHERE e.kind = m.kind AND e.id = m.id AND e.locale = 'esES' AND e.source = 'client')")).toEqual({ n: 0 });
     // (no esMX name the English, where esES has a real one)
-    expect(one("SELECT count(*) AS n FROM name m JOIN name e ON e.kind = m.kind AND e.id = m.id AND e.locale = 'esES' AND e.source <> 'english' AND e.name NOT LIKE '[%' AND e.name NOT LIKE '%UNUSED%' AND e.name NOT LIKE '%<PH>%' WHERE m.locale = 'esMX' AND m.source = 'english'")).toEqual({ n: 0 });
+    expect(one("SELECT count(*) AS n FROM name m JOIN name e ON e.kind = m.kind AND e.id = m.id AND e.locale = 'esES' AND e.source <> 'english' AND e.name NOT LIKE '[%' AND e.name NOT LIKE '%UNUSED%' AND e.name NOT LIKE '%<PH>%' AND (e.source = 'client' OR NOT EXISTS (SELECT 1 FROM name u WHERE u.kind = e.kind AND u.id = e.id AND u.locale = 'enUS' AND u.name = e.name)) WHERE m.locale = 'esMX' AND m.source = 'english'")).toEqual({ n: 0 });
   });
   test("no name is Wowhead's English in brackets (the client shows the English)", () => {
     expect(one("SELECT count(*) AS n FROM name WHERE source = 'wowhead' AND name LIKE '[%]'")).toEqual({ n: 0 });
