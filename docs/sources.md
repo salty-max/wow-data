@@ -52,7 +52,7 @@ else it was the token. Names are never tokens.
   Russian, Portuguese, Korean and Chinese have no sibling to lend (a gap
   stays the English its client shows, `english`), Italian has no client
   (English copies), and a lent name is never lent twice (esES's own gaps
-  stay gaps). enGB reads enUS in the addons themselves.
+  stay gaps, nor a placeholder: "[UNUSED] Sulhasa"). enGB reads enUS in the addons themselves.
   `pages-<locale>.json`: Wowhead's pages of Forever, every quest (texts in
   English, German, French and Spanish; in English its info box's level,
   zone, giver and ender), the creatures' and objects' gaps, the books'
