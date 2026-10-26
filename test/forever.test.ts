@@ -147,8 +147,10 @@ describe.skipIf(!built)("forever.db", () => {
     expect(one("SELECT name, source FROM name WHERE kind = 'creature' AND id = 251968 AND locale = 'esMX'")).toEqual({ name: "Ayessa Cantoalba", source: "esES" });
     // (Questie's own esMX stays: Hemet's)
     expect(one("SELECT name, source FROM name WHERE kind = 'creature' AND id = 715 AND locale = 'esMX'")).toEqual({ name: "Hemet Nesingwary", source: "questie" });
+    // (a placeholder is no name to lend: Sulhasa's esES is "[UNUSED] Sulhasa")
+    expect(one("SELECT count(*) AS n FROM name WHERE locale = 'esMX' AND source = 'esES' AND (name LIKE '[%' OR name LIKE '%UNUSED%' OR name LIKE '%<PH>%')")).toEqual({ n: 0 });
     // (no esMX name the English, where esES has a real one)
-    expect(one("SELECT count(*) AS n FROM name m JOIN name e ON e.kind = m.kind AND e.id = m.id AND e.locale = 'esES' AND e.source <> 'english' WHERE m.locale = 'esMX' AND m.source = 'english'")).toEqual({ n: 0 });
+    expect(one("SELECT count(*) AS n FROM name m JOIN name e ON e.kind = m.kind AND e.id = m.id AND e.locale = 'esES' AND e.source <> 'english' AND e.name NOT LIKE '[%' AND e.name NOT LIKE '%UNUSED%' AND e.name NOT LIKE '%<PH>%' WHERE m.locale = 'esMX' AND m.source = 'english'")).toEqual({ n: 0 });
   });
   test("no name is Wowhead's English in brackets (the client shows the English)", () => {
     expect(one("SELECT count(*) AS n FROM name WHERE source = 'wowhead' AND name LIKE '[%]'")).toEqual({ n: 0 });

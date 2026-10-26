@@ -1229,10 +1229,12 @@ function siblingNames(db: Database) {
   db.prepare("INSERT INTO source VALUES (?, ?, ?, ?)").run("esES", "the esES name, where esMX has none", "https://wago.tools", "Blizzard's (Spain's Spanish, where Latin America's has no name)");
   for (const [locale, from] of SIBLINGS) {
     // (the English an esMX row holds is no name: replaced; only a real name is lent)
-    const gone = db.prepare("DELETE FROM name WHERE locale = ? AND source = 'english' AND EXISTS (SELECT 1 FROM name f WHERE f.kind = name.kind AND f.id = name.id AND f.locale = ? AND f.source <> 'english')").run(locale, from).changes;
+    // (nor a placeholder of the lender's: "[UNUSED] Sulhasa", "<PH>")
+    const real = `f.source <> 'english' AND f.name NOT LIKE '[%' AND f.name NOT LIKE '%<PH>%' AND f.name NOT LIKE '%UNUSED%'`;
+    const gone = db.prepare(`DELETE FROM name WHERE locale = ? AND source = 'english' AND EXISTS (SELECT 1 FROM name f WHERE f.kind = name.kind AND f.id = name.id AND f.locale = ? AND ${real})`).run(locale, from).changes;
     const lent = db
       .prepare(
-        `INSERT OR IGNORE INTO name SELECT kind, id, ?, name, female, 'esES' FROM name f WHERE locale = ? AND source <> 'english'`,
+        `INSERT OR IGNORE INTO name SELECT kind, id, ?, name, female, 'esES' FROM name f WHERE f.locale = ? AND ${real}`,
       )
       .run(locale, from).changes;
     log(`names ${locale} from ${from}: ${lent} (${gone} of them the English it showed)`);
