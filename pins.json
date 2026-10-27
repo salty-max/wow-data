@@ -2,11 +2,11 @@
   "builds": {
     "classic": {
       "product": "wow_classic_era",
-      "build": "1.15.9.70003"
+      "build": "1.15.9.70576"
     },
     "forever": {
       "product": "wowf",
-      "build": "1.60.1.70532"
+      "build": "1.60.1.70630"
     }
   },
   "repos": {
