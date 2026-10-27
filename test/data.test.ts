@@ -48,6 +48,12 @@ describe("pins", () => {
     for (const name of ["questie", "classicdb"]) {
       expect(PINS.repos[name].commit).toMatch(/^[0-9a-f]{40}$/);
     }
-    expect(wagoQuery(PINS.builds.classic)).toBe("product=wow_classic_era&build=1.15.9.70003");
+    expect(PINS.builds.classic.product).toBe("wow_classic_era");
+    expect(PINS.builds.forever.product).toBe("wowf");
+    expect(wagoQuery({ product: "wow_classic_era", build: "1.15.9.70003" })).toBe("product=wow_classic_era&build=1.15.9.70003");
+    for (const game of ["classic", "forever"] as const) {
+      expect(PINS.builds[game].build).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+      expect(wagoQuery(PINS.builds[game])).toBe(`product=${PINS.builds[game].product}&build=${PINS.builds[game].build}`);
+    }
   });
 });
