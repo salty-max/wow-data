@@ -1,0 +1,28 @@
+{
+  "repos": {
+    "ui-classic": {
+      "repo": "Gethe/wow-ui-source",
+      "branch": "classic_era",
+      "commit": "4192ac60067fc55566182291bc67c85dd9b6794d",
+      "build": "1.15.9.70576"
+    },
+    "ui-forever": {
+      "repo": "Gethe/wow-ui-source",
+      "branch": "forever",
+      "commit": "ca8368f2f2380cbe696854f7f2646387c278a61b",
+      "build": "1.60.1.70532"
+    },
+    "ui-textures-classic": {
+      "repo": "Gethe/wow-ui-textures",
+      "branch": "classic",
+      "commit": "312a6e61bab69370c65ccc0a08f1075d62196294",
+      "build": "1.13.5.34911"
+    },
+    "ui-textures-live": {
+      "repo": "Gethe/wow-ui-textures",
+      "branch": "live",
+      "commit": "d23deaf8f44a7d280dc974a5c9d5321c013db59b",
+      "build": "9.2.7.45114"
+    }
+  }
+}

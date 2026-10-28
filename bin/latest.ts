@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { family, newer, newest } from "../src/builds";
 import { fetchRetry } from "../src/fetch";
 import { PINS_FILE as PINS } from "../src/pins";
+import { UI_PINS_FILE as UI } from "../src/ui";
 
 const args = process.argv.slice(2);
 const WRITE = args.includes("--write");
@@ -24,8 +25,9 @@ const nextAt = args.indexOf("--next");
 const NEXT = nextAt >= 0 ? args[nextAt + 1] : undefined;
 
 type Pin = { product: string; build: string };
-type Pins = { builds: Record<string, Pin>; repos: Record<string, { repo: string; commit: string }> };
+type Pins = { builds: Record<string, Pin>; repos: Record<string, { repo: string; commit: string; branch?: string; build?: string }> };
 const pins: Pins = JSON.parse(readFileSync(PINS, "utf8"));
+const uiPins: Pins["repos"] = JSON.parse(readFileSync(UI, "utf8")).repos;
 
 const res = await fetchRetry("https://wago.tools/api/builds");
 if (!res.ok) throw new Error(`wago.tools builds: ${res.status}`);
@@ -56,20 +58,37 @@ for (const [game, pin] of Object.entries(pins.builds)) {
 // the community databases: newer commits on their default branch
 const token = process.env.GITHUB_TOKEN;
 const repoLines: string[] = [];
-for (const [name, r] of Object.entries(pins.repos)) {
-  const head = await fetchRetry(`https://api.github.com/repos/${r.repo}/commits?per_page=1`, {
+const uiLines: string[] = [];
+const tip = (v: string) => Number(v.split(".").pop());
+for (const [name, r] of Object.entries({ ...pins.repos, ...uiPins })) {
+  const head = await fetchRetry(`https://api.github.com/repos/${r.repo}/commits?per_page=1${r.branch ? `&sha=${r.branch}` : ""}`, {
     headers: { Accept: "application/vnd.github+json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
+  const isUi = name.startsWith("ui-");
+  const out = isUi ? uiLines : repoLines;
   if (!head.ok) {
-    repoLines.push(`- ${name} (${r.repo}): could not ask (${head.status})`);
+    out.push(`- ${name} (${r.repo}): could not ask (${head.status})`);
     continue;
   }
-  const [latest] = (await head.json()) as { sha: string; commit: { committer: { date: string } } }[];
-  repoLines.push(
-    latest && latest.sha !== r.commit
-      ? `- ${name} (${r.repo}): newer commits, ${latest.sha.slice(0, 12)} of ${latest.commit.committer.date.slice(0, 10)} (pinned ${r.commit.slice(0, 12)}; not followed: bump it by hand and read the audit)`
-      : `- ${name} (${r.repo}): the pinned commit is the latest`,
-  );
+  const [latest] = (await head.json()) as { sha: string; commit: { message: string; committer: { date: string } } }[];
+  const moved = latest && !latest.sha.startsWith(r.commit.slice(0, 12));
+  if (!isUi) {
+    out.push(
+      moved
+        ? `- ${name} (${r.repo}): newer commits, ${latest.sha.slice(0, 12)} of ${latest.commit.committer.date.slice(0, 10)} (pinned ${r.commit.slice(0, 12)}; not followed: bump it by hand and read the audit)`
+        : `- ${name} (${r.repo}): the pinned commit is the latest`,
+    );
+    continue;
+  }
+  const game = name.replace(/^ui-/, "");
+  const client = pins.builds[game]?.build;
+  const next = latest?.commit.message.match(/\((\d+)\)/)?.[1];
+  let line = moved
+    ? `- ${name} (${r.repo}@${r.branch}): newer commit ${latest.sha.slice(0, 12)} of ${latest.commit.committer.date.slice(0, 10)}${next ? ` (build ${next})` : ""}, pinned ${r.commit.slice(0, 12)} (build ${r.build}; not followed: bump it by hand)`
+    : `- ${name} (${r.repo}@${r.branch}): the pinned commit is the latest (build ${r.build})`;
+  if (client && r.build && tip(client) !== tip(r.build))
+    line += `; **client pinned ${client}, this source carries ${r.build}: ${tip(r.build) < tip(client) ? "behind the client" : "ahead of the client"}**`;
+  out.push(line);
 }
 
 if (moved && (WRITE || NEXT)) writeFileSync(NEXT ?? PINS, JSON.stringify(pins, null, 2) + "\n");
@@ -83,6 +102,12 @@ const text = [
   "The world (quests, creatures, objects) comes from these, not from the client's tables.",
   "",
   ...repoLines,
+  "",
+  "### The game's UI source (what ui.ts reads)",
+  "",
+  "Blizzard's frames and the texture pictures, from Gethe's mirrors. It says what the source has, never what the live client does.",
+  "",
+  ...uiLines,
   "",
 ].join("\n");
 console.log(text);

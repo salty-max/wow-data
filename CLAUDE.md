@@ -13,6 +13,7 @@ TypeScript (salty-max/wow-data). Read the family's CLAUDE.md
 |---|---|
 | The repository file by file: pins, cache, fetchers, the build, the workflows, the explorer, how the addons use it | `docs/architecture.md` |
 | Each source and the rules between them: Wowhead frozen, Season of Discovery in Forever, recipes, landmarks, TBC items, players' facts | `docs/sources.md` |
+| Blizzard's UI source and textures (pins, `ui.ts`, what it can't say) | `docs/ui-source.md` |
 | Finds' gathering data (nodes, yields, materials) | `docs/finds-materials.md` |
 | The tables | `schema.sql` |
 | Where the databases are going (the plan, its steps) | `PLAN.md` |
@@ -28,7 +29,8 @@ bun bin/build.ts <classic|forever|all>          # .cache/db/<game>.db from the p
 bun bin/get.ts [--tag db-<commit12>]            # the published databases instead of a build
 bun bin/card.ts <npc|object|place|item|quest> <id or exact name> [--game classic|forever] [--full]
 bun bin/path.ts db <game>                       # a database's path (wago, repo, pin, tree: a cached file)
-bun bin/latest.ts                               # newer builds than the pins, told only
+bun bin/latest.ts                               # newer builds than the pins, told only (the UI source's too)
+bun bin/ui.ts frame <Name.Key> | find <text> | texture <Interface\\path> | pins   # Blizzard's UI source, both games (docs/ui-source.md)
 bun run explore                                 # the explorer (explore:dev; bun run --cwd explorer check)
 ```
 
@@ -57,7 +59,7 @@ players' facts job's.
   user's rule, 20 October 2026: the evidence list in `docs/sources.md`).
 - Players' sightings go to `creature_sighting`, never `spawn`, and never
   resolve a riddle's exact spot. Their pull requests are merged by hand.
-- `bin/card.ts` before any query by hand.
+- `bin/card.ts` before any query by hand. `bin/ui.ts` before any claim about a Blizzard frame, texture path or icon. The UI source's pins are `ui-pins.json` (not `pins.json`: no database is made of them, so moving one is no new database).
 - An explorer change: render the page and look at it before calling it done
   (headless Chrome when the browser pane is hidden).
 - Conventional Commits, lowercase subjects, no AI trailers. Commit locally;
