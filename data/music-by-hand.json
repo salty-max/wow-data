@@ -1,0 +1,47 @@
+{
+  "//": "Music sets the client's rows tie to no area (a building row with AreaTableID 0), placed by the set's own label, which names the instance (client_AreaTable has the area by that name). Each entry: the set, the games it is for (Karazhan Crypts and the Scarlet Enclave are Season of Discovery, so Classic's only), the areas it plays in (exact 0: somewhere in the instance), the evidence. Only walking music: a boss or epilogue cue is scripted, not an area's (Scarlet Enclave sets 3159 placeholder, 3163 epilogue, 3164 boss battle are left out). A set that isn't in a listed game fails the build.",
+  "entries": [
+    {
+      "set": 238,
+      "games": [
+        "classic",
+        "forever"
+      ],
+      "areas": [
+        796
+      ],
+      "evidence": "label 'Zone-Monestery' (Scarlet Monastery, misspelt) and its building rows 'Chamber of Atonement', 'Footman's Armory', 'Crusader's Armory' (WMOs 1629, 1632)"
+    },
+    {
+      "set": 3098,
+      "games": [
+        "classic"
+      ],
+      "areas": [
+        16074
+      ],
+      "evidence": "label '1.15.6 - Dungeon - Karazhan Crypts - General - Walk'"
+    },
+    {
+      "set": 255,
+      "games": [
+        "classic",
+        "forever"
+      ],
+      "areas": [
+        3456
+      ],
+      "evidence": "label 'Zone - Naxxramas'; the Naxxramas wings' sets (256-265) already play in area 3456"
+    },
+    {
+      "set": 3162,
+      "games": [
+        "classic"
+      ],
+      "areas": [
+        16236
+      ],
+      "evidence": "label '1.15.7 - Raid - Scarlet Enclave - Chapel - Walk 1'"
+    }
+  ]
+}

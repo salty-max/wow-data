@@ -33,6 +33,22 @@ for (const game of ["classic", "forever"] as Game[]) {
       expect(files).toContain(game === "classic" ? 53492 : 8180778);
       expect(files).not.toContain(game === "classic" ? 8180778 : 53492);
     });
+    test("sets whose label names an instance play there, by hand (Scarlet Monastery, Karazhan Crypts, the Enclave's chapel)", () => {
+      const at = (set: number) => (db.query("SELECT area_id, via, exact, source FROM music_area WHERE set_id = ? AND via = 'hand'").all(set) as Record<string, unknown>[]);
+      expect(at(238)).toEqual([{ area_id: 796, via: "hand", exact: 0, source: "music_hand" }]);
+      // (Season of Discovery's: Classic's only)
+      expect(at(3098)).toEqual(game === "classic" ? [{ area_id: 16074, via: "hand", exact: 0, source: "music_hand" }] : []);
+      expect(at(3162)).toEqual(game === "classic" ? [{ area_id: 16236, via: "hand", exact: 0, source: "music_hand" }] : []);
+      // (scripted cues, not area music)
+      expect(at(3164)).toEqual([]);
+    });
+    test("a building row named like an area takes it, inexact: the set plays in the building, not the whole subzone (Anvilmar's outpost set)", () => {
+      expect(one("SELECT via, exact FROM music_area WHERE set_id = 236 AND area_id = 77")).toEqual({ via: "wmo", exact: 0 });
+    });
+    test("a shared name settles no building: Gnomeregan's set doesn't land on the Dun Morogh subzone, nothing lands on 'Unused'", () => {
+      expect(n("SELECT count(*) n FROM music_area WHERE set_id = 235 AND area_id = 133")).toBe(0);
+      expect(n("SELECT count(*) n FROM music_area a JOIN client_AreaTable c ON c.ID = a.area_id WHERE c.AreaName_lang = 'Unused' AND a.via = 'wmo'")).toBe(0);
+    });
     test("Orgrimmar's arrival stinger is an intro of the city", () => {
       expect(one("SELECT label, delay_minutes d FROM music_intro WHERE area_id = 1637 LIMIT 1")).toEqual({ label: "Orgrimmar Intro", d: 60 });
     });

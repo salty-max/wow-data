@@ -126,8 +126,9 @@ describe.skipIf(!built)("forever.db", () => {
     // (english: the English a client shows where its language has no name)
     // (esES: esMX's name where it has none, esES's)
     // (guides: data/kill-reputation.json, the kills by hand)
+    // (music_hand: data/music-by-hand.json, the sets whose label names their instance)
     // (players: present once a database has imported archived observations)
-    expect(sources.filter((source) => source !== "players")).toEqual(["allthethings", "classicdb", "client", "client-map", "english", "esES", "guides", "owner-report", "questie", "wowhead"]);
+    expect(sources.filter((source) => source !== "players")).toEqual(["allthethings", "classicdb", "client", "client-map", "english", "esES", "guides", "music_hand", "owner-report", "questie", "wowhead"]);
     for (const table of ["creature", "creature_sighting", "landmark", "quest", "quest_objective", "quest_relation", "quest_reward", "quest_prereq", "spawn", "loot", "name", "kill_reputation"]) {
       const used = all(`SELECT DISTINCT source FROM ${table}`).map((r) => r.source as string);
       for (const s of used) expect(sources).toContain(s);

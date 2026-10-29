@@ -584,7 +584,7 @@ CREATE TABLE music_track (
 CREATE TABLE music_area (
   area_id INTEGER NOT NULL,
   set_id  INTEGER NOT NULL,
-  via     TEXT NOT NULL,       -- own, parent, wmo
+  via     TEXT NOT NULL,       -- own, parent, wmo, hand (data/music-by-hand.json: a set whose label names its instance)
   exact   INTEGER NOT NULL,    -- 0: a building row the client pins to a whole zone or city
                                -- (Stormwind City names eight sets): the set plays somewhere in it
   source  TEXT NOT NULL,

@@ -1784,7 +1784,7 @@ function recipeSources(db: Database, learns: Map<number, number>, itemTeaches: M
 // WMOAreaTable row may carry a set of its own (an inn). A ZoneMusic id no
 // ZoneMusic row has plays nothing (Forever's WMOAreaTable has thousands): left
 // out, counted. The underwater sets and the intro-less areas aren't read.
-function music(db: Database) {
+function music(db: Database, game: Game) {
   const has = (t: string) => !!db.query("SELECT 1 FROM sqlite_master WHERE name = ?").get(t);
   if (!has("client_ZoneMusic") || !has("client_SoundKitEntry")) {
     log("music: no ZoneMusic in this client");
@@ -1824,19 +1824,46 @@ function music(db: Database) {
   }
   // A building row with no area of its own takes its WMO's: the area a sibling
   // group names (the lowest id), pinned as inexact. One with neither is counted.
-  const wmoRows = db.query("SELECT WMOID id, AreaTableID a, ZoneMusic zm FROM client_WMOAreaTable").all() as { id: number; a: number; zm: number }[];
+  const wmoRows = db.query("SELECT WMOID id, AreaTableID a, ZoneMusic zm, AreaName_lang name FROM client_WMOAreaTable").all() as { id: number; a: number; zm: number; name: string | null }[];
   const wmoArea = new Map<number, number>();
   for (const w of wmoRows) if (byId.has(w.a) && (!wmoArea.has(w.id) || w.a < wmoArea.get(w.id)!)) wmoArea.set(w.id, w.a);
   let wmo = 0, dead = 0, homeless = 0;
+  // (a building row with no area, and no sibling group with one, whose own name is that of exactly
+  // one area: the building is that area. A shared name settles nothing: "Gnomeregan" is two areas)
+  const areasNamed = new Map<string, number[]>();
+  for (const a of db.query("SELECT ID, AreaName_lang n FROM client_AreaTable WHERE AreaName_lang <> ''").all() as { ID: number; n: string }[]) {
+    const list = areasNamed.get(a.n) ?? [];
+    areasNamed.set(a.n, list);
+    list.push(a.ID);
+  }
+  const uniqueArea = (name: string | null) => {
+    const ids = name && name !== "Unused" ? areasNamed.get(name) : undefined;
+    return ids?.length === 1 ? ids[0] : undefined;
+  };
   for (const w of wmoRows) {
     if (w.zm <= 0) continue;
     if (!known.has(w.zm)) {
       dead++;
       continue;
     }
-    const area = byId.has(w.a) ? w.a : wmoArea.get(w.id);
+    const own = byId.has(w.a);
+    const sibling = own ? undefined : wmoArea.get(w.id);
+    const named = own || sibling !== undefined ? undefined : uniqueArea(w.name);
+    const area = own ? w.a : (sibling ?? named);
     if (area === undefined) homeless++;
-    else wmo += addArea.run(area, w.zm, "wmo", byId.has(w.a) && byId.get(w.a)!.parent ? 1 : 0).changes;
+    // (a name match proves the building, not the whole subzone: inexact)
+    else wmo += addArea.run(area, w.zm, "wmo", own && byId.get(area)!.parent ? 1 : 0).changes;
+  }
+  // sets whose label names an instance, by hand (data/music-by-hand.json): a drifted id fails the build
+  let hand = 0;
+  const byHand: { entries: { set: number; games: string[]; areas: number[]; evidence: string }[] } = JSON.parse(readFileSync(path.join(ROOT, "data", "music-by-hand.json"), "utf8"));
+  for (const e of byHand.entries) {
+    if (!e.games.includes(game)) continue;
+    if (!known.has(e.set)) throw new Error(`music-by-hand.json: set ${e.set} is gone from ${game}`);
+    for (const a of e.areas) {
+      if (!byId.has(a)) throw new Error(`music-by-hand.json: set ${e.set}: no area ${a} in this client`);
+      hand += addArea.run(a, e.set, "hand", 0).changes;
+    }
   }
   let intros = 0;
   if (has("client_ZoneIntroMusicTable")) {
@@ -1851,7 +1878,11 @@ function music(db: Database) {
       }
     }
   }
-  log(`music: ${known.size} sets, areas ${own} own + ${inherited} inherited + ${wmo} by building, ${intros} intro tracks, ${dead} building rows name a set the client lacks and ${homeless} have no area (both left out)`);
+  if (hand) {
+    db.run("UPDATE music_area SET source = 'music_hand' WHERE via = 'hand'");
+    db.prepare("INSERT INTO source VALUES (?, ?, ?, ?)").run("music_hand", "data/music-by-hand.json (frozen)", null, "each entry's evidence: the set's own label names the instance");
+  }
+  log(`music: ${known.size} sets, areas ${own} own + ${inherited} inherited + ${wmo} by building + ${hand} by hand, ${intros} intro tracks, ${dead} building rows name a set the client lacks and ${homeless} have no area (both left out)`);
 }
 
 export async function build(game: Game, file: string) {
@@ -1878,7 +1909,7 @@ export async function build(game: Game, file: string) {
   source.run("english", "data/wowhead (frozen): its names in brackets", "https://www.wowhead.com", "Blizzard's (the English a client shows where its language has no name)");
   console.log(`${game}: the client's tables (${b.build})`);
   await clientTables(db, game);
-  music(db);
+  music(db, game);
   console.log(`${game}: names in every language`);
   await clientNames(db, game);
   clientItems(db);

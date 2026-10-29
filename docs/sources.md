@@ -82,9 +82,14 @@ else its parent zone's, which the build resolves) and `WMOAreaTable.ZoneMusic`
 - Forever ships its own recordings: the same set, other file ids.
 - A building row pinned to a whole zone or city (`music_area.exact = 0`) says
   the set plays somewhere in it, not where.
-- A building row with no area takes a sibling group's of the same WMO (inexact);
-  one with none is counted and left out (some dungeon sets, e.g. Scarlet
-  Monastery's, so reach no area: a hand table if they are ever wanted).
+- A building row with no area takes a sibling group's of the same WMO
+  (inexact), else the area of its own name where exactly one area has it
+  (Anvilmar's outpost; a shared name settles nothing). A set the rows still
+  tie to no area is placed only by `data/music-by-hand.json`: by its own
+  label, which names the instance, with the evidence in each entry (`via =
+  hand`, source `music_hand`, inexact; walking music only: a boss or epilogue
+  cue is scripted). The rest is counted and left out. Karazhan Crypts and
+  the Scarlet Enclave (Season of Discovery) are Classic's only.
 - Forever's `WMOAreaTable` names thousands of `ZoneMusic` ids its table lacks:
   they play nothing and are counted and left out (the build's `music:` line).
 - Underwater sets (`UwZoneMusic`) aren't read.
