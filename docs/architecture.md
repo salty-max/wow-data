@@ -28,6 +28,7 @@ comes from, and the rules for them: `docs/sources.md`.
 - The database (PLAN.md, `schema.sql`): `bin/build.ts <classic|forever|all>`
   builds `.cache/db/<game>.db` from the pinned sources (`src/build.ts`: the
   client's tables whole as `client_<Table>`, their names in every language,
+  the music's chain from an area to its files (`music()`, `docs/sources.md`),
   then Questie's world (`src/questie.ts`: QuestieDB at its pin, whole, merged
   by its own engine, `bin/questie-export.lua` run with real Lua 5.1, built
   from lua.org's source into the cache on macOS), then the Classic

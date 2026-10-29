@@ -67,6 +67,30 @@ else it was the token. Names are never tokens.
   `npc_line`; Wowhead's own codes left out (an "uncategorized" creature, a
   quest object's category, a scaling level).
 
+## The music
+
+The client's own chain, no other source (the community listfile would be a
+fourth: not taken, 29 October 2026): `AreaTable.ZoneMusic` (an area's own set,
+else its parent zone's, which the build resolves) and `WMOAreaTable.ZoneMusic`
+(a building's set, e.g. an inn) name a `ZoneMusic` row, whose two sound kits
+(`Sounds_0` day, `Sounds_1` night) list their tracks in `SoundKitEntry`
+(FileDataID, what `PlayMusic` takes). Tables: `music_set`, `music_track`,
+`music_area`, `music_intro` (`schema.sql`).
+
+- A set is a theme a biome or a city shares (`Zone-Forest` plays in every
+  forest), its `SetName` the developers' label, never a name a player reads.
+- Forever ships its own recordings: the same set, other file ids.
+- A building row pinned to a whole zone or city (`music_area.exact = 0`) says
+  the set plays somewhere in it, not where.
+- A building row with no area takes a sibling group's of the same WMO (inexact);
+  one with none is counted and left out (some dungeon sets, e.g. Scarlet
+  Monastery's, so reach no area: a hand table if they are ever wanted).
+- Forever's `WMOAreaTable` names thousands of `ZoneMusic` ids its table lacks:
+  they play nothing and are counted and left out (the build's `music:` line).
+- Underwater sets (`UwZoneMusic`) aren't read.
+- The client gives no event or API for the music playing now, so "an area
+  plays this set" is all the data can say.
+
 ## Gathering data for Finds
 
 - Gathering data for Finds: `gathering_node` resolves the client's Lock

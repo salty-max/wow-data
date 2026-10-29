@@ -64,6 +64,9 @@ const CLIENT_TABLES = [
   "Languages",
   "QuestV2",
   "GlobalStrings",
+  "ZoneMusic",
+  "ZoneIntroMusicTable",
+  "SoundKitEntry",
 ];
 // The client's tables that name things: kind, the id column, the name's (and a female form's).
 const NAMED: { table: string; kind: string; name: string; female?: string }[] = [
@@ -1774,6 +1777,83 @@ function recipeSources(db: Database, learns: Map<number, number>, itemTeaches: M
 }
 
 // ── the whole build ──────────────────────────────────────────────────────────
+// The music: the client's chain from an area to the files it plays. An area's
+// ZoneMusic (its own, else its parent zone's: a subzone with none plays the
+// zone's) names a ZoneMusic set; the set's two sound kits (Sounds_0 by day,
+// Sounds_1 by night) hold the tracks as SoundKitEntry rows. A building's
+// WMOAreaTable row may carry a set of its own (an inn). A ZoneMusic id no
+// ZoneMusic row has plays nothing (Forever's WMOAreaTable has thousands): left
+// out, counted. The underwater sets and the intro-less areas aren't read.
+function music(db: Database) {
+  const has = (t: string) => !!db.query("SELECT 1 FROM sqlite_master WHERE name = ?").get(t);
+  if (!has("client_ZoneMusic") || !has("client_SoundKitEntry")) {
+    log("music: no ZoneMusic in this client");
+    return;
+  }
+  const files = new Map<number, number[]>();
+  for (const r of db.query("SELECT SoundKitID k, FileDataID f FROM client_SoundKitEntry ORDER BY ID").all() as { k: number; f: number }[]) {
+    const list = files.get(r.k) ?? [];
+    files.set(r.k, list);
+    if (!list.includes(r.f)) list.push(r.f);
+  }
+  const sets = db.query("SELECT ID, SetName, Sounds_0 d, Sounds_1 n FROM client_ZoneMusic").all() as { ID: number; SetName: string; d: number; n: number }[];
+  const known = new Set<number>();
+  const addSet = db.prepare("INSERT INTO music_set VALUES (?, ?, 'client')");
+  const addTrack = db.prepare("INSERT INTO music_track VALUES (?, ?, ?, ?, 'client')");
+  for (const z of sets) {
+    const day = files.get(z.d) ?? [];
+    const night = files.get(z.n) ?? [];
+    if (!day.length && !night.length) continue;
+    known.add(z.ID);
+    addSet.run(z.ID, z.SetName || `set ${z.ID}`);
+    let seq = 0;
+    for (const f of day) addTrack.run(z.ID, f, night.includes(f) ? "both" : "day", seq++);
+    for (const f of night) if (!day.includes(f)) addTrack.run(z.ID, f, "night", seq++);
+  }
+  const areas = db.query("SELECT ID, ParentAreaID parent, ZoneMusic zm FROM client_AreaTable").all() as { ID: number; parent: number; zm: number }[];
+  const byId = new Map(areas.map((a) => [a.ID, a]));
+  const addArea = db.prepare("INSERT OR IGNORE INTO music_area VALUES (?, ?, ?, ?, 'client')");
+  let own = 0, inherited = 0;
+  for (const a of areas) {
+    let x: { ID: number; parent: number; zm: number } | undefined = a;
+    for (let up = 0; x && !known.has(x.zm) && x.parent && up < 8; up++) x = byId.get(x.parent);
+    if (!x || !known.has(x.zm)) continue;
+    addArea.run(a.ID, x.zm, x === a ? "own" : "parent", 1);
+    if (x === a) own++;
+    else inherited++;
+  }
+  // A building row with no area of its own takes its WMO's: the area a sibling
+  // group names (the lowest id), pinned as inexact. One with neither is counted.
+  const wmoRows = db.query("SELECT WMOID id, AreaTableID a, ZoneMusic zm FROM client_WMOAreaTable").all() as { id: number; a: number; zm: number }[];
+  const wmoArea = new Map<number, number>();
+  for (const w of wmoRows) if (byId.has(w.a) && (!wmoArea.has(w.id) || w.a < wmoArea.get(w.id)!)) wmoArea.set(w.id, w.a);
+  let wmo = 0, dead = 0, homeless = 0;
+  for (const w of wmoRows) {
+    if (w.zm <= 0) continue;
+    if (!known.has(w.zm)) {
+      dead++;
+      continue;
+    }
+    const area = byId.has(w.a) ? w.a : wmoArea.get(w.id);
+    if (area === undefined) homeless++;
+    else wmo += addArea.run(area, w.zm, "wmo", byId.has(w.a) && byId.get(w.a)!.parent ? 1 : 0).changes;
+  }
+  let intros = 0;
+  if (has("client_ZoneIntroMusicTable")) {
+    const introKit = new Map((db.query("SELECT ID, Name, SoundID k, MinDelayMinutes d FROM client_ZoneIntroMusicTable").all() as { ID: number; Name: string; k: number; d: number }[]).map((i) => [i.ID, i]));
+    const addIntro = db.prepare("INSERT INTO music_intro VALUES (?, ?, ?, ?, ?, 'client')");
+    for (const a of db.query("SELECT ID, IntroSound i FROM client_AreaTable WHERE IntroSound > 0").all() as { ID: number; i: number }[]) {
+      const i = introKit.get(a.i);
+      if (!i) continue;
+      for (const f of files.get(i.k) ?? []) {
+        addIntro.run(a.ID, i.ID, i.Name, f, i.d);
+        intros++;
+      }
+    }
+  }
+  log(`music: ${known.size} sets, areas ${own} own + ${inherited} inherited + ${wmo} by building, ${intros} intro tracks, ${dead} building rows name a set the client lacks and ${homeless} have no area (both left out)`);
+}
+
 export async function build(game: Game, file: string) {
   const db = new Database(file, { create: true });
   db.exec("PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;");
@@ -1798,6 +1878,7 @@ export async function build(game: Game, file: string) {
   source.run("english", "data/wowhead (frozen): its names in brackets", "https://www.wowhead.com", "Blizzard's (the English a client shows where its language has no name)");
   console.log(`${game}: the client's tables (${b.build})`);
   await clientTables(db, game);
+  music(db);
   console.log(`${game}: names in every language`);
   await clientNames(db, game);
   clientItems(db);

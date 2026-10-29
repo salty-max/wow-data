@@ -556,8 +556,52 @@ CREATE TABLE left_out (
 --   SkillLineAbility, TalentTab, ChrSpecialization, ChrClasses, ChrRaces,
 --   TaxiNodes, Faction, FactionTemplate, CreatureType, CreatureFamily,
 --   CreatureDisplayInfo, CreatureDisplayInfoExtra, ItemSparse, Item, Lock,
---   QuestSort, QuestInfo, EmotesText, Languages
+--   QuestSort, QuestInfo, EmotesText, Languages, ZoneMusic,
+--   ZoneIntroMusicTable, SoundKitEntry (the music: SoundKit itself isn't needed
+--   for the chain and is left out)
 -- (created by bin/build.ts from each CSV's header; integers stored as such).
+
+-- ── the music ───────────────────────────────────────────────────────────────
+-- The client's chain from an area to the files it plays (built from the
+-- client_ tables, src/build.ts music()). A set is a ZoneMusic row: one theme a
+-- biome or a city shares, its label (SetName) the developers', never a name a
+-- player reads. A game's file ids are its own (Forever's remaster has others).
+CREATE TABLE music_set (
+  id     INTEGER PRIMARY KEY,  -- ZoneMusic.ID
+  label  TEXT NOT NULL,        -- SetName, for the writer
+  source TEXT NOT NULL
+);
+CREATE TABLE music_track (
+  set_id  INTEGER NOT NULL,
+  file_id INTEGER NOT NULL,    -- FileDataID, what PlayMusic takes
+  period  TEXT NOT NULL,       -- day (Sounds_0), night (Sounds_1) or both
+  seq     INTEGER NOT NULL,    -- the order the client's entries come in
+  source  TEXT NOT NULL,
+  PRIMARY KEY (set_id, file_id)
+);
+-- The set an area plays: its own, its parent zone's (via parent: a subzone
+-- with none) or a building's (via wmo: an inn). An area can have several.
+CREATE TABLE music_area (
+  area_id INTEGER NOT NULL,
+  set_id  INTEGER NOT NULL,
+  via     TEXT NOT NULL,       -- own, parent, wmo
+  exact   INTEGER NOT NULL,    -- 0: a building row the client pins to a whole zone or city
+                               -- (Stormwind City names eight sets): the set plays somewhere in it
+  source  TEXT NOT NULL,
+  PRIMARY KEY (area_id, set_id)
+);
+CREATE INDEX music_area_set ON music_area (set_id);
+-- The stinger played on arriving in an area (ZoneIntroMusicTable): at most once
+-- every delay_minutes.
+CREATE TABLE music_intro (
+  area_id       INTEGER NOT NULL,
+  intro_id      INTEGER NOT NULL,  -- ZoneIntroMusicTable.ID
+  label         TEXT NOT NULL,
+  file_id       INTEGER NOT NULL,
+  delay_minutes INTEGER NOT NULL,
+  source        TEXT NOT NULL
+);
+CREATE INDEX music_intro_area ON music_intro (area_id);
 
 -- ── views: the common joins, English ─────────────────────────────────────────
 -- (an addon reads these or writes its own SQL; a language other than
