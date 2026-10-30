@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ROOT } from "../src/pins";
-import { gameText, type PlayerFact, pick, players, resolveMarks } from "../src/players";
+import { factProblem, gameText, type PlayerFact, pick, players, resolveMarks, uploadBuild, uploadProblem } from "../src/players";
 
 // A database with the schema, a creature type's names and what other sources had.
 function world() {
@@ -124,8 +124,8 @@ describe("players' facts", () => {
       fact("enUS", "npc", "299", "where", "[1426,47.2,null]"),
       fact("enUS", "npc", "299", "where", "broken"),
     ];
-    expect(players(db, facts)).toEqual({ sightings: 2 });
-    expect(players(db, facts)).toEqual({});
+    expect(players(db, facts)).toEqual({ sightings: 2, skipped: 4 });
+    expect(players(db, facts)).toEqual({ skipped: 4 });
     expect(db.query("SELECT ui_map_id, ux, uy, source FROM spawn WHERE entity_id = 299").all())
       .toEqual([{ ui_map_id: 1426, ux: 40, uy: 50, source: "questie" }]);
     expect(db.query("SELECT count(*) AS n FROM creature_sighting WHERE npc_id = 299").get()).toEqual({ n: 2 });
@@ -136,6 +136,58 @@ describe("players' facts", () => {
     const db = world();
     players(db, [fact("frFR", "npc", "250002", "typeId", "1"), fact("frFR", "npc", "250002", "familyId", "1")]);
     expect(db.query("SELECT type_id, family_id FROM creature WHERE id = 250002").get()).toEqual({ type_id: 1, family_id: 1 });
+  });
+
+  test("a stranger's value that doesn't fit its field is skipped and counted, the build goes on", () => {
+    const db = world();
+    const bad = [
+      fact("enUS", "npc", "250003", "level", "abc"),
+      fact("enUS", "npc", "250003", "level", "5"),
+      fact("enUS", "npc", "250003", "level", "[5]"),
+      fact("enUS", "npc", "250003", "level", "[9,4]"),
+      fact("enUS", "npc", "250003", "level", "[0,4]"),
+      fact("enUS", "npc", "250003", "level", "[4,101]"),
+      fact("enUS", "npc", "250003", "level", "[4.5,6]"),
+      fact("enUS", "npc", "250003", "level", '["4","6"]'),
+      fact("enUS", "loot", "npc:250003", "item", "abc"),
+      fact("enUS", "loot", "npc:250003", "item", "-1"),
+      fact("enUS", "loot", "npc:abc", "item", "750"),
+      fact("enUS", "loot", "250003", "item", "750"),
+      fact("enUS", "quest", "34", "giver", "npc:abc"),
+      fact("enUS", "quest", "34", "ender", "player:7"),
+      fact("enUS", "npc", "abc", "name", "Nobody"),
+      fact("enUS", "npc", "250003", "rank", "boss"),
+      fact("enUS", "npc", "250003", "rank", "constructor"),
+      fact("enUS", "npc", "250003", "rank", "__proto__"),
+      fact("enUS", "npc", "250003", "typeId", "beast"),
+    ];
+    const told = players(db, [...bad, fact("enUS", "npc", "250003", "level", "[3,4]"), fact("enUS", "quest", "34", "giver", "npc:197")]);
+    expect(told.skipped).toBe(bad.length);
+    expect(db.query("SELECT min_level, max_level, rank, type_id, loot_id FROM creature WHERE id = 250003").get()).toEqual({
+      min_level: 3,
+      max_level: 4,
+      rank: null,
+      type_id: null,
+      loot_id: null,
+    });
+    expect(db.query("SELECT count(*) AS n FROM loot").get()).toEqual({ n: 0 });
+    expect(db.query("SELECT count(*) AS n FROM creature WHERE id IS NULL OR typeof(id) <> 'integer'").get()).toEqual({ n: 0 });
+    // (a bad giver seen by more players can't win over a good one and leave the quest none)
+    players(db, [fact("enUS", "quest", "35", "giver", "npc:x", "70003", 9), fact("enUS", "quest", "35", "giver", "object:12")]);
+    expect(db.query("SELECT kind, entity_id FROM quest_relation WHERE quest_id = 35").all()).toEqual([{ kind: "object", entity_id: 12 }]);
+  });
+
+  test("a pulled line is refused where its fact or locale doesn't fit, an odd build left out", () => {
+    expect(factProblem("npc", "1", "level", "[1,100]")).toBeUndefined();
+    expect(factProblem("npc", "1", "level", "abc")).toBe('level "abc"');
+    expect(factProblem("loot", "object:9", "item", "750")).toBeUndefined();
+    expect(factProblem("npc", "1", "name", 7)).toBe("value not text");
+    expect(factProblem("npc", "1", "rank", "toString")).toBe('rank "toString"');
+    expect(factProblem("say", "1", "say", "Hi.")).toBeUndefined();
+    expect(uploadProblem("enUS", "npc", "1", "level", "[2,3]")).toBeUndefined();
+    expect(uploadProblem("../../x", "npc", "1", "name", "A")).toBe('locale "../../x"');
+    expect(uploadProblem("enUS", "quest", "1", "giver", "npc:")).toBe('giver "npc:"');
+    expect([uploadBuild("70707"), uploadBuild(null), uploadBuild("1.5"), uploadBuild(70707)]).toEqual(["70707", null, null, null]);
   });
 
   test("a source's loot is never added to", () => {

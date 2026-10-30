@@ -18,6 +18,7 @@ import path from "node:path";
 import { fetchRetry } from "../src/fetch";
 import { CACHE } from "../src/cache";
 import { type Game, ROOT } from "../src/pins";
+import { uploadBuild, uploadProblem } from "../src/players";
 
 const server = (process.env.INBOX_URL ?? "").replace(/\/$/, "");
 const token = process.env.INBOX_TOKEN;
@@ -75,6 +76,8 @@ async function pull(game: Game): Promise<{ names: string[]; newFacts: number }> 
   }
   const byLocale = load(game);
   let added = 0;
+  // (a stranger's line that doesn't fit, never into the branch: the build would skip it anyway)
+  const refused = new Map<string, { n: number; first: string }>();
   for (let i = 0; i < listed.length; ) {
     const batch: string[] = [];
     let bytes = 0;
@@ -84,7 +87,15 @@ async function pull(game: Game): Promise<{ names: string[]; newFacts: number }> 
     }
     const { items } = await api<{ items: Upload[] }>("/api/inbox/read", { names: batch });
     for (const u of items)
-      for (const [locale, kind, entity, field, value, build] of u.facts) {
+      for (const [locale, kind, entity, field, value, sent] of u.facts) {
+        const problem = uploadProblem(locale, kind, entity, field, value);
+        if (problem) {
+          const what = problem.split(" ")[0];
+          const had = refused.get(what);
+          refused.set(what, had ? { ...had, n: had.n + 1 } : { n: 1, first: problem });
+          continue;
+        }
+        const build = uploadBuild(sent);
         const lines = byLocale.get(locale) ?? new Map<string, Line>();
         byLocale.set(locale, lines);
         const line: Line = [kind, entity, field, value, build, []];
@@ -96,6 +107,7 @@ async function pull(game: Game): Promise<{ names: string[]; newFacts: number }> 
       }
   }
   if (listed.length) save(game, byLocale);
+  for (const [what, { n, first }] of refused) console.log(`${game}: refused ${n} with a bad ${what} (the first: ${first.slice(0, 80)})`);
   console.log(`${game}: ${listed.length} uploads, ${added} new observations archived`);
   return { names: listed.map((l) => l.name), newFacts: added };
 }

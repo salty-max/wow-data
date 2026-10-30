@@ -16,7 +16,14 @@ and `resolveMarks` (`src/players.ts`) decides: where players of other
 classes or races saw the same text, a word that differs was the game's
 token; one that doesn't, or one player alone saw, stays as written inside a
 name the database knows in that language (Hunter's Hill, the Mage Quarter),
-else it was the token. Names are never tokens.
+else it was the token. Names are never tokens. Players' facts are
+strangers' uploads: a fact whose value doesn't fit its field (a level not
+`[lo,hi]` from 1 to 100, a loot item, a creature or a quest not digits, a
+giver not `npc|object:<id>`, a rank the game doesn't use, a type or family id
+not digits, a sighting off the map) is skipped by the build, counted
+(`factProblem`, 30 October 2026). `bin/players.ts pull` refuses it before it
+reaches the branch, and a line whose locale isn't one; an odd build is kept as
+none.
 
 ## Wowhead, frozen
 

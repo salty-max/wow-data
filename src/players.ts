@@ -29,6 +29,50 @@ export const MIN_SEEN = 1;
 const RANKS: Record<string, number> = { normal: 0, trivial: 0, minus: 0, elite: 1, rareelite: 2, worldboss: 3, rare: 4 };
 const QUEST_TEXTS = new Set(["details", "objectives", "request", "reward"]);
 
+/** A sighting's [map, x, y], or nothing where it isn't one. */
+function position(value: string): [number, number, number] | undefined {
+  let p: unknown;
+  try { p = JSON.parse(value); } catch { return; }
+  if (!Array.isArray(p) || p.length !== 3) return;
+  const [map, x, y] = p;
+  if (!Number.isInteger(map) || map < 1 || map > 100_000
+    || typeof x !== "number" || !Number.isFinite(x) || x < 0 || x > 100
+    || typeof y !== "number" || !Number.isFinite(y) || y < 0 || y > 100) return;
+  return [map, x, y];
+}
+
+// Strangers send these (Ravenpost's inbox takes any signed-in account), so a
+// value that doesn't fit its field is skipped, never trusted: one bad line
+// must not stop a build (addon-kit's data-prs.ts flags the same for a reader).
+/** What doesn't fit in a fact (its entity, or the value for its field), else nothing. */
+export function factProblem(kind: unknown, entity: unknown, field: unknown, value: unknown): string | undefined {
+  if (typeof kind !== "string" || typeof entity !== "string" || typeof field !== "string" || typeof value !== "string") return "value not text";
+  if (!(kind === "loot" ? /^(npc|object):\d{1,8}$/ : /^\d{1,8}$/).test(entity)) return `entity ${JSON.stringify(entity)}`;
+  if (kind === "loot") return /^\d{1,8}$/.test(value) ? undefined : `item ${JSON.stringify(value)}`;
+  if (kind === "quest" && (field === "giver" || field === "ender"))
+    return /^(npc|object):\d{1,8}$/.test(value) ? undefined : `${field} ${JSON.stringify(value)}`;
+  if (kind !== "npc") return;
+  if (field === "level") {
+    let r: unknown;
+    try { r = JSON.parse(value); } catch {}
+    return Array.isArray(r) && r.length === 2 && r.every((n) => Number.isInteger(n) && n >= 1 && n <= 100) && r[0] <= r[1]
+      ? undefined
+      : `level ${JSON.stringify(value)}`;
+  }
+  if (field === "where") return position(value) ? undefined : `where ${JSON.stringify(value)}`;
+  if (field === "rank") return Object.hasOwn(RANKS, value) ? undefined : `rank ${JSON.stringify(value)}`;
+  if (field === "typeId" || field === "familyId") return /^\d{1,4}$/.test(value) ? undefined : `${field} ${JSON.stringify(value)}`;
+}
+
+/** What doesn't fit in an upload's line, the fact's and its locale (a file's name), else nothing. */
+export function uploadProblem(locale: unknown, kind: unknown, entity: unknown, field: unknown, value: unknown): string | undefined {
+  if (typeof locale !== "string" || !/^[a-z]{2}[A-Z]{2}$/.test(locale)) return `locale ${JSON.stringify(locale)}`;
+  return factProblem(kind, entity, field, value);
+}
+
+/** An upload's build as a fact keeps it: digits, else none (a good fact isn't lost over it). */
+export const uploadBuild = (build: unknown) => (typeof build === "string" && /^\d{1,7}$/.test(build) ? build : null);
+
 /** The game's line breaks as the other sources write them ($B). */
 export const gameText = (s: string) => s.replace(/\r?\n/g, "$B");
 
@@ -154,11 +198,14 @@ export function loadPlayers(db: Database, game: Game) {
 
 /** Players' facts into the database, where no other source has them. */
 export function players(db: Database, all: PlayerFact[]): Record<string, number> {
-  const facts = resolveMarks(all, namesHolding(db)).filter((f) => f[6] >= MIN_SEEN);
   const told: Record<string, number> = {};
   const count = (what: string, n: number) => {
     if (n) told[what] = (told[what] ?? 0) + n;
   };
+  // (before a value is picked among players', so a bad one can't win over a good one)
+  const fit = all.filter((f) => !factProblem(f[1], f[2], f[3], f[4]));
+  count("skipped", all.length - fit.length);
+  const facts = resolveMarks(fit, namesHolding(db)).filter((f) => f[6] >= MIN_SEEN);
   // (one value a fact: per language for words, across them for the rest)
   const groups = new Map<string, PlayerFact[]>();
   const group = (key: string, f: PlayerFact) => {
@@ -203,7 +250,7 @@ export function players(db: Database, all: PlayerFact[]): Record<string, number>
         count("quests", quest.run(id).changes);
         if (field === "title") count("quest titles", name.run("quest", id, locale, value).changes);
         else if (QUEST_TEXTS.has(field)) count("quest texts", text.run(id, locale, field, gameText(value)).changes);
-        else if ((field === "giver" || field === "ender") && /^(npc|object):\d+$/.test(value)) {
+        else if (field === "giver" || field === "ender") {
           const role = field === "giver" ? "start" : "end";
           const [what, who] = value.split(":");
           if (!related.get(id, role)) count("givers and enders", relation.run(id, role, what === "npc" ? "creature" : "object", Number(who)).changes);
@@ -211,8 +258,8 @@ export function players(db: Database, all: PlayerFact[]): Record<string, number>
       } else if (kind === "npc") {
         count("creatures", creature.run(id).changes);
         if (field === "name") count("creature names", name.run("creature", id, locale, value).changes);
-        else if (field === "rank" && value in RANKS) count("ranks", setRank.run(RANKS[value], id).changes);
-        else if ((field === "typeId" || field === "familyId") && /^\d+$/.test(value))
+        else if (field === "rank") count("ranks", setRank.run(RANKS[value], id).changes);
+        else if (field === "typeId" || field === "familyId")
           count(field === "typeId" ? "types" : "families", (field === "typeId" ? setType : setFamily).run(Number(value), id).changes);
         else if (field === "type" || field === "family") {
           const t = typeOf.get(field === "type" ? "creature_type" : "creature_family", locale, value) as { id: number } | null;
@@ -224,13 +271,7 @@ export function players(db: Database, all: PlayerFact[]): Record<string, number>
       (npc_id, locale, ui_map_id, observer_x, observer_y, build, seen, source)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'players')`);
     for (const [locale, , entity, , value, build, seen] of sightings) {
-      let position: unknown;
-      try { position = JSON.parse(value); } catch { continue; }
-      if (!Array.isArray(position) || position.length !== 3) continue;
-      const [map, x, y] = position;
-      if (!Number.isInteger(map) || map < 1 || map > 100_000
-        || typeof x !== "number" || !Number.isFinite(x) || x < 0 || x > 100
-        || typeof y !== "number" || !Number.isFinite(y) || y < 0 || y > 100) continue;
+      const [map, x, y] = position(value)!;
       count("creatures", creature.run(Number(entity)).changes);
       count("sightings", sighting.run(Number(entity), locale, map, x, y, build, seen).changes);
     }
