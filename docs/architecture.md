@@ -46,6 +46,19 @@ comes from, and the rules for them: `docs/sources.md`.
   (`openDb(game)`, read only; `dbPath`). IDs everywhere, names only in
   `name`, every row its `source`. `test/classic.test.ts` and `test/forever.test.ts` check them against
   facts from the game (skipped where they aren't built).
+- The ground (`src/terrain.ts`, 30 October 2026, for geoguessr's camera
+  picker): `terrain_chunk`, one row per map chunk of Classic's two
+  continents (its heights a byte each over the 9x9 corner vertices, its
+  holes, the liquid over it, its area) and `wmo_placement` (each WMO's
+  bounding box), read from every tile the map's WDT lists, its root and
+  `_obj0` ADT from wago.tools at the pinned build, six at a time. The raw
+  tiles (300 KB each, 1666 of them) are never kept: the cache holds what is
+  read from each, gzipped (`.cache/wago/terrain-<parser>/<build>/<map>/<col>_<row>.json.gz`,
+  35 MB in all; `<parser>` a hash of `terrain.ts`, so a change to the
+  parser reads every tile again rather than reuse the CI's cache). A tile
+  that isn't a map file (a challenge page, a body cut short) stops the build.
+  About 70 MB of classic.db (gzipped, the release grows from 74 to about
+  110 MB). Forever's maps are not built.
 - `left_out`: what the build leaves out of a game though a source had it
   (Forever: Season of Discovery's, `docs/sources.md`), its names kept in
   `name` and nothing else of it. A journal may hold its id: an addon's

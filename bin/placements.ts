@@ -13,6 +13,7 @@ import { cached } from "../src/cache";
 import { openDb } from "../src/db";
 import { fetchRetry } from "../src/fetch";
 import { PINS, type Game } from "../src/pins";
+import { CHUNK, chunks, ORIGIN } from "../src/terrain";
 
 const args = process.argv.slice(2);
 const uiAt = args.indexOf("--ui-map");
@@ -24,7 +25,6 @@ if ((game !== "classic" && game !== "forever") || !map || !models || !tiles.leng
 }
 const build = PINS.builds[game].build;
 const wanted = new Set(models.split(",").map(Number));
-const ORIGIN = 17066.666666, TILE = 533.333333, CHUNK = TILE / 16;
 
 // a map file's id, by its name in wago.tools' file list
 async function fileId(name: string): Promise<number> {
@@ -36,15 +36,6 @@ async function fileId(name: string): Promise<number> {
 }
 const file = async (id: number) =>
   readFileSync(await cached(`https://wago.tools/api/casc/${id}?download&version=${build}`, `wago/casc/${build}/${id}`));
-
-// an ADT's chunks: tag (as the file names it, reversed on disk), start, size
-function* chunks(d: Buffer, start = 0, end = d.length) {
-  for (let o = start; o + 8 <= end; ) {
-    const n = d.readUInt32LE(o + 4);
-    yield { tag: d.toString("latin1", o, o + 4).split("").reverse().join(""), at: o + 8, size: n };
-    o += 8 + n;
-  }
-}
 
 const db = openDb(game);
 const mapId = (db.query("SELECT ID FROM client_Map WHERE lower(Directory) = lower(?)").get(map) as { ID: number } | null)?.ID;
