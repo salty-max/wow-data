@@ -69,6 +69,26 @@ comes from, and the rules for them: `docs/sources.md`.
   `<parser>` a hash of `terrain.ts`, so a change to the parser reads every
   tile again). A tile that isn't a map file (a challenge page, a body cut
   short) stops the build. About 100 seconds, 96 MB. Forever's maps are not built.
+  `wmo_group` (`src/wmoGroups.ts`, 30 October 2026): the groups of the big
+  WMO placements (160 yards or more across) whose WMO the client names a
+  part of in `client_WMOAreaTable` (so classic.db is built first, at the
+  pin: refused otherwise, its tag in the meta as `game_db`): 20 WMOs,
+  1237 groups, the cities' districts (Stormwind's Trade District,
+  Orgrimmar's Valley of Strength) and some dungeons' halls. Each group's
+  box from its file's MOGP header, turned by its placement's MODF rotation
+  (the WMO's +x along the game's facing rot + 180: fitted on the 260 big
+  placements' own extents, 5 yards off on average) and placed in world
+  coordinates, with its id, the WMO's id and the placement's name set, the
+  keys of `client_WMOAreaTable`'s name. A group file is 300 KB and Stormwind
+  has 306, so the cache keeps what is read from each WMO
+  (`.cache/wago/wmo-groups-<groups>-<parser>/<build>/<root file>.json`,
+  hashes of `wmoGroups.ts`, in the database's meta as `groups`, and of
+  `terrain.ts`), and the small files whole (the 260 big placements' roots,
+  the `_obj0` tiles under the 20, in `.cache/wago/casc/<build>/`). A
+  placement is looked up in the tile under its origin, then the others
+  under its box. `wmoGroups.ts` is apart from `terrain.ts`, its fetch
+  helpers written again, so the tiles' cache (a hash of `terrain.ts`, about
+  1 GB to read again) stays.
 - `left_out`: what the build leaves out of a game though a source had it
   (Forever: Season of Discovery's, `docs/sources.md`), its names kept in
   `name` and nothing else of it. A journal may hold its id: an addon's

@@ -5,7 +5,7 @@
 
 CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL  -- game, build (the pin it was read at), parser (src/terrain.ts' hash), built_at
+  value TEXT NOT NULL  -- game, build (the pin it was read at), parser (src/terrain.ts' hash), groups (src/wmoGroups.ts'), game_db (the game database's tag wmo_group's names were picked from), built_at
 );
 
 -- ── the ground ────────────────────────────────────────────────────────────────
@@ -44,6 +44,25 @@ CREATE TABLE wmo_placement (
   max_x     REAL NOT NULL, max_y REAL NOT NULL, max_z REAL NOT NULL,
   source    TEXT NOT NULL,
   PRIMARY KEY (map_id, unique_id)
+);
+
+-- The groups of the big WMO placements (160 yards or more across) whose WMO
+-- the client names a part of (src/wmoGroups.ts): a city's districts, a
+-- dungeon's halls, each group's box turned and placed in world coordinates.
+-- Its name: client_WMOAreaTable (WMOID wmo_id, NameSetID name_set,
+-- WMOGroupID group_id) in the game's database.
+CREATE TABLE wmo_group (
+  map_id      INTEGER NOT NULL,
+  unique_id   INTEGER NOT NULL,  -- the placement (wmo_placement)
+  group_index INTEGER NOT NULL,  -- its place in the WMO's group list
+  group_id    INTEGER NOT NULL,  -- the group's own id (its MOGP header)
+  wmo_id      INTEGER NOT NULL,  -- the WMO's id (its root's MOHD)
+  name_set    INTEGER NOT NULL,  -- the placement's name set (its MODF)
+  flags       INTEGER NOT NULL,  -- MOGI's: 0x8 outdoors, 0x2000 indoors
+  min_x       REAL NOT NULL, min_y REAL NOT NULL, min_z REAL NOT NULL,
+  max_x       REAL NOT NULL, max_y REAL NOT NULL, max_z REAL NOT NULL,
+  source      TEXT NOT NULL,
+  PRIMARY KEY (map_id, unique_id, group_index)
 );
 
 -- Where the map files place a doodad (an M2: a tree, a rock, a fence, a

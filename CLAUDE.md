@@ -26,7 +26,7 @@ TypeScript (salty-max/wow-data). Read the family's CLAUDE.md
 bun run check                                   # tsc, bun test ./test (classic/forever tests skip what isn't built)
 bun "$(git rev-parse --path-format=absolute --git-common-dir)/../../addon-kit/q.ts" check -- bun run check   # the same, quiet, stamping the tree for the push
 bun bin/build.ts <classic|forever|all>          # .cache/db/<game>.db from the pins
-bun bin/terrain.ts classic                      # .cache/db/classic-terrain.db, the ground (not released, for geoguessr)
+bun bin/terrain.ts classic                      # .cache/db/classic-terrain.db, the ground (not released, for geoguessr; classic.db built first)
 bun bin/get.ts [--tag db-<commit12>]            # the published databases instead of a build
 bun bin/card.ts <npc|object|place|item|quest> <id or exact name> [--game classic|forever] [--full]
 bun bin/path.ts db <game>                       # a database's path (wago, repo, pin, tree: a cached file)
