@@ -33,7 +33,11 @@ jobs:
             .cache/github
             .cache/questie
             .cache/tools
-          key: sources-${{ hashFiles('pins.json') }}-${{ github.run_id }}
+          # (one cache a pins hash, saved here only: with the run id in the
+          # key every run saved its own half-gigabyte copy, past the
+          # repository's 10 GB. The first restore key finds those old copies
+          # until they are evicted)
+          key: sources-${{ hashFiles('pins.json') }}
           restore-keys: |
             sources-${{ hashFiles('pins.json') }}-
             sources-

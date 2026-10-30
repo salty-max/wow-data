@@ -42,7 +42,10 @@ jobs:
           } > "$RUNNER_TEMP/body.md"
       # (merged only if the new pins build and pass the databases' tests,
       # as db.yml would; else the pull request waits for a hand)
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      # (restored only: db.yml saves the one cache a pins hash, from a whole
+      # build, where a half-made download here, its build allowed to fail,
+      # would stay under that key for good)
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         if: steps.pins.outputs.moved == 'true'
         with:
           path: |
@@ -50,7 +53,7 @@ jobs:
             .cache/github
             .cache/questie
             .cache/tools
-          key: sources-${{ hashFiles('pins.json') }}-${{ github.run_id }}
+          key: sources-${{ hashFiles('pins.json') }}
           restore-keys: |
             sources-${{ hashFiles('pins.json') }}-
             sources-
