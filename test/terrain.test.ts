@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { dbPath, openDb } from "../src/db";
 import { CHUNK, objWmos, ORIGIN, packHeights, rootChunks, UNIT, wdtTiles } from "../src/terrain";
+import { openTerrain, terrainPath } from "../src/terrainDb";
 
 const chunk = (tag: string, body: Buffer) => {
   const head = Buffer.alloc(8);
@@ -91,10 +92,10 @@ describe("the map files' parsers", () => {
   });
 });
 
-const built = existsSync(dbPath("classic"));
-describe.skipIf(!built)("classic.db's ground", () => {
-  const db = built ? openDb("classic") : null!;
-  const has = built && db.query("SELECT 1 FROM sqlite_master WHERE name = 'terrain_chunk'").get();
+const built = existsSync(terrainPath("classic")) && existsSync(dbPath("classic"));
+describe.skipIf(!built)("classic-terrain.db", () => {
+  const db = built ? openTerrain("classic") : null!;
+  const game = built ? openDb("classic") : null!;
   // the ground under a point, from the packed corner heights (bilinear)
   const at = db?.prepare("SELECT x, y, z_min, z_max, heights FROM terrain_chunk WHERE map_id = ? AND row = ? AND col = ?");
   function ground(map: number, px: number, py: number): number | null {
@@ -108,20 +109,25 @@ describe.skipIf(!built)("classic.db's ground", () => {
     return (h(r, k) * (1 - v) + h(r, k + 1) * v) * (1 - u) + (h(r + 1, k) * (1 - v) + h(r + 1, k + 1) * v) * u;
   }
 
-  test.skipIf(!has)("both continents, each chunk once, its area the client's", () => {
+  test("classic.db holds none of it (its own database, the user's call)", () => {
+    expect(game.query("SELECT 1 FROM sqlite_master WHERE name = 'terrain_chunk'").get()).toBeNull();
+  });
+  test("both continents, each chunk once, its area the client's", () => {
     const maps = db.query("SELECT map_id, count(*) n FROM terrain_chunk GROUP BY map_id").all() as { map_id: number; n: number }[];
     expect(maps.map((m) => m.map_id)).toEqual([0, 1]);
     // every tile is 256 chunks (Eastern Kingdoms: 687 tiles at 1.15.9)
     for (const m of maps) expect(m.n % 256).toBe(0);
     expect(maps[0].n / 256).toBeGreaterThan(600);
     const n = (sql: string) => (db.query(sql).get() as { n: number }).n;
-    expect(n("SELECT count(*) n FROM terrain_chunk WHERE area_id <> 0 AND area_id NOT IN (SELECT ID FROM client_AreaTable)")).toBe(0);
+    const areas = new Set((game.query("SELECT ID FROM client_AreaTable").all() as { ID: number }[]).map((a) => a.ID));
+    const used = (db.query("SELECT DISTINCT area_id a FROM terrain_chunk WHERE area_id <> 0").all() as { a: number }[]).map((r) => r.a);
+    expect(used.filter((a) => !areas.has(a))).toEqual([]);
     expect(n("SELECT count(*) n FROM terrain_chunk WHERE length(heights) <> 81")).toBe(0);
   });
 
-  test.skipIf(!has)("the ground under the creatures that stand outdoors: within half a yard for most", () => {
+  test("the ground under the creatures that stand outdoors: within half a yard for most", () => {
     // around Goldshire and the Crossroads, the Classic database's creatures standing still
-    const spawns = db
+    const spawns = game
       .query(
         `SELECT map_id, x, y, z FROM spawn WHERE kind = 'creature' AND source = 'classicdb' AND movement_type = 0
          AND ((map_id = 0 AND x BETWEEN -9900 AND -9000 AND y BETWEEN -800 AND 800) OR (map_id = 1 AND x BETWEEN -900 AND 0 AND y BETWEEN -3100 AND -2200))`,
@@ -135,7 +141,7 @@ describe.skipIf(!built)("classic.db's ground", () => {
     expect(off[Math.floor(off.length / 2)]).toBeLessThan(0.5);
   });
 
-  test.skipIf(!has)("water where the game has it: Crystal Lake in Elwynn, the sea off Ratchet", () => {
+  test("water where the game has it: Crystal Lake in Elwynn, the sea off Ratchet", () => {
     const wet = (map: number, px: number, py: number) =>
       db.query("SELECT liquid_type t, liquid_max m FROM terrain_chunk WHERE map_id = ? AND row = ? AND col = ?").get(map, Math.floor((ORIGIN - px) / CHUNK), Math.floor((ORIGIN - py) / CHUNK)) as { t: number | null; m: number | null };
     expect(wet(0, -9410, -95).t).toBe(5);
@@ -144,7 +150,7 @@ describe.skipIf(!built)("classic.db's ground", () => {
     expect(wet(0, -9465, 60).t).toBeNull();
   });
 
-  test.skipIf(!has)("Stormwind's WMO, once, its box around the city's gate", () => {
+  test("Stormwind's WMO, once, its box around the city's gate", () => {
     const w = db.query("SELECT * FROM wmo_placement WHERE map_id = 0 AND unique_id = 10047").get() as Record<string, number>;
     expect(w.file_id).toBe(107243);
     expect(w.min_x).toBeLessThan(-9090);

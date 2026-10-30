@@ -47,18 +47,23 @@ comes from, and the rules for them: `docs/sources.md`.
   `name`, every row its `source`. `test/classic.test.ts` and `test/forever.test.ts` check them against
   facts from the game (skipped where they aren't built).
 - The ground (`src/terrain.ts`, 30 October 2026, for geoguessr's camera
-  picker): `terrain_chunk`, one row per map chunk of Classic's two
-  continents (its heights a byte each over the 9x9 corner vertices, its
-  holes, the liquid over it, its area) and `wmo_placement` (each WMO's
-  bounding box), read from every tile the map's WDT lists, its root and
-  `_obj0` ADT from wago.tools at the pinned build, six at a time. The raw
-  tiles (300 KB each, 1666 of them) are never kept: the cache holds what is
-  read from each, gzipped (`.cache/wago/terrain-<parser>/<build>/<map>/<col>_<row>.json.gz`,
-  35 MB in all; `<parser>` a hash of `terrain.ts`, so a change to the
-  parser reads every tile again rather than reuse the CI's cache). A tile
-  that isn't a map file (a challenge page, a body cut short) stops the build.
-  About 70 MB of classic.db (gzipped, the release grows from 74 to about
-  110 MB). Forever's maps are not built.
+  picker), in a database of its own: `bun bin/terrain.ts classic` builds
+  `.cache/db/classic-terrain.db` (`terrain.sql`; `src/terrainDb.ts`'s `openTerrain(game)` reads
+  it, saying when it was read at another pin, by another parser or with
+  another schema). Never
+  built by `bin/build.ts`, never released, never run by a job: no addon
+  reads it, and its 70 MB in classic.db would have grown every addon's daily
+  download by half (the user's call). `terrain_chunk`, one row per map chunk
+  of Classic's two continents (its heights a byte each over the 9x9 corner
+  vertices, its holes, the liquid over it, its area), and `wmo_placement`
+  (each WMO's bounding box), read from every tile the map's WDT lists, its
+  root and `_obj0` ADT from wago.tools at the pinned build, six at a time.
+  The raw tiles (300 KB each, 1666 of them) are never kept: the cache holds
+  what is read from each, gzipped
+  (`.cache/wago/terrain-<parser>/<build>/<map>/<col>_<row>.json.gz`, 35 MB;
+  `<parser>` a hash of `terrain.ts`, so a change to the parser reads every
+  tile again). A tile that isn't a map file (a challenge page, a body cut
+  short) stops the build. About 40 seconds. Forever's maps are not built.
 - `left_out`: what the build leaves out of a game though a source had it
   (Forever: Season of Discovery's, `docs/sources.md`), its names kept in
   `name` and nothing else of it. A journal may hold its id: an addon's

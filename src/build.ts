@@ -17,7 +17,6 @@ import { type Game, PINS, ROOT } from "./pins";
 import { loadPlayers, playerFacts } from "./players";
 import { questie, questieSeason, questieZoneMaps, type QuestieData, type QuestieRecord } from "./questie";
 import { rows } from "./sql";
-import { terrain } from "./terrain";
 import { LOCALES, wago } from "./wago";
 
 type Row = Record<string, string | number | null>;
@@ -1932,7 +1931,6 @@ export async function build(game: Game, file: string) {
   wowheadPages(db, game, log);
   loadPlayers(db, game);
   loadLandmarks(db, game);
-  await terrain(db, game, log);
   shownInEnglishLater(db, shownLater);
   if (game === "forever") await seasonOfDiscovery(db, game);
   unknownLoot(db);

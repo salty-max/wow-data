@@ -5,8 +5,11 @@
 // hundreds, so the cache keeps what is read from each tile (a few KB), never
 // the file: .cache/wago/terrain-<parser>/<build>/<map>/<col>_<row>.json.gz,
 // <parser> a hash of this file's source, so a change to how a tile is read
-// is never served from tiles read the old way (the CI restores the cache).
-// Classic's two continents only (geoguessr's camera picker reads them).
+// is never served from tiles read the old way. The database itself:
+// src/terrainDb.ts (kept apart, so editing it doesn't change the hash).
+// Classic's two continents only (geoguessr's camera picker reads them), in a
+// database of their own (terrain.sql, src/terrainDb.ts, bin/terrain.ts):
+// never in the game's database, never released.
 import type { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -165,7 +168,7 @@ const casc = (id: number, build: string) =>
     if (body.length < 8 || body.toString("latin1", 0, 4) !== "REVM") throw new Error(`file ${id}: not a map file (${body.length} bytes)`);
     return body;
   });
-const PARSER = Bun.hash(readFileSync(import.meta.path)).toString(16).slice(0, 8);
+export const PARSER = Bun.hash(readFileSync(import.meta.path)).toString(16).slice(0, 8);
 
 // a map's WDT, by its path in wago.tools' file list (downloaded once)
 async function wdt(dir: string, build: string): Promise<Buffer> {
@@ -249,3 +252,4 @@ export async function terrain(db: Database, game: Game, log: (s: string) => void
     })();
   }
 }
+
