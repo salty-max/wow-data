@@ -45,3 +45,28 @@ CREATE TABLE wmo_placement (
   source    TEXT NOT NULL,
   PRIMARY KEY (map_id, unique_id)
 );
+
+-- Where the map files place a doodad (an M2: a tree, a rock, a fence, a
+-- banner). One placed over several tiles is one row.
+CREATE TABLE doodad_placement (
+  map_id    INTEGER NOT NULL,
+  unique_id INTEGER NOT NULL,  -- the placement's own id
+  file_id   INTEGER,           -- the model's file (doodad_model); NULL: named by path
+  x         REAL NOT NULL, y REAL NOT NULL, z REAL NOT NULL,
+  yaw       REAL NOT NULL,     -- its turn about the up axis, degrees, as the file gives it: the model's +x lies along the game's facing yaw + 180 (its tilt is not kept)
+  scale     REAL NOT NULL,     -- 1: the model's own size
+  source    TEXT NOT NULL,
+  PRIMARY KEY (map_id, unique_id)
+) WITHOUT ROWID;
+-- A doodad model's two boxes from its header, in its own yards (x forward,
+-- y left, z up from its foot), before a placement's scale and turn: the whole
+-- model (leaves and branches too), and what a player bumps into (a trunk, a
+-- rock; all 0: nothing, grass and flowers).
+CREATE TABLE doodad_model (
+  file_id   INTEGER PRIMARY KEY,
+  min_x     REAL NOT NULL, min_y REAL NOT NULL, min_z REAL NOT NULL,
+  max_x     REAL NOT NULL, max_y REAL NOT NULL, max_z REAL NOT NULL,
+  col_min_x REAL NOT NULL, col_min_y REAL NOT NULL, col_min_z REAL NOT NULL,
+  col_max_x REAL NOT NULL, col_max_y REAL NOT NULL, col_max_z REAL NOT NULL,
+  source    TEXT NOT NULL
+);

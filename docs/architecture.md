@@ -55,15 +55,20 @@ comes from, and the rules for them: `docs/sources.md`.
   reads it, and its 70 MB in classic.db would have grown every addon's daily
   download by half (the user's call). `terrain_chunk`, one row per map chunk
   of Classic's two continents (its heights a byte each over the 9x9 corner
-  vertices, its holes, the liquid over it, its area), and `wmo_placement`
-  (each WMO's bounding box), read from every tile the map's WDT lists, its
-  root and `_obj0` ADT from wago.tools at the pinned build, six at a time.
-  The raw tiles (300 KB each, 1666 of them) are never kept: the cache holds
-  what is read from each, gzipped
-  (`.cache/wago/terrain-<parser>/<build>/<map>/<col>_<row>.json.gz`, 35 MB;
+  vertices, its holes, the liquid over it, its area), `wmo_placement`
+  (each WMO's bounding box), `doodad_placement` (each M2 doodad: a tree, a
+  rock, a fence, about 316,000) and `doodad_model` (each doodad model's
+  bounding and collision boxes from its header, 2944 models), read from
+  every tile the map's WDT lists, its root and `_obj0` ADT, and each model's
+  M2, from wago.tools at the pinned build, six at a time.
+  The raw tiles (300 KB each, 1666 of them) and models are never kept: the
+  cache holds what is read from each: a tile gzipped in
+  `.cache/wago/terrain-<parser>/<build>/<map>/<col>_<row>.json.gz`, a
+  model's boxes as plain JSON in `.../<build>/models/<id>.json` (a model
+  wago.tools lacks is asked again next build), about 60 MB in all;
   `<parser>` a hash of `terrain.ts`, so a change to the parser reads every
   tile again). A tile that isn't a map file (a challenge page, a body cut
-  short) stops the build. About 40 seconds. Forever's maps are not built.
+  short) stops the build. About 100 seconds, 96 MB. Forever's maps are not built.
 - `left_out`: what the build leaves out of a game though a source had it
   (Forever: Season of Discovery's, `docs/sources.md`), its names kept in
   `name` and nothing else of it. A journal may hold its id: an addon's

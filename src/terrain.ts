@@ -13,7 +13,7 @@
 import type { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { CACHE, cached, HttpError } from "./cache";
+import { absent, CACHE, cached, HttpError } from "./cache";
 import { fetchRetry } from "./fetch";
 import { type Game, PINS } from "./pins";
 
@@ -41,7 +41,15 @@ export type Chunk = {
 export type Wmo = { unique: number; file: number | null; at: [number, number, number]; min: [number, number, number]; max: [number, number, number] };
 // a chunk as the table keeps it: its heights a byte each (packHeights)
 export type Packed = Omit<Chunk, "heights"> & { heights: Uint8Array };
-type Tile = { chunks: Packed[]; wmos: Wmo[] };
+// a doodad (an M2: a tree, a rock, a fence, a banner) where a tile places it;
+// yaw: its turn about the up axis in degrees, as the file gives it (not a
+// world heading: the model's +x lies along the game's facing yaw + 180; its
+// tilt, the file's other two angles, isn't kept)
+export type Doodad = { unique: number; file: number | null; at: [number, number, number]; yaw: number; scale: number };
+type Tile = { chunks: Packed[]; wmos: Wmo[]; doodads: Doodad[] };
+// a doodad model's boxes in its own yards (x forward, y left, z up): the
+// whole model (leaves too), and what a player bumps into (a trunk; all 0: nothing)
+export type Model = { box: number[]; collision: number[] };
 
 // a file's chunks: tag (as the format names it, reversed on disk), start, size
 export function* chunks(d: Buffer, start = 0, end = d.length) {
@@ -161,11 +169,45 @@ export function objWmos(d: Buffer): Wmo[] {
 
 // a map file, refused unless it is one: a challenge page or a body cut
 // short would otherwise be read as a tile with no ground and cached for good
-const casc = (id: number, build: string) =>
+// an _obj0 ADT's doodads (MDDF, 36 bytes each), in world coordinates; one
+// standing over several tiles is listed in each, with the same unique id
+export function objDoodads(d: Buffer): Doodad[] {
+  const mddf = [...chunks(d)].find((c) => c.tag === "MDDF");
+  if (!mddf) return [];
+  const out: Doodad[] = [];
+  for (let o = mddf.at; o + 36 <= mddf.at + mddf.size; o += 36) {
+    const flags = d.readUInt16LE(o + 34);
+    out.push({
+      unique: d.readUInt32LE(o + 4),
+      // flag 0x40: the name is a file id (else an index into MMDX's paths, not kept)
+      file: flags & 0x40 ? d.readUInt32LE(o) : null,
+      at: [ORIGIN - d.readFloatLE(o + 16), ORIGIN - d.readFloatLE(o + 8), d.readFloatLE(o + 12)],
+      yaw: d.readFloatLE(o + 24),
+      scale: d.readUInt16LE(o + 32) / 1024,
+    });
+  }
+  return out;
+}
+
+// an M2's two boxes, from its header (MD20, inside an MD21 chunk in a
+// chunked file): the bounding box at 0xA0, the collision box at 0xBC
+export function m2Boxes(d: Buffer): Model {
+  const h = d.toString("latin1", 0, 4) === "MD21" ? 8 : 0;
+  if (d.toString("latin1", h, h + 4) !== "MD20") throw new Error("not an M2 header");
+  // (a model with no collision mesh gives an empty box, its min above its
+  // max, +-10,000,000: written as all 0)
+  const box = (o: number) => {
+    const v = Array.from({ length: 6 }, (_, i) => Math.round(d.readFloatLE(h + o + i * 4) * 1000) / 1000);
+    return v[0] > v[3] || v[1] > v[4] || v[2] > v[5] ? [0, 0, 0, 0, 0, 0] : v;
+  };
+  return { box: box(0xa0), collision: box(0xbc) };
+}
+
+const casc = (id: number, build: string, magic = ["REVM"]) =>
   fetchRetry(`https://wago.tools/api/casc/${id}?download&version=${build}`).then(async (res) => {
     if (!res.ok) throw new HttpError(res.url, res.status);
     const body = Buffer.from(await res.arrayBuffer());
-    if (body.length < 8 || body.toString("latin1", 0, 4) !== "REVM") throw new Error(`file ${id}: not a map file (${body.length} bytes)`);
+    if (body.length < 8 || !magic.includes(body.toString("latin1", 0, 4))) throw new Error(`file ${id}: not a ${magic.join(" or ")} file (${body.length} bytes)`);
     return body;
   });
 export const PARSER = Bun.hash(readFileSync(import.meta.path)).toString(16).slice(0, 8);
@@ -199,12 +241,45 @@ async function tile(build: string, dir: string, t: { col: number; row: number; r
   if (ground.length !== 256) throw new Error(`${dir} ${t.col}_${t.row}: ${ground.length} map chunks, not 256`);
   const read: Tile = {
     chunks: ground.map((c) => ({ ...c, heights: packHeights(c) })),
-    wmos: t.obj0 ? objWmos(await casc(t.obj0, build)) : [],
+    wmos: [],
+    doodads: [],
   };
+  if (t.obj0) {
+    const obj = await casc(t.obj0, build);
+    read.wmos = objWmos(obj);
+    read.doodads = objDoodads(obj);
+  }
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(`${file}.part`, toJson(read));
   renameSync(`${file}.part`, file);
   return read;
+}
+
+// a doodad model's boxes, read once (the cache keeps the boxes, never the
+// model); null when wago.tools has no such file, asked again next build
+// (never cached: a gap on its side today isn't one for good)
+async function model(build: string, id: number): Promise<Model | null> {
+  const file = path.join(CACHE, "wago", `terrain-${PARSER}`, build, "models", `${id}.json`);
+  if (existsSync(file)) return JSON.parse(readFileSync(file, "utf8")) as Model;
+  let read: Model;
+  try {
+    read = m2Boxes(await casc(id, build, ["MD21", "MD20"]));
+  } catch (e) {
+    if (!absent(e)) throw e;
+    return null;
+  }
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(`${file}.part`, JSON.stringify(read));
+  renameSync(`${file}.part`, file);
+  return read;
+}
+
+// a few at once: polite to wago.tools
+async function each<T>(items: T[], work: (item: T) => Promise<void>) {
+  let next = 0;
+  await Promise.all(Array.from({ length: 6 }, async () => {
+    while (next < items.length) await work(items[next++]);
+  }));
 }
 
 // a 64-bit mask as 8 bytes, little end first (NULL: none set)
@@ -227,20 +302,15 @@ export async function terrain(db: Database, game: Game, log: (s: string) => void
   const build = PINS.builds[game].build;
   const chunk = db.prepare("INSERT INTO terrain_chunk VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'client')");
   const wmo = db.prepare("INSERT OR IGNORE INTO wmo_placement VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'client')");
+  const doodad = db.prepare("INSERT OR IGNORE INTO doodad_placement VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'client')");
+  const models = new Set<number>();
   for (const map of maps) {
     const tiles = wdtTiles(await wdt(map.dir, build));
     log(`${game}: the ground of map ${map.id} (${tiles.length} tiles)`);
-    // a few downloads at once: polite to wago.tools, an hour's work otherwise
     const read: Tile[] = new Array(tiles.length);
-    let next = 0;
-    await Promise.all(
-      Array.from({ length: 6 }, async () => {
-        while (next < tiles.length) {
-          const i = next++;
-          read[i] = await tile(build, map.dir, tiles[i]);
-        }
-      }),
-    );
+    await each([...tiles.keys()], async (i) => {
+      read[i] = await tile(build, map.dir, tiles[i]);
+    });
     db.transaction(() => {
       for (const t of read) {
         for (const c of t.chunks) {
@@ -248,8 +318,22 @@ export async function terrain(db: Database, game: Game, log: (s: string) => void
           chunk.run(map.id, c.row, c.col, c.x, c.y, c.area, c.zMin, c.zMax, c.heights, mask(c.holes), l?.type ?? null, l?.min ?? null, l?.max ?? null, l ? mask(l.cells) : null);
         }
         for (const w of t.wmos) wmo.run(map.id, w.unique, w.file, ...w.at, ...w.min, ...w.max);
+        for (const d of t.doodads) {
+          doodad.run(map.id, d.unique, d.file, ...d.at, d.yaw, d.scale);
+          if (d.file) models.add(d.file);
+        }
       }
     })();
   }
+  log(`${game}: the doodads' models (${models.size})`);
+  const boxes = new Map<number, Model | null>();
+  await each([...models].sort((a, b) => a - b), async (id) => {
+    boxes.set(id, await model(build, id));
+  });
+  const row = db.prepare("INSERT INTO doodad_model VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'client')");
+  let missing = 0;
+  db.transaction(() => {
+    for (const [id, m] of boxes) m ? row.run(id, ...m.box, ...m.collision) : missing++;
+  })();
+  if (missing) log(`${game}: ${missing} doodad models wago.tools has no file for (their placements kept, no boxes)`);
 }
-

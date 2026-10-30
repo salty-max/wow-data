@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { dbPath, openDb } from "../src/db";
-import { CHUNK, objWmos, ORIGIN, packHeights, rootChunks, UNIT, wdtTiles } from "../src/terrain";
+import { CHUNK, m2Boxes, objDoodads, objWmos, ORIGIN, packHeights, rootChunks, UNIT, wdtTiles } from "../src/terrain";
 import { openTerrain, terrainPath } from "../src/terrainDb";
 
 const chunk = (tag: string, body: Buffer) => {
@@ -83,6 +83,29 @@ describe("the map files' parsers", () => {
     expect(w.max).toEqual([ORIGIN - 290, ORIGIN - 90, 30]);
   });
 
+  test("an _obj0's doodads (MDDF): world coordinates, turn, scale, the file id when flagged", () => {
+    const e = Buffer.alloc(36);
+    e.writeUInt32LE(189085, 0);
+    e.writeUInt32LE(77, 4);
+    [100, 20, 300].forEach((v, i) => e.writeFloatLE(v, 8 + i * 4));
+    e.writeFloatLE(90, 24);
+    e.writeUInt16LE(2048, 32);
+    e.writeUInt16LE(0x40, 34);
+    expect(objDoodads(chunk("MDDF", e))).toEqual([{ unique: 77, file: 189085, at: [ORIGIN - 300, ORIGIN - 100, 20], yaw: 90, scale: 2 }]);
+    e.writeUInt16LE(0, 34);
+    expect(objDoodads(chunk("MDDF", e))[0].file).toBeNull();
+  });
+
+  test("an M2's boxes from its header, an empty collision box as all 0", () => {
+    const h = Buffer.alloc(0xd8);
+    h.write("MD20", 0, "latin1");
+    [-1, -2, 0, 1, 2, 5].forEach((v, i) => h.writeFloatLE(v, 0xa0 + i * 4));
+    [1e7, 1e7, 1e7, -1e7, -1e7, -1e7].forEach((v, i) => h.writeFloatLE(v, 0xbc + i * 4));
+    const md21 = Buffer.concat([Buffer.from("MD21", "latin1"), Buffer.alloc(4), h]);
+    expect(m2Boxes(md21)).toEqual({ box: [-1, -2, 0, 1, 2, 5], collision: [0, 0, 0, 0, 0, 0] });
+    expect(() => m2Boxes(Buffer.from("MVER0000", "latin1"))).toThrow();
+  });
+
   test("a height packed in a byte is off by at most a 510th of the chunk's span", () => {
     const heights = Array.from({ length: 81 }, (_, i) => 10 + Math.sin(i) * 40);
     const c = { zMin: Math.min(...heights), zMax: Math.max(...heights), heights };
@@ -148,6 +171,19 @@ describe.skipIf(!built)("classic-terrain.db", () => {
     expect(wet(1, -1010, -3910)).toEqual({ t: 2, m: 0 });
     // Goldshire's crossroads is dry
     expect(wet(0, -9465, 60).t).toBeNull();
+  });
+
+  test("the doodads, each with its model's boxes", () => {
+    const n = (sql: string) => (db.query(sql).get() as { n: number }).n;
+    expect(n("SELECT count(*) n FROM doodad_placement WHERE map_id = 0")).toBeGreaterThan(100_000);
+    expect(n("SELECT count(*) n FROM doodad_placement WHERE map_id = 1")).toBeGreaterThan(100_000);
+    // every model a placement names was read, its boxes in order (min under max)
+    expect(n("SELECT count(*) n FROM doodad_placement WHERE file_id NOT IN (SELECT file_id FROM doodad_model)")).toBe(0);
+    expect(n("SELECT count(*) n FROM doodad_model WHERE col_min_x > col_max_x OR col_min_z > col_max_z OR min_x > max_x")).toBe(0);
+    // most models have something to bump into, not all (grass and flowers don't)
+    const solid = n("SELECT count(*) n FROM doodad_model WHERE col_max_z > col_min_z");
+    expect(solid).toBeGreaterThan(500);
+    expect(solid).toBeLessThan(n("SELECT count(*) n FROM doodad_model"));
   });
 
   test("Stormwind's WMO, once, its box around the city's gate", () => {
