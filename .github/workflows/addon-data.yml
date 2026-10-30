@@ -5,12 +5,15 @@
 # that wow-data downloaded (bin/get.ts: the release of the last commit that
 # changed them, which must be published), the addon's own generators run.
 # When a generated file changes: the addon's checks, then a pull request,
-# rebased onto main by itself once they pass (`merge`, on unless a caller
-# says otherwise: nothing reaches the players before a release, which stays
-# by hand; the pull request stays the day's record). A day without change
-# ends after the generators.
+# its own ci.yml asked for on the branch, and the pull request rebased onto
+# main by itself once that run passes (`merge`, on unless a caller says
+# otherwise: nothing reaches the players before a release, which stays by
+# hand; the pull request stays the day's record). A run that fails, can't be
+# found or doesn't end in 30 minutes leaves the pull request waiting, never
+# merged. A day without change ends after the generators.
 # The calling repository needs "Allow GitHub Actions to create and approve
-# pull requests" (Settings, Actions, General).
+# pull requests" (Settings, Actions, General), `actions: write` among its
+# permissions and `workflow_dispatch:` in its ci.yml.
 name: Addon data
 
 on:
@@ -174,7 +177,7 @@ jobs:
             fi
             echo
             if [ "$MERGE" = "true" ]; then
-              echo "Opened by the daily Game data job (wow-data's addon-data.yml), the addon's checks passed, and merged by itself."
+              echo "Opened by the daily Game data job (wow-data's addon-data.yml), the addon's checks passed. Merged by itself once its CI run on this branch passes, else it waits here for a hand."
             else
               echo "Opened by the daily Game data job (wow-data's addon-data.yml). Read the differences, then merge by hand."
             fi
@@ -200,17 +203,70 @@ jobs:
           title: "chore: the game's data at wow-data's pins"
           body-path: ${{ runner.temp }}/body.md
           add-paths: ${{ inputs.paths }}
-      # (GitHub may need a moment to see the new pull request as mergeable)
-      - name: Merge
-        if: steps.data.outputs.changed == 'true' && inputs.merge && steps.pr.outputs.pull-request-number != ''
+      # (its checks on the pull request: GitHub starts a pull_request run for
+      # this job's own token but gives it no jobs, so the job asks for the
+      # addon's ci.yml on the branch and waits for it. passed=true is written
+      # in one place, after the run, its head and main are checked: anything
+      # else leaves the pull request waiting for a hand, never merged)
+      - name: Its checks
+        id: gate
+        if: steps.data.outputs.changed == 'true' && steps.pr.outputs.pull-request-number != '' && steps.pr.outputs.pull-request-operation != 'closed'
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ steps.pr.outputs.pull-request-number }}
+          SHA: ${{ steps.pr.outputs.pull-request-head-sha }}
+          MERGE: ${{ inputs.merge }}
+        run: |
+          set -uo pipefail
+          held() {
+            echo "why=$1" >> "$GITHUB_OUTPUT"
+            echo "$1" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+          [ -n "$SHA" ] || held "The pull request's head is unknown: its checks weren't asked for."
+          since=$(date -u -d '-30 seconds' +%Y-%m-%dT%H:%M:%SZ)
+          answer=$(gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f ref=game-data -F return_run_details=true) \
+            || held "ci.yml couldn't be asked for on game-data (its workflow_dispatch, or the caller's actions: write, missing?)."
+          [ "$MERGE" = "true" ] || exit 0
+          run=$(printf '%s' "$answer" | jq -r '.workflow_run_id // empty' 2>/dev/null) || run=""
+          # (GitHub may answer without the run: found by the branch's head then)
+          for wait in 5 5 10 10 15 15 20 20 20; do
+            [ -n "$run" ] && break
+            sleep "$wait"
+            run=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --branch game-data --event workflow_dispatch --commit "$SHA" --created ">=$since" --json databaseId --jq '.[0].databaseId // empty') || run=""
+          done
+          [ -n "$run" ] || held "The CI run asked for on game-data wasn't found in two minutes."
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$run"
+          timeout 1800 gh run watch "$run" -R "$GITHUB_REPOSITORY" --exit-status --interval 20 > /dev/null || true
+          read -r status conclusion head < <(gh run view "$run" -R "$GITHUB_REPOSITORY" --json status,conclusion,headSha --jq '"\(.status) \(.conclusion) \(.headSha)"') || true
+          [ "${status:-}" = completed ] || held "Its CI run ($url) wasn't seen to end (30 minutes at most)."
+          [ "${conclusion:-}" = success ] || held "Its CI run ($url) ended ${conclusion:-without a verdict}."
+          [ "${head:-}" = "$SHA" ] || held "Its CI run ($url) checked ${head:-another commit}, not the pull request's head $SHA."
+          # (the tested head must already hold its base: the rebase then moves nothing)
+          base=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json baseRefName --jq .baseRefName) || base=""
+          behind=$(gh api "repos/$GITHUB_REPOSITORY/compare/$base...$SHA" --jq .behind_by) || behind=""
+          [ -n "$base" ] && [ "$behind" = 0 ] || held "${base:-The base} moved while its checks ran (or couldn't be compared): not merged untested."
+          echo "Its CI run passed: $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "passed=true" >> "$GITHUB_OUTPUT"
+      # (GitHub may need a moment to see the new pull request as mergeable)
+      - name: Merge
+        if: steps.data.outputs.changed == 'true' && inputs.merge && steps.gate.outputs.passed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pr.outputs.pull-request-number }}
+          SHA: ${{ steps.pr.outputs.pull-request-head-sha }}
           URL: ${{ steps.pr.outputs.pull-request-url }}
         run: |
+          base=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json baseRefName --jq .baseRefName)
           for wait in 5 15 30 60; do
             sleep "$wait"
-            if gh pr merge "$PR" -R "$GITHUB_REPOSITORY" --rebase --delete-branch; then
+            # (main again, just before each try: a push since the checks would be rebased onto untested)
+            if [ "$(gh api "repos/$GITHUB_REPOSITORY/compare/$base...$SHA" --jq .behind_by)" != 0 ]; then
+              echo "$base moved after its checks: not merged untested, merge it by hand." >> "$GITHUB_STEP_SUMMARY"
+              bun ../wow-data/bin/tell.ts --kind waiting --repo "$REPO" --url "$URL" --title "$(jq -r .title "$RUNNER_TEMP/words.json"), waiting for you" --body "$base moved after its checks passed. The pull request waits for you."
+              exit 0
+            fi
+            if gh pr merge "$PR" -R "$GITHUB_REPOSITORY" --rebase --delete-branch --match-head-commit "$SHA"; then
               echo "Merged #$PR." >> "$GITHUB_STEP_SUMMARY"
               bun ../wow-data/bin/tell.ts --kind merged --repo "$REPO" --url "$URL" --from "$RUNNER_TEMP/words.json"
               exit 0
@@ -219,13 +275,25 @@ jobs:
           echo "#$PR could not be merged by itself: merge it by hand." >> "$GITHUB_STEP_SUMMARY"
           # (said once, as waiting: not a failure besides)
           bun ../wow-data/bin/tell.ts --kind waiting --repo "$REPO" --url "$URL" --title "$(jq -r .title "$RUNNER_TEMP/words.json"), waiting for you" --body "Its pull request couldn't be merged by itself."
+      # (its checks didn't pass: told as waiting, and the run red)
+      - name: Not merged
+        id: held
+        if: steps.data.outputs.changed == 'true' && inputs.merge && steps.pr.outputs.pull-request-number != '' && steps.pr.outputs.pull-request-operation != 'closed' && steps.gate.outputs.passed != 'true'
+        env:
+          URL: ${{ steps.pr.outputs.pull-request-url }}
+          WHY: ${{ steps.gate.outputs.why }}
+        run: |
+          echo "Not merged: the pull request waits for a hand." >> "$GITHUB_STEP_SUMMARY"
+          bun ../wow-data/bin/tell.ts --kind waiting --repo "$REPO" --url "$URL" --title "$(jq -r .title "$RUNNER_TEMP/words.json"), not merged" --body "${WHY:-Its checks failed.} The pull request waits for you."
+          exit 1
       - name: Waiting for a hand
         if: steps.data.outputs.changed == 'true' && !inputs.merge && steps.pr.outputs.pull-request-number != ''
         env:
           URL: ${{ steps.pr.outputs.pull-request-url }}
         run: bun ../wow-data/bin/tell.ts --kind waiting --repo "$REPO" --url "$URL" --from "$RUNNER_TEMP/words.json"
+      # (a pull request not merged is told once, above)
       - name: Failed
-        if: failure()
+        if: failure() && steps.held.outcome != 'failure'
         env:
           URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |

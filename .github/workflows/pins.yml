@@ -77,7 +77,7 @@ jobs:
           title: "chore: the game's builds moved"
           body-path: ${{ runner.temp }}/body.md
           add-paths: pins.json
-      # (its checks on the pull request: GitHub starts no pull_request run for this job's own token)
+      # (its checks on the pull request: GitHub gives this job's own token a pull_request run with no jobs)
       # (asked for, not waited on: a hiccup of GitHub's API never stops the rest)
       - name: Its checks
         if: steps.pr.outputs.pull-request-number != ''

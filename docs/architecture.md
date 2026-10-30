@@ -127,10 +127,12 @@ comes from, and the rules for them: `docs/sources.md`.
   database. The build writes the tag into `meta`; `openDb` (and the Python
   `db()`) says once when a database was built from other inputs than the
   checkout's, an error under `WOW_DATA_STRICT=1`.
-- A pull request a job opens (pins, players) gets no `pull_request` run:
-  GitHub starts none for a job's own token. The job dispatches ci.yml on
-  its branch instead (`actions: write`), so the pull request shows its
-  checks.
+- A pull request a job opens (pins, players, an addon's game data) gets a
+  `pull_request` run with no jobs, which fails: GitHub runs nothing for a
+  job's own token. The job dispatches ci.yml on its branch instead
+  (`actions: write`), so the pull request shows its checks. Pins and
+  players only ask for it; addon-data.yml waits for it and merges only
+  once it passes.
 - `.github/workflows/addon-data.yml`: an addon's game data built again,
   called by each addon's daily `game-data.yml` (Hearthtale, the Codex,
   Yonder, Second Wind, Palaver, Mealbook, Goodwill, Yours Truly; one run at
@@ -138,14 +140,19 @@ comes from, and the rules for them: `docs/sources.md`.
   pull request carries (`paths`), its checks (`check`), Hearthtale's
   journals compared (`before`, `report`), addon-kit beside it (`kit`): the
   databases of the wow-data checked out downloaded, a pull request only when
-  a generated file changes, rebased onto main by itself once the checks pass
-  (`merge`: nothing reaches players before a release, which stays by hand).
+  a generated file changes, the checks passed first, then the addon's ci.yml
+  dispatched on the branch and the pull request rebased onto main by itself
+  only once that run passes on its head, main unmoved (`merge`: nothing
+  reaches players before a release, which stays by hand). A red run, one not
+  found or not ended in 30 minutes leaves it open, told as waiting and the
+  job red: a stuck pull request, never a bad merge.
   Each day is told to the owner in words (`bin/describe-data.ts`: the files'
   entries new, changed, gone, and wow-data's commits since the last data
   commit's `wow-data: <commit>`; `bin/tell.ts`: Ravenpost's inbox, its
-  activity and the owner's phone, `INBOX_EVENTS_TOKEN`, callers pass
-  `secrets: inherit`), a failure too. A caller needs "Allow GitHub Actions to
-  create and approve pull requests".
+  activity and the owner's phone, `INBOX_EVENTS_TOKEN`, which callers pass
+  by name under `secrets:`), a failure too. A caller needs "Allow GitHub
+  Actions to create and approve pull requests", `actions: write` and
+  `workflow_dispatch:` in its ci.yml.
 - `ui-pins.json`, `src/ui.ts`, `bin/ui.ts`: Blizzard's UI source and textures, pinned apart from the data (no database is made of them) and read by one tool: `docs/ui-source.md`.
 - `bin/latest.ts`: newer builds than the pins (`--write`, `--next FILE`,
   `--summary FILE`); the databases' newer commits, told only. `bin/path.ts`:
