@@ -9,11 +9,11 @@ import { LOCALES } from "./wago";
 import { areaMap, overlayOf, subzoneAt, worldToMap } from "./world";
 
 type Row = Record<string, any>;
-export const KINDS = ["npc", "object", "place", "item", "quest"] as const;
+export const KINDS = ["npc", "object", "place", "item", "quest", "class", "talents"] as const;
 export type Kind = (typeof KINDS)[number];
 export const MAX_LINES = 40;
 const WORLD_ZONES = 10;
-const NAME_KIND: Record<Kind, string> = { npc: "creature", object: "object", place: "area", item: "item", quest: "quest" };
+const NAME_KIND: Record<Kind, string> = { npc: "creature", object: "object", place: "area", item: "item", quest: "quest", class: "class", talents: "class" };
 const ALL_LOCALES = ["enUS", ...LOCALES];
 // the ChrRaces bits of each side's races (human, dwarf, night elf, gnome; orc, undead, tauren, troll)
 const SIDES: [string, number][] = [
@@ -799,6 +799,79 @@ class Card {
     this.textOf("item", id);
   }
 
+  // ── a class (the class guide's data: schema.sql, docs/class-guide.md) ──────
+  // what it learns at each level and who teaches it: its trainers' lessons
+  // (kind trainer) and what it starts with; the talents, runes and the
+  // rest by count (--full: every row, and each lesson's trainers)
+  classCard(id: number) {
+    const cls = this.get("SELECT ID FROM client_ChrClasses WHERE ID = ?", id);
+    if (!cls) return this.add("class", `${id}: no such class`);
+    this.lines.push(`class ${this.name("class", id)} (${id})`);
+    this.add("names", this.namesLine("class", id));
+    const counts = this.all("SELECT kind, count(*) n FROM class_spell WHERE class_id = ? GROUP BY kind ORDER BY n DESC", id);
+    this.add("spells", counts.map((c) => `${c.n} ${c.kind}`).join(" · "));
+    const rows = this.all(
+      `SELECT spell_id, level, kind, lesson_spell_id, lesson_source, trainer_level FROM class_spell
+       WHERE class_id = ? AND kind IN ('start', 'trainer', 'quest') ORDER BY coalesce(level, 0), spell_id`,
+      id,
+    );
+    const odd = rows.filter((r) => r.level == null || (r.trainer_level && r.trainer_level !== r.level)).length;
+    rows.splice(0, rows.length, ...rows.filter((r) => r.level != null));
+    let level: number | null | undefined;
+    let line: string[] = [];
+    const flush = () => line.length && this.add(level == null ? "level ?" : `L${level}`, line.join(" · "));
+    for (const r of rows) {
+      if (r.level !== level) {
+        flush();
+        line = [];
+        level = r.level;
+      }
+      const rank = this.name("spell_subtext", r.spell_id);
+      const trainers = r.lesson_spell_id ? this.get("SELECT count(DISTINCT npc_id) n FROM trainer_spell WHERE spell_id = ?", r.lesson_spell_id)?.n : 0;
+      const quests = r.kind === "quest" ? this.all("SELECT DISTINCT quest_id FROM quest_reward WHERE kind IN ('spell', 'cast') AND ref_id = ?", r.lesson_spell_id) : [];
+      const how = r.kind === "start" ? "start" : r.kind === "quest" ? `quest ${quests.slice(0, 2).map((q) => this.name("quest", q.quest_id)).join(" / ")}${quests.length > 2 ? ` +${quests.length - 2}` : ""}` : `${trainers} trainers${r.lesson_source === "classic" ? ", Classic's lesson" : ""}${r.trainer_level && r.trainer_level !== r.level ? `, theirs says ${r.trainer_level}` : ""}`;
+      line.push(`${this.name("spell", r.spell_id) ?? "?"}${rank ? ` ${rank}` : ""} (${r.spell_id}; ${how})`);
+    }
+    flush();
+    if (odd) this.add("", `${odd} spells with no level in this client, or whose trainer level differs from its (--full lists the trainers)`);
+    if (this.full)
+      for (const r of rows.filter((x) => x.lesson_spell_id)) {
+        const npcs = this.all("SELECT DISTINCT npc_id FROM trainer_spell WHERE spell_id = ? ORDER BY npc_id", r.lesson_spell_id).map((t) => this.npc(t.npc_id));
+        this.add("", `${this.name("spell", r.spell_id)} (${r.spell_id}) taught by ${npcs.join(", ")}`);
+      }
+  }
+
+  // a class's talent trees, or one tree: each row of the window left to right
+  talentsCard(id: number, tab?: number) {
+    const trees = tab ?? this.all("SELECT DISTINCT tab_id FROM talent WHERE class_id = ?", id).map((t) => t.tab_id);
+    const list = Array.isArray(trees) ? trees : [trees];
+    const order = list
+      .map((t) => ({ t, o: this.get("SELECT OrderIndex o FROM client_TalentTab WHERE ID = ?", t)?.o ?? 0 }))
+      .sort((a, b) => a.o - b.o)
+      .map((x) => x.t);
+    if (!order.length) return this.add("talents", `${tab ?? id}: no talents`);
+    const cls = this.get("SELECT class_id c FROM talent WHERE tab_id = ? LIMIT 1", order[0])!.c;
+    this.lines.push(`talents ${this.name("class", cls)} (${cls})`);
+    for (const t of order) {
+      const rows = this.all("SELECT * FROM talent WHERE tab_id = ? ORDER BY row, col", t);
+      const fresh = rows.filter((r) => r.era_talent_id == null).length;
+      this.lines.push(`${this.name("talent_tab", t)} (${t}): ${rows.length} talents${fresh ? `, ${fresh} new to this game` : ""}`);
+      let row = -1;
+      let line: string[] = [];
+      const flush = () => line.length && this.add(`  r${row}`, `L${rows.find((r) => r.row === row)!.min_level}+ ${line.join(" · ")}`);
+      for (const r of rows) {
+        if (r.row !== row) {
+          flush();
+          line = [];
+          row = r.row;
+        }
+        const moved = r.era_tab_id != null && r.era_tab_id !== r.tab_id ? ", moved" : "";
+        line.push(`c${r.col} ${this.name("spell", r.spell_id) ?? "?"} ${r.max_rank} (${r.spell_id}${moved})`);
+      }
+      flush();
+    }
+  }
+
   questCard(id: number) {
     const q = this.get("SELECT * FROM quest WHERE id = ?", id);
     if (!q) return this.leftOut("quest", "quest", id) ?? this.add("quest", `${id}: no such quest`);
@@ -914,11 +987,18 @@ export function resolve(d: Database, kind: Kind, key: string): { id: number; oth
 
 // a thing's card, as lines (40 at most unless full)
 export function card(d: Database, kind: Kind, key: string, opts: { full?: boolean } = {}): string[] {
-  const found = resolve(d, kind, key);
-  if (!found) return [`${kind} "${key}": no such ${NAME_KIND[kind]} (an id, or its exact name)`];
+  const found = resolve(d, kind === "talents" ? "class" : kind, key);
+  // (talents: a class, else the trees of that name: Feral Combat, or every Holy)
+  const trees =
+    kind === "talents" && !found
+      ? (d.query("SELECT DISTINCT id FROM name WHERE kind = 'talent_tab' AND locale = 'enUS' AND name = ? COLLATE NOCASE ORDER BY id").all(key) as Row[]).map((r) => r.id as number)
+      : [];
+  if (!found && !trees.length) return [`${kind} "${key}": no such ${kind === "talents" ? "class or tree" : NAME_KIND[kind]} (an id, or its exact name)`];
   const c = new Card(d, !!opts.full);
-  ({ npc: c.npcCard, object: c.objectCard, place: c.placeCard, item: c.itemCard, quest: c.questCard })[kind].call(c, found.id);
-  if (found.others.length) c.lines.splice(1, 0, `also    ${found.others.length} more named so: ${c.few(found.others, 8, String, ", ")}`);
+  if (!found) for (const t of trees) c.talentsCard(0, t);
+  else if (kind === "talents") c.talentsCard(found.id);
+  else ({ npc: c.npcCard, object: c.objectCard, place: c.placeCard, item: c.itemCard, quest: c.questCard, class: c.classCard })[kind].call(c, found.id);
+  if (found?.others.length) c.lines.splice(1, 0, `also    ${found.others.length} more named so: ${c.few(found!.others, 8, String, ", ")}`);
   if (!opts.full && c.lines.length > MAX_LINES) {
     const cut = c.lines.length - (MAX_LINES - 1);
     c.lines = [...c.lines.slice(0, MAX_LINES - 1), `… ${cut} more lines (--full)`];

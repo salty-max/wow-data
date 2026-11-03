@@ -12,6 +12,7 @@ import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { absent, CACHE } from "./cache";
 import { databaseTag } from "./dbRelease";
+import { classGuide } from "./classGuide";
 import { classicDump } from "./github";
 import { type Game, PINS, ROOT } from "./pins";
 import { loadPlayers, playerFacts } from "./players";
@@ -43,6 +44,18 @@ const CLIENT_TABLES = [
   "SkillLine",
   "SkillLineAbility",
   "TalentTab",
+  // (the class guide's: docs/class-guide.md)
+  "Talent",
+  "SpellLevels",
+  "SkillLineXTraitTree",
+  "TraitNode",
+  "TraitNodeEntry",
+  "TraitDefinition",
+  "TraitNodeXTraitNodeEntry",
+  "TraitNodeGroupXTraitNode",
+  "TraitNodeGroupXTraitCond",
+  "TraitCond",
+  "TraitEdge",
   "ChrSpecialization",
   "ChrClasses",
   "ChrRaces",
@@ -1921,6 +1934,7 @@ export async function build(game: Game, file: string) {
   questieZones(db, await questieZoneMaps());
   clientGathering(db);
   await teachings(db, game);
+  await classGuide(db, game);
   const shownLater = wowheadNames(db, game);
   if (game === "classic") tbcItems(db);
   wowheadRanks(db, game);

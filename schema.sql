@@ -407,6 +407,84 @@ CREATE TABLE trainer_spell (
   req_spell_id   INTEGER   -- a spell it needs known first (a rank's earlier one, a talent)
 );
 
+-- ── classes: levels, talents, what a class learns ───────────────────────────
+-- (the class guide's data, 3 November 2026; docs/class-guide.md says where
+-- each source is weak.) The client's SpellLevels: the level a spell is learned
+-- at is SpellLevel, never BaseLevel (0 for most of Forever's rows and every
+-- talent spell).
+CREATE TABLE spell_level (
+  spell_id   INTEGER PRIMARY KEY,
+  level      INTEGER NOT NULL,  -- SpellLevels.SpellLevel
+  base_level INTEGER NOT NULL,  -- SpellLevels.BaseLevel, told only
+  max_level  INTEGER NOT NULL,
+  source     TEXT NOT NULL
+);
+-- A talent as the talent window shows it: the tree (a TalentTab), the row
+-- from the top and the column from the left (both from 0). Classic Era: the
+-- client's Talent table. Forever: the trait engine's trees (retail's
+-- C_Traits), read through SkillLineXTraitTree, each node's place from its
+-- position; a talent Classic had keeps Classic's Talent id as id, a new one
+-- takes its trait node's id (no clash: 100000 and up).
+CREATE TABLE talent (
+  id            INTEGER PRIMARY KEY,
+  class_id      INTEGER NOT NULL,  -- ChrClasses id
+  tab_id        INTEGER NOT NULL,  -- TalentTab id: the tree it stands in
+  row           INTEGER NOT NULL,
+  col           INTEGER NOT NULL,
+  max_rank      INTEGER NOT NULL,
+  spell_id      INTEGER NOT NULL,  -- rank 1's spell
+  req_points    INTEGER NOT NULL,  -- points spent in the tree to take it (5 a row)
+  min_level     INTEGER NOT NULL,  -- the first level with that many points: 9 + req_points + 1
+  era_talent_id INTEGER,           -- the Classic Era Talent it is (Forever: null for a new one)
+  era_tab_id    INTEGER,           -- the tree Classic Era had it in (Forever moved some)
+  node_id       INTEGER,           -- Forever: the TraitNode (C_Traits.GetNodeInfo)
+  entry_id      INTEGER,           -- Forever: the TraitNodeEntry
+  source        TEXT NOT NULL
+);
+CREATE INDEX talent_tab ON talent (tab_id, row, col);
+CREATE INDEX talent_class ON talent (class_id);
+-- Classic Era's rank spells (rank 1 is spell_id): a talent is known when the
+-- highest rank's spell is. Forever's trait engine keeps ranks on the node,
+-- so it has no rows here.
+CREATE TABLE talent_rank (
+  talent_id INTEGER NOT NULL,
+  rank      INTEGER NOT NULL,
+  spell_id  INTEGER NOT NULL,
+  PRIMARY KEY (talent_id, rank)
+);
+-- A talent needing another: Classic Era's PrereqTalent (with the rank), Forever's
+-- TraitEdge of type 2 or 3 (left needed before right; no rank in the table;
+-- type 0 is a drawn line only). Several type-2 edges into one talent read as
+-- alternatives, type 3 as required (the reader's reading, not tried in the game).
+CREATE TABLE talent_prereq (
+  talent_id   INTEGER NOT NULL,
+  requires_id INTEGER NOT NULL,
+  rank        INTEGER,
+  edge_type   INTEGER,  -- Forever: TraitEdge.Type; Classic Era: null
+  PRIMARY KEY (talent_id, requires_id)
+);
+-- What a class has to learn, by the client's SkillLineAbility with one class
+-- in its ClassMask. level: spell_level's. A trainer teaches a lesson, a spell
+-- with a learn effect (type 36) that gives this one: trainer_spell.spell_id is
+-- lesson_spell_id (never spell_id), or a quest's reward spell or cast is
+-- (kind quest: the stances). trainer_level is what the Classic database's
+-- trainers say (min over its rows), told beside the client's level: the
+-- Classic database is Classic's, and Forever's rows are a copy of it.
+CREATE TABLE class_spell (
+  class_id        INTEGER NOT NULL,
+  spell_id        INTEGER NOT NULL,
+  skill_line_id   INTEGER NOT NULL,
+  acquire         INTEGER NOT NULL,  -- SkillLineAbility.AcquireMethod (0 learned, 2 given at creation, 3 an engraving or rune)
+  kind            TEXT NOT NULL,     -- start, trainer, quest, talent, rune, other (docs/class-guide.md)
+  level           INTEGER,
+  lesson_spell_id INTEGER,
+  lesson_source   TEXT,              -- client (the learn effect in this client), classic (Classic's client: a lesson this one lacks)
+  trainer_level   INTEGER,
+  source          TEXT NOT NULL,
+  PRIMARY KEY (class_id, spell_id)
+);
+CREATE INDEX class_spell_level ON class_spell (class_id, level);
+
 -- ── what is written in the world ─────────────────────────────────────────────
 -- A book, a note, a plaque: an object (type 9) or an item with a page. Its
 -- title is its name (name.kind object or item, or readable_title); its pages

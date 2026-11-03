@@ -94,7 +94,7 @@ comes from, and the rules for them: `docs/sources.md`.
   `name` and nothing else of it. A journal may hold its id: an addon's
   table that turns saved ids back into names keeps these ids as names
   (never as the game's: no spawn, no level, no source), and only there.
-- `bun bin/card.ts <npc|object|place|item|quest> <id or exact name> [--game classic|forever] [--full]`:
+- `bun bin/card.ts <npc|object|place|item|quest|class|talents> <id or exact name> [--game classic|forever] [--full]`:
   one thing on one card, 40 lines at most (`src/card.ts`), before any query by hand
   (a left-out thing: its names, "LEFT OUT").
 

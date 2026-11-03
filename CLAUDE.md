@@ -15,6 +15,7 @@ TypeScript (salty-max/wow-data). Read the family's CLAUDE.md
 | Each source and the rules between them: Wowhead frozen, Season of Discovery in Forever, recipes, landmarks, TBC items, players' facts | `docs/sources.md` |
 | Blizzard's UI source and textures (pins, `ui.ts`, what it can't say) | `docs/ui-source.md` |
 | Finds' gathering data (nodes, yields, materials) | `docs/finds-materials.md` |
+| The class guide's tables (spell levels, talents, what a class learns), where each source is weak | `docs/class-guide.md` |
 | The tables | `schema.sql` |
 | Where the databases are going (the plan, its steps) | `PLAN.md` |
 | Getting the data, for a person | `README.md` |
@@ -28,7 +29,7 @@ bun "$(git rev-parse --path-format=absolute --git-common-dir)/../../addon-kit/q.
 bun bin/build.ts <classic|forever|all>          # .cache/db/<game>.db from the pins
 bun bin/terrain.ts classic                      # .cache/db/classic-terrain.db, the ground (not released, for geoguessr; classic.db built first)
 bun bin/get.ts [--tag db-<commit12>]            # the published databases instead of a build
-bun bin/card.ts <npc|object|place|item|quest> <id or exact name> [--game classic|forever] [--full]
+bun bin/card.ts <npc|object|place|item|quest|class|talents> <id or exact name> [--game classic|forever] [--full]
 bun bin/path.ts db <game>                       # a database's path (wago, repo, pin, tree: a cached file)
 bun bin/latest.ts                               # newer builds than the pins, told only (the UI source's too)
 bun bin/latest.ts --json                        # the same as data, both games (Watchtower; the Markdown is what launch night parses)
