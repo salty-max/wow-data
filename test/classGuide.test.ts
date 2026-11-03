@@ -93,10 +93,10 @@ for (const game of ["classic", "forever"] as const) {
       test("a trait talent has its rank on the node: no rank spells, prerequisites from the edges (Mortal Strike needs Sweeping Strikes)", () => {
         expect(one("SELECT count(*) n FROM talent_rank")).toEqual({ n: 0 });
         expect(one("SELECT count(*) n FROM talent_prereq WHERE talent_id = 135 AND requires_id = 133")).toEqual({ n: 1 });
-        // (a line drawn both ways, type 0, is no requirement: Nature's Splendor and Nature's Majesty; the one pair left runs both ways in the client's type 2)
+        // (a line drawn both ways, type 0, is no requirement: Nature's Splendor and Nature's Majesty; the one pair that ran both ways, Intimidation and Bestial Wrath, keeps the edge that points up: the build drops the one pointing down)
         expect(one("SELECT count(*) n FROM talent_prereq WHERE edge_type NOT IN (2, 3)")).toEqual({ n: 0 });
-        expect(one("SELECT count(*) n FROM talent_prereq a JOIN talent_prereq b ON a.talent_id = b.requires_id AND a.requires_id = b.talent_id")).toEqual({ n: 2 });
-        expect(one("SELECT count(*) n FROM talent_prereq")).toEqual({ n: 73 });
+        expect(one("SELECT count(*) n FROM talent_prereq a JOIN talent_prereq b ON a.talent_id = b.requires_id AND a.requires_id = b.talent_id")).toEqual({ n: 0 });
+        expect(one("SELECT count(*) n FROM talent_prereq")).toEqual({ n: 72 });
       });
       test("levels differ from Classic's: Berserker Rage at 30 here (32 in the trainers' rows), and a base level of 0 beside a spell level", () => {
         expect(one("SELECT level, trainer_level, lesson_source FROM class_spell WHERE class_id = 1 AND spell_id = 18499")).toEqual({ level: 30, trainer_level: 32, lesson_source: "classic" });

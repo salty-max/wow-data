@@ -90,6 +90,6 @@ Forever's `class_spell` still lists Classic's talent ranks and lessons
 Forever's client has lost, so a class spell with no name takes **Classic's**
 name in every language, source `classic` (the trades' lessons do the same,
 `docs/sources.md`): 2,915 `name` rows for 265 spells on Forever (224 non-rune class spells,
-the rest runes); 111 more class spells, Season of Discovery runes, are
-named in neither client. 16857 reads "Faerie Fire (Feral)" now. It is the name only: no
+the rest runes); the class spells named in neither client are told in
+`docs/class-coverage.md`. 16857 reads "Faerie Fire (Feral)" now. It is the name only: no
 level, no description, no `spell_info` row.

@@ -17,6 +17,7 @@ TypeScript (salty-max/wow-data). Read the family's CLAUDE.md
 | Finds' gathering data (nodes, yields, materials) | `docs/finds-materials.md` |
 | The class guide's tables (spell levels, talents, what a class learns), where each source is weak | `docs/class-guide.md` |
 | The spell tables (cost, cast, cooldown, stance, icon, resolved descriptions), where each is weak | `docs/spell-info.md` |
+| What the class guide holds per class and tree, and what stays open | `docs/class-coverage.md` (`bun bin/coverage.ts`) |
 | The tables | `schema.sql` |
 | Where the databases are going (the plan, its steps) | `PLAN.md` |
 | Getting the data, for a person | `README.md` |

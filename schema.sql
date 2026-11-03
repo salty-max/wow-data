@@ -454,15 +454,34 @@ CREATE TABLE talent_rank (
 );
 -- A talent needing another: Classic Era's PrereqTalent (with the rank), Forever's
 -- TraitEdge of type 2 or 3 (left needed before right; no rank in the table;
--- type 0 is a drawn line only). Several type-2 edges into one talent read as
--- alternatives, type 3 as required (the reader's reading, not tried in the game).
+-- type 0 is a drawn line only; an edge pointing to a lower row is dropped, and
+-- no talent has two). Type 2 against 3 is a reading, not tried in the game.
 CREATE TABLE talent_prereq (
   talent_id   INTEGER NOT NULL,
   requires_id INTEGER NOT NULL,
-  rank        INTEGER,
+  rank        INTEGER,  -- Forever: the required talent's last rank (inferred: all 65 of Classic's ask it)
   edge_type   INTEGER,  -- Forever: TraitEdge.Type; Classic Era: null
   PRIMARY KEY (talent_id, requires_id)
 );
+-- Which race may be which class (CharBaseInfo: 40 combinations on Classic, 56
+-- on Forever), and the spells that only some of a class's races learn: one row
+-- a (class, spell, race) allowed, from the SkillLineAbility race masks (64 bits
+-- over two columns, a bit a race's PlayableRaceBit; a mask of every race, or
+-- a row with none, is no restriction and not listed).
+CREATE TABLE class_race (
+  class_id INTEGER NOT NULL,
+  race_id  INTEGER NOT NULL,
+  source   TEXT NOT NULL,
+  PRIMARY KEY (class_id, race_id)
+);
+CREATE TABLE class_spell_race (
+  class_id INTEGER NOT NULL,
+  spell_id INTEGER NOT NULL,
+  race_id  INTEGER NOT NULL,
+  source   TEXT NOT NULL,
+  PRIMARY KEY (class_id, spell_id, race_id)
+);
+
 -- ── spells: cost, time, range, form, icon ──────────────────────────────────
 -- (3 November 2026, docs/spell-info.md.) One row a spell, folded from the
 -- client's SpellMisc, SpellPower, SpellCooldowns, SpellCategories,
@@ -527,7 +546,7 @@ CREATE TABLE class_spell (
   class_id        INTEGER NOT NULL,
   spell_id        INTEGER NOT NULL,
   skill_line_id   INTEGER NOT NULL,
-  acquire         INTEGER NOT NULL,  -- SkillLineAbility.AcquireMethod (0 learned, 2 given at creation, 3 an engraving or rune)
+  acquire         INTEGER NOT NULL,  -- SkillLineAbility.AcquireMethod (0 learned, 2 given at creation, 3 an engraving or rune; -1 a talent's rank with no SkillLineAbility row at all)
   kind            TEXT NOT NULL,     -- start, trainer, quest, talent, rune, other (docs/class-guide.md)
   level           INTEGER,
   lesson_spell_id INTEGER,

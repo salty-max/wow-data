@@ -1,7 +1,7 @@
 # The class guide's tables
 
 Built 3 November 2026 for the class guide addon (`ideas/class-guide.md`, M1).
-Primer's `scripts/guide.ts` reads them (3 November 2026). A spell's cost, cast time, cooldown, stance, school, passive flag, icon and resolved description are in `docs/spell-info.md`. Four tables in both databases (schema.sql, "classes"),
+Primer's `scripts/guide.ts` reads them (3 November 2026). Per class and tree: `docs/class-coverage.md`. A spell's cost, cast time, cooldown, stance, school, passive flag, icon and resolved description are in `docs/spell-info.md`. Four tables in both databases (schema.sql, "classes"),
 all from the client's own tables on wago.tools at the pins (`src/classGuide.ts`,
 run after `teachings`); the client's tables they come from are in too, whole:
 `client_Talent`, `client_SpellLevels`, `client_SkillLineXTraitTree`,
@@ -54,13 +54,15 @@ Looking: `bun bin/card.ts talents Warrior --game forever --full` (or a tree:
     Fury → Arms). `talent_rank` is empty: the trait engine keeps a node's rank,
     and a rank spell of Classic's is not known to be what it grants.
     `talent_prereq` is `TraitEdge` of type 2 or 3 (type 0 is a line drawn, both
-    ways, and made a cycle in Balance), left needed before right, with no rank;
-    `edge_type` keeps the type: several type-2 edges into one talent (two
-    talents have them, Intimidation among them) read as alternatives, type 3
-    as required (a reading, not tried in the game). One pair of type-2 edges runs
-    both ways (talents 1386 and 1387), so as a requirement it would deadlock:
-    the table keeps both rows and a consumer must not read type 2 as "needs"
-    until the game has been asked (`C_Traits.GetNodeInfo` `canPurchaseRank`).
+    ways, and made a cycle in Balance), left needed before right. The edge has
+    no rank: the **required talent's last rank** is filled in (all 65 of
+    Classic's prerequisites ask it, a test), `edge_type` keeps the type. One
+    edge pointed the wrong way (Intimidation needing Bestial Wrath, two rows
+    below it; Bestial Wrath needing Intimidation is the real one) and is
+    dropped: a requirement stands above or beside the talent it opens (72 rows
+    left). No talent has two prerequisite edges after the drop; type 2 against 3
+    is a reading (not tried in the game; `C_Traits.GetNodeInfo`
+    `canPurchaseRank` settles it).
 - **`class_spell`**: `SkillLineAbility` rows with exactly one class in the
   `ClassMask`, one row a class and spell. `level` is `spell_level`'s. `kind`:
   `trainer` (a trainer's lesson teaches it: a spell with a learn effect, type
@@ -69,7 +71,9 @@ Looking: `bun bin/card.ts talents Warrior --game forever --full` (or a tree:
   `talent` (a rank of any Classic talent, on Forever too, where those rank spells have no name or level), `start` (`AcquireMethod` 2, given at creation), `rune` (Season of
   Discovery's engravings and runes: `AcquireMethod` 3 or the skill lines
   Engraving and Runes), `other` (what is left: passives, racials, spells
-  with no level). `lesson_spell_id` is what `trainer_spell.spell_id` matches
+  with no level, and spells whose row has no class mask in one class's skill
+  line: Innervate). Every rank of every talent is a row of kind `talent` too
+  (the skill line of its `SkillLineAbility` row, which has no class mask; `acquire` -1 and line 0 where it has no row; 4 November 2026). `lesson_spell_id` is what `trainer_spell.spell_id` matches
   (never `spell_id`): `from trainer_spell where spell_id = <lesson>` is "which
   trainers"; `trainer_level` is what the Classic database's rows say beside the
   client's `level`.

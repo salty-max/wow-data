@@ -247,10 +247,108 @@ async function classicNames(db: Database) {
   log(`spell names from the Classic client: ${n} (${missing.size} spells)`);
 }
 
+// Every rank of every talent is a class spell of its class (kind `talent`), whether
+// SkillLineAbility gives it a class mask or not: most of them have none (Sweeping Strikes in
+// Arms' line, Death Wish in Fury's, Omen of Clarity in Balance's: ClassMask 0), so the class
+// book above, which wants a mask, missed them. The skill line and acquire method are the first
+// SkillLineAbility row's; acquire -1 and skill_line_id 0 where the spell has no row at all.
+function talentSpells(db: Database) {
+  const before = (db.query("SELECT count(*) n FROM class_spell").get() as { n: number }).n;
+  db.run(
+    `INSERT OR IGNORE INTO class_spell
+     SELECT t.class_id, s.spell_id, coalesce(a.SkillLine, 0), coalesce(a.AcquireMethod, -1), 'talent', l.level, NULL, NULL, NULL, 'client'
+     FROM talent t
+     JOIN (SELECT talent_id id, spell_id FROM talent_rank UNION SELECT id, spell_id FROM talent) s ON s.id = t.id
+     LEFT JOIN client_SkillLineAbility a ON a.ID = (SELECT min(ID) FROM client_SkillLineAbility WHERE Spell = s.spell_id)
+     LEFT JOIN spell_level l ON l.spell_id = s.spell_id`,
+  );
+  const after = (db.query("SELECT count(*) n FROM class_spell").get() as { n: number }).n;
+  log(`class_spell: ${after - before} talent spells SkillLineAbility lacks`);
+}
+
+// SkillLineAbility gives some of a class's spells no ClassMask at all (Innervate, Omen of Clarity):
+// a spell with none, in a skill line that holds one of the class's talents (Arms', Balance's:
+// found by id, from the talents' own spells; not the Hunter's Beast Training, the pets', the
+// mounts' or Mage's Comprehension, which hold none), is that class's, kind `other` (a
+// trainer's lesson or a quest would have made it `trainer` or `quest` above), where this game's
+// client names the spell. Season of Discovery's runes and engravings (acquire 3) stay out.
+function unmaskedSpells(db: Database) {
+  const n = db.run(
+    `INSERT OR IGNORE INTO class_spell
+     SELECT d.class_id, a.Spell, a.SkillLine, a.AcquireMethod, 'other', l.level, NULL, NULL, NULL, 'client'
+     FROM client_SkillLineAbility a
+     JOIN (SELECT DISTINCT c.class_id, c.skill_line_id sl FROM class_spell c WHERE c.kind = 'talent' AND c.skill_line_id > 0) d ON d.sl = a.SkillLine
+     JOIN client_SpellName nm ON nm.ID = a.Spell
+     LEFT JOIN spell_level l ON l.spell_id = a.Spell
+     WHERE a.ClassMask = 0 AND a.AcquireMethod <> 3`,
+  ).changes;
+  log(`class_spell: ${n} spells SkillLineAbility gives no class mask, in a skill line of the class's talents`);
+}
+
+// Forever's TraitEdge has no rank and one edge points the wrong way (Intimidation needing Bestial
+// Wrath, which stands two rows below it, while Bestial Wrath needs Intimidation). A requirement
+// stands above or beside the talent it opens: one below is dropped. The rank is the required
+// talent's last (Classic Era's 65 prerequisites all ask the full rank: checked by a test).
+function foreverPrereqs(db: Database) {
+  const dropped = db.run(
+    `DELETE FROM talent_prereq WHERE EXISTS (
+       SELECT 1 FROM talent a, talent b WHERE a.id = talent_prereq.talent_id AND b.id = talent_prereq.requires_id AND b.tab_id = a.tab_id AND b.row > a.row)`,
+  ).changes;
+  const ranked = db.run(`UPDATE talent_prereq SET rank = (SELECT max_rank FROM talent WHERE id = requires_id) WHERE rank IS NULL`).changes;
+  log(`talent_prereq: ${dropped} edge pointing down dropped, ${ranked} ranks taken from the required talent's last`);
+}
+
+// Which race may be which class (CharBaseInfo), and the spells only some races of a class
+// learn. A SkillLineAbility's race masks are 64 bits over two columns, a bit a race's
+// `PlayableRaceBit` (not its id less one: Forever's 95 and 96 are bits 32 and 33); -1 is every
+// race. A spell is limited to the races of the class its rows allow when every row that gives it
+// to the class has a mask (one without gives it to all), the masks or-ed, and that is fewer
+// than the class's races. One row a (class, spell, race).
+function classRace(db: Database) {
+  // (Classic Era's columns are RaceMask_0/1, Forever's RaceMasks_0/1)
+  const cols = new Set(all(db, "PRAGMA table_info(client_SkillLineAbility)").map((c) => String(c.name)));
+  const [c0, c1] = cols.has("RaceMasks_0") ? ["RaceMasks_0", "RaceMasks_1"] : ["RaceMask_0", "RaceMask_1"];
+  const n = db.run("INSERT INTO class_race SELECT ClassID, RaceID, 'client' FROM client_CharBaseInfo GROUP BY ClassID, RaceID").changes;
+  const bit = new Map(all(db, "SELECT ID, PlayableRaceBit b FROM client_ChrRaces WHERE PlayableRaceBit >= 0").map((r) => [num(r.ID), num(r.b)]));
+  const races = new Map<number, number[]>();
+  for (const r of all(db, "SELECT class_id, race_id FROM class_race")) races.set(num(r.class_id), [...(races.get(num(r.class_id)) ?? []), num(r.race_id)]);
+  const masks = new Map<string, { mask: bigint; open: boolean }>();
+  for (const r of all(db, `SELECT Spell, ClassMask, ${c0} a, ${c1} b FROM client_SkillLineAbility WHERE ClassMask > 0`)) {
+    const mask = (BigInt.asUintN(32, BigInt(num(r.b))) << 32n) | BigInt.asUintN(32, BigInt(num(r.a)));
+    for (let c = 1; c <= 11; c++) {
+      if (!(num(r.ClassMask) & (1 << (c - 1)))) continue;
+      const k = `${c}/${r.Spell}`;
+      const e = masks.get(k) ?? { mask: 0n, open: false };
+      if (mask) e.mask |= mask;
+      else e.open = true;
+      masks.set(k, e);
+    }
+  }
+  const ins = db.prepare("INSERT INTO class_spell_race VALUES (?, ?, ?, 'client')");
+  let m = 0;
+  let spells = 0;
+  db.transaction(() => {
+    for (const r of all(db, "SELECT class_id, spell_id FROM class_spell")) {
+      const e = masks.get(`${r.class_id}/${r.spell_id}`);
+      const of = races.get(num(r.class_id)) ?? [];
+      if (!e || !e.mask || e.open) continue;
+      const allowed = of.filter((id) => bit.has(id) && (e.mask >> BigInt(bit.get(id)!)) & 1n);
+      if (!allowed.length || allowed.length === of.length) continue;
+      for (const id of allowed) (ins.run(num(r.class_id), num(r.spell_id), id), m++);
+      spells++;
+    }
+  })();
+  log(`class_race: ${n} · class_spell_race: ${m} rows for ${spells} spells`);
+}
+
 export async function classGuide(db: Database, game: Game) {
   spellLevels(db);
   if (game === "classic") eraTalents(db);
   else foreverTalents(db);
   await classSpells(db, game);
+  talentSpells(db);
+  unmaskedSpells(db);
+  if (game === "forever") foreverPrereqs(db);
+  classRace(db);
   if (game === "forever") await classicNames(db);
 }
