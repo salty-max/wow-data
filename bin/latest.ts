@@ -4,6 +4,8 @@
 //   bun bin/latest.ts --write          and moves the builds' pins
 //   bun bin/latest.ts --next FILE      writes the moved pins there instead
 //   ... --summary FILE                 writes what it found, in Markdown
+//   bun bin/latest.ts --json           the same as data (builds, databases, ui), for the control
+//                                      centre; the Markdown stays what launch night reads
 // A pinned build moves to the newest of its product with the same major
 // version (wago.tools filed Forever's beta, 1.60, under the same product as
 // Mists of Pandaria's, 5.5, until Forever's own, wowf, pinned since 23
@@ -12,13 +14,14 @@
 // newer commits are told too, never followed (their data changes what the
 // addons say: a person reads it).
 import { readFileSync, writeFileSync } from "node:fs";
-import { family, newer, newest } from "../src/builds";
 import { fetchRetry } from "../src/fetch";
+import { buildLines, buildRows, type Head, type Latest, type RepoRow, repoLine, repoRow } from "../src/latest";
 import { PINS_FILE as PINS } from "../src/pins";
 import { UI_PINS_FILE as UI } from "../src/ui";
 
 const args = process.argv.slice(2);
 const WRITE = args.includes("--write");
+const JSON_OUT = args.includes("--json");
 const summaryAt = args.indexOf("--summary");
 const SUMMARY = summaryAt >= 0 ? args[summaryAt + 1] : undefined;
 const nextAt = args.indexOf("--next");
@@ -33,63 +36,28 @@ const res = await fetchRetry("https://wago.tools/api/builds");
 if (!res.ok) throw new Error(`wago.tools builds: ${res.status}`);
 const builds: Record<string, { version: string }[]> = await res.json();
 
-const lines: string[] = [];
-let moved = false;
-for (const [game, pin] of Object.entries(pins.builds)) {
-  const latest = newest((builds[pin.product] ?? []).map((b) => b.version), pin.build);
-  if (latest !== pin.build) {
-    lines.push(`- ${game}: ${pin.product} ${pin.build} → **${latest}**`);
-    if (WRITE || NEXT) pin.build = latest;
-    moved = true;
-  } else {
-    lines.push(`- ${game}: ${pin.product} ${pin.build}, the latest`);
-  }
-  // (the same game's builds under another product)
-  for (const [product, list] of Object.entries(builds)) {
-    if (product === pin.product) continue;
-    const there = list.map((b) => b.version).filter((v) => family(v) === family(pin.build) && newer(v, pin.build));
-    if (there.length) {
-      const best = there.reduce((a, v) => (newer(v, a) ? v : a));
-      lines.push(`  - also under ${product}: ${best} (not followed: a product changes by hand, in pins.json)`);
-    }
-  }
-}
+const rows = buildRows(pins.builds, builds);
+const moved = rows.some((r) => r.moved);
+if (WRITE || NEXT) for (const r of rows) pins.builds[r.game].build = r.latest;
+const lines = buildLines(rows);
 
 // the community databases: newer commits on their default branch
 const token = process.env.GITHUB_TOKEN;
-const repoLines: string[] = [];
-const uiLines: string[] = [];
-const tip = (v: string) => Number(v.split(".").pop());
+const repoRows: RepoRow[] = [];
 for (const [name, r] of Object.entries({ ...pins.repos, ...uiPins })) {
-  const head = await fetchRetry(`https://api.github.com/repos/${r.repo}/commits?per_page=1${r.branch ? `&sha=${r.branch}` : ""}`, {
+  const res = await fetchRetry(`https://api.github.com/repos/${r.repo}/commits?per_page=1${r.branch ? `&sha=${r.branch}` : ""}`, {
     headers: { Accept: "application/vnd.github+json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
-  const isUi = name.startsWith("ui-");
-  const out = isUi ? uiLines : repoLines;
-  if (!head.ok) {
-    out.push(`- ${name} (${r.repo}): could not ask (${head.status})`);
-    continue;
+  let head: Head;
+  if (!res.ok) head = { status: res.status };
+  else {
+    const [c] = (await res.json()) as { sha: string; commit: { message: string; committer: { date: string } } }[];
+    head = c && { sha: c.sha, message: c.commit.message, date: c.commit.committer.date };
   }
-  const [latest] = (await head.json()) as { sha: string; commit: { message: string; committer: { date: string } } }[];
-  const moved = latest && !latest.sha.startsWith(r.commit.slice(0, 12));
-  if (!isUi) {
-    out.push(
-      moved
-        ? `- ${name} (${r.repo}): newer commits, ${latest.sha.slice(0, 12)} of ${latest.commit.committer.date.slice(0, 10)} (pinned ${r.commit.slice(0, 12)}; not followed: bump it by hand and read the audit)`
-        : `- ${name} (${r.repo}): the pinned commit is the latest`,
-    );
-    continue;
-  }
-  const game = name.replace(/^ui-/, "");
-  const client = pins.builds[game]?.build;
-  const next = latest?.commit.message.match(/\((\d+)\)/)?.[1];
-  let line = moved
-    ? `- ${name} (${r.repo}@${r.branch}): newer commit ${latest.sha.slice(0, 12)} of ${latest.commit.committer.date.slice(0, 10)}${next ? ` (build ${next})` : ""}, pinned ${r.commit.slice(0, 12)} (build ${r.build}; not followed: bump it by hand)`
-    : `- ${name} (${r.repo}@${r.branch}): the pinned commit is the latest (build ${r.build})`;
-  if (client && r.build && tip(client) !== tip(r.build))
-    line += `; **client pinned ${client}, this source carries ${r.build}: ${tip(r.build) < tip(client) ? "behind the client" : "ahead of the client"}**`;
-  out.push(line);
+  repoRows.push(repoRow(name, r, head, pins.builds[name.replace(/^ui-/, "")]?.build));
 }
+const repoLines = repoRows.filter((r) => r.kind === "database").map(repoLine);
+const uiLines = repoRows.filter((r) => r.kind === "ui").map(repoLine);
 
 if (moved && (WRITE || NEXT)) writeFileSync(NEXT ?? PINS, JSON.stringify(pins, null, 2) + "\n");
 const text = [
@@ -110,7 +78,8 @@ const text = [
   ...uiLines,
   "",
 ].join("\n");
-console.log(text);
+const data: Latest = { at: new Date().toISOString(), builds: rows, databases: repoRows.filter((r) => r.kind === "database"), ui: repoRows.filter((r) => r.kind === "ui"), moved };
+console.log(JSON_OUT ? JSON.stringify(data, null, 2) : text);
 if (SUMMARY) writeFileSync(SUMMARY, text);
 // (for the workflow: whether a pin moved)
 if (process.env.GITHUB_OUTPUT) writeFileSync(process.env.GITHUB_OUTPUT, `moved=${moved}\n`, { flag: "a" });

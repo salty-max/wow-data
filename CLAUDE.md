@@ -31,6 +31,7 @@ bun bin/get.ts [--tag db-<commit12>]            # the published databases instea
 bun bin/card.ts <npc|object|place|item|quest> <id or exact name> [--game classic|forever] [--full]
 bun bin/path.ts db <game>                       # a database's path (wago, repo, pin, tree: a cached file)
 bun bin/latest.ts                               # newer builds than the pins, told only (the UI source's too)
+bun bin/latest.ts --json                        # the same as data, both games (Watchtower; the Markdown is what launch night parses)
 bun bin/ui.ts frame <Name.Key> | find <text> | texture <Interface\\path> | pins   # Blizzard's UI source, both games (docs/ui-source.md)
 bun run explore                                 # the explorer (explore:dev; bun run --cwd explorer check)
 ```

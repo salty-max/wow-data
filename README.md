@@ -97,6 +97,7 @@ bun ../wow-data/bin/path.ts wago forever AreaTable frFR
 
 ```bash
 bun bin/latest.ts            # newer builds than the pins?
+bun bin/latest.ts --json     # the same as data
 bun bin/latest.ts --write    # and move the pins
 ```
 

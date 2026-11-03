@@ -154,7 +154,7 @@ comes from, and the rules for them: `docs/sources.md`.
   Actions to create and approve pull requests", `actions: write` and
   `workflow_dispatch:` in its ci.yml.
 - `ui-pins.json`, `src/ui.ts`, `bin/ui.ts`: Blizzard's UI source and textures, pinned apart from the data (no database is made of them) and read by one tool: `docs/ui-source.md`.
-- `bin/latest.ts`: newer builds than the pins (`--write`, `--next FILE`,
+- `bin/latest.ts`: newer builds than the pins (`--json` (the same as data, for Watchtower), `--write`, `--next FILE`,
   `--summary FILE`); the databases' newer commits, told only. `bin/path.ts`:
   a cached file's path, for the addons' Python scripts.
 - `.github/workflows/pins.yml`: daily, a pull request moving the pins, merged
