@@ -1,6 +1,6 @@
 # An addon's game data built again from wow-data's pins: each addon's daily
 # job (.github/workflows/game-data.yml in hearthtale, lorekeepers-codex,
-# yonder, second-wind, palaver, mealbook, goodwill, yours-truly) calls this. wow-data checked out beside the addon (and
+# yonder, second-wind, palaver, mealbook, goodwill, yours-truly, primer) calls this. wow-data checked out beside the addon (and
 # addon-kit, for its glossary.py and subzones.py), the databases built from
 # that wow-data downloaded (bin/get.ts: the release of the last commit that
 # changed them, which must be published), the addon's own generators run.

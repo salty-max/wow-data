@@ -1,7 +1,7 @@
 # The class guide's tables
 
 Built 3 November 2026 for the class guide addon (`ideas/class-guide.md`, M1).
-No addon reads them yet. Four tables in both databases (schema.sql, "classes"),
+Primer's `scripts/guide.ts` reads them (3 November 2026). Four tables in both databases (schema.sql, "classes"),
 all from the client's own tables on wago.tools at the pins (`src/classGuide.ts`,
 run after `teachings`); the client's tables they come from are in too, whole:
 `client_Talent`, `client_SpellLevels`, `client_SkillLineXTraitTree`,
