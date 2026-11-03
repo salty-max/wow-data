@@ -463,6 +463,59 @@ CREATE TABLE talent_prereq (
   edge_type   INTEGER,  -- Forever: TraitEdge.Type; Classic Era: null
   PRIMARY KEY (talent_id, requires_id)
 );
+-- ── spells: cost, time, range, form, icon ──────────────────────────────────
+-- (3 November 2026, docs/spell-info.md.) One row a spell, folded from the
+-- client's SpellMisc, SpellPower, SpellCooldowns, SpellCategories,
+-- SpellCastTimes, SpellRange, SpellDuration, SpellShapeshift and
+-- SpellEquippedItems (all kept whole beside it as client_*). Times are
+-- milliseconds, null is none.
+CREATE TABLE spell_info (
+  spell_id         INTEGER PRIMARY KEY,
+  icon_file_id     INTEGER,  -- SpellMisc.SpellIconFileDataID
+  icon_path        TEXT,     -- the texture path without its extension, from ManifestInterfaceData
+  school_mask      INTEGER,  -- 1 physical, 2 holy, 4 fire, 8 nature, 16 frost, 32 shadow, 64 arcane
+  passive          INTEGER,  -- Attributes_0 bit 6
+  attributes_0     INTEGER,
+  cast_ms          INTEGER,  -- SpellCastTimes.Base (0: instant)
+  range_min        REAL,     -- yards, against hostile targets
+  range_max        REAL,
+  range_min_friend REAL,
+  range_max_friend REAL,
+  duration_ms      INTEGER,  -- SpellDuration.Duration (-1: until cancelled)
+  cooldown_ms      INTEGER,  -- the cooldown a player waits: the larger of the two below (Era keeps Retaliation's 30 minutes in the category's)
+  recovery_ms      INTEGER,  -- SpellCooldowns.RecoveryTime, the spell's own
+  category         INTEGER,  -- the shared-cooldown category
+  category_cd_ms   INTEGER,  -- SpellCooldowns.CategoryRecoveryTime, shared by the category
+  gcd_ms           INTEGER,  -- SpellCooldowns.StartRecoveryTime
+  gcd_category     INTEGER,  -- StartRecoveryCategory (133 is the global cooldown)
+  power_type       INTEGER,  -- 0 mana, 1 rage, 2 focus, 3 energy, -2 health
+  cost             REAL,     -- the power cost (rage in whole points, not the client's tenths)
+  cost_pct         REAL,     -- percent of base mana
+  cost_per_second  REAL,
+  stance_mask      INTEGER,  -- SpellShapeshift.ShapeshiftMask_0 (bit n-1: form id n; 0: any)
+  stance_mask_hi   INTEGER,
+  stance_exclude   INTEGER,  -- ShapeshiftExclude_0: forms it can not be used in
+  stance_exclude_hi INTEGER,
+  weapon_class     INTEGER,  -- SpellEquippedItems.EquippedItemClass (2: a weapon)
+  weapon_subclass  INTEGER,  -- a mask of weapon subclasses
+  weapon_invtypes  INTEGER,
+  source           TEXT NOT NULL
+);
+
+-- A spell's description (kind 'description') or its aura's ('aura') in English
+-- with the `$` tokens put in from the client's tables (src/spellText.ts,
+-- docs/spell-info.md). complete = 0: a token needs the player (a known spell,
+-- an aura, attack power, a gender) or a name set elsewhere in the text, and
+-- stays as written.
+CREATE TABLE spell_text (
+  spell_id INTEGER NOT NULL,
+  kind     TEXT NOT NULL,
+  text     TEXT NOT NULL,
+  complete INTEGER NOT NULL,
+  source   TEXT NOT NULL,
+  PRIMARY KEY (spell_id, kind)
+);
+
 -- What a class has to learn, by the client's SkillLineAbility with one class
 -- in its ClassMask. level: spell_level's. A trainer teaches a lesson, a spell
 -- with a learn effect (type 36) that gives this one: trainer_spell.spell_id is

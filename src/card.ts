@@ -9,11 +9,11 @@ import { LOCALES } from "./wago";
 import { areaMap, overlayOf, subzoneAt, worldToMap } from "./world";
 
 type Row = Record<string, any>;
-export const KINDS = ["npc", "object", "place", "item", "quest", "class", "talents"] as const;
+export const KINDS = ["npc", "object", "place", "item", "quest", "class", "talents", "spell"] as const;
 export type Kind = (typeof KINDS)[number];
 export const MAX_LINES = 40;
 const WORLD_ZONES = 10;
-const NAME_KIND: Record<Kind, string> = { npc: "creature", object: "object", place: "area", item: "item", quest: "quest", class: "class", talents: "class" };
+const NAME_KIND: Record<Kind, string> = { npc: "creature", object: "object", place: "area", item: "item", quest: "quest", class: "class", talents: "class", spell: "spell" };
 const ALL_LOCALES = ["enUS", ...LOCALES];
 // the ChrRaces bits of each side's races (human, dwarf, night elf, gnome; orc, undead, tauren, troll)
 const SIDES: [string, number][] = [
@@ -803,6 +803,40 @@ class Card {
   // what it learns at each level and who teaches it: its trainers' lessons
   // (kind trainer) and what it starts with; the talents, runes and the
   // rest by count (--full: every row, and each lesson's trainers)
+  // a spell: what it costs, how long it casts and waits, its reach, the form it needs, its icon (spell_info)
+  spellCard(id: number) {
+    const i = this.get("SELECT * FROM spell_info WHERE spell_id = ?", id);
+    const sub = this.name("spell_subtext", id);
+    this.lines.push(`spell ${this.name("spell", id) ?? "(no name)"}${sub ? ` (${sub})` : ""} (${id})`);
+    if (!i) return this.add("info", "none: this game's client has no such spell");
+    const level = this.get("SELECT level FROM spell_level WHERE spell_id = ?", id)?.level;
+    const learnt = this.all("SELECT c.class_id, c.kind, c.level FROM class_spell c WHERE c.spell_id = ?", id);
+    this.add("class", learnt.map((c) => `${this.name("class", c.class_id)} ${c.kind}${c.level != null ? ` L${c.level}` : ""}`).join(" · ") || null);
+    if (level) this.add("level", String(level));
+    const s = (ms: number | null) => (ms == null ? null : `${ms / 1000} s`);
+    const POWER = ["mana", "rage", "focus", "energy"];
+    this.add("icon", i.icon_path ? `${i.icon_path} (${i.icon_file_id})` : null);
+    this.add("passive", i.passive ? "yes" : null);
+    const cost = i.cost_pct ? `${i.cost_pct}% of base mana` : i.cost ? `${i.cost} ${POWER[i.power_type] ?? `power ${i.power_type}`}` : null;
+    this.add("cost", cost ?? (i.cost_per_second ? `${i.cost_per_second} a second` : "none"));
+    this.add("cast", i.cast_ms ? s(i.cast_ms) : "instant");
+    this.add("cd", s(i.cooldown_ms) ?? "none");
+    this.add("gcd", s(i.gcd_ms) ?? (i.gcd_category ? "global cooldown (category)" : "off the global cooldown"));
+    this.add("range", i.range_max ? `${i.range_min ? `${i.range_min}-` : ""}${i.range_max} yd` : i.range_max_friend ? `${i.range_max_friend} yd (friendly)` : "self or melee");
+    this.add("school", String(i.school_mask));
+    if (i.duration_ms) this.add("lasts", i.duration_ms < 0 ? "until cancelled" : s(i.duration_ms));
+    const forms: string[] = [];
+    for (let b = 0; b < 32; b++) if (((i.stance_mask >>> 0) >> b) & 1) forms.push(this.formName(b + 1));
+    this.add("stance", forms.length ? forms.join(" or ") : null);
+    if (i.weapon_class) this.add("weapon", `class ${i.weapon_class}, subclasses ${i.weapon_subclass}`);
+    const t = this.get("SELECT text, complete FROM spell_text WHERE spell_id = ? AND kind = 'description'", id);
+    if (t) this.add(t.complete ? "text" : "text*", clip(String(t.text), this.full ? 100000 : 220));
+  }
+  // a shapeshift form's name (SpellShapeshiftForm: Battle Stance 17, Defensive 18, Berserker 19, Cat 1, Bear 5)
+  formName(form: number) {
+    return this.get("SELECT Name_lang n FROM client_SpellShapeshiftForm WHERE ID = ?", form)?.n ?? `form ${form}`;
+  }
+
   classCard(id: number) {
     const cls = this.get("SELECT ID FROM client_ChrClasses WHERE ID = ?", id);
     if (!cls) return this.add("class", `${id}: no such class`);
@@ -997,7 +1031,7 @@ export function card(d: Database, kind: Kind, key: string, opts: { full?: boolea
   const c = new Card(d, !!opts.full);
   if (!found) for (const t of trees) c.talentsCard(0, t);
   else if (kind === "talents") c.talentsCard(found.id);
-  else ({ npc: c.npcCard, object: c.objectCard, place: c.placeCard, item: c.itemCard, quest: c.questCard, class: c.classCard })[kind].call(c, found.id);
+  else ({ npc: c.npcCard, object: c.objectCard, place: c.placeCard, item: c.itemCard, quest: c.questCard, class: c.classCard, spell: c.spellCard })[kind].call(c, found.id);
   if (found?.others.length) c.lines.splice(1, 0, `also    ${found.others.length} more named so: ${c.few(found!.others, 8, String, ", ")}`);
   if (!opts.full && c.lines.length > MAX_LINES) {
     const cut = c.lines.length - (MAX_LINES - 1);

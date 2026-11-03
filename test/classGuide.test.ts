@@ -114,3 +114,91 @@ for (const game of ["classic", "forever"] as const) {
     }
   });
 }
+
+// The spell tables (src/spellInfo.ts, src/spellText.ts, docs/spell-info.md) against what Classic says.
+import { duration, resolve as resolveText, type Facts } from "../src/spellText";
+
+describe("spell text", () => {
+  const eff = (points: number, over = {}) => ({ points, die: 1, period: 0, radius: 0, chain: 0, misc: 0, amplitude: 0, perResource: 0, perLevel: 0, ...over });
+  const facts = (f: Partial<Facts>): Facts => ({ effects: [], duration: null, procChance: 0, procCharges: 0, maxTargets: 0, stacks: 0, range: 0, ...f });
+  const words = { desc: () => null, name: () => null };
+  const run = (t: string, f: Facts) => resolveText(t, 1, (s) => (s === 1 ? f : null), words);
+
+  test("durations read as the game writes them", () => {
+    expect([1500, 30000, 90000, 120000, 3600000, -1].map(duration)).toEqual(["1.5 sec", "30 sec", "1.5 min", "2 min", "1 hour", "until cancelled"]);
+  });
+  test("$s, $d, ${} and a plural resolve; a die gives a range", () => {
+    const f = facts({ effects: [eff(11), eff(5, { die: 7 }), eff(100)], duration: 15000 });
+    expect(run("hits for $s1 for $d", f)).toEqual({ text: "hits for 11 for 15 sec", complete: true });
+    expect(run("$s2 damage, ${$m3/10} rage", f)).toEqual({ text: "5 to 11 damage, 10 rage", complete: true });
+    expect(run("$s1 $lpoint:points;, $s3 $lpoint:points;", f).text).toBe("11 points, 100 points");
+  });
+  test("points that grow with the player's level are not put in as a fixed number", () => {
+    expect(run("$s1 damage", facts({ effects: [eff(12, { perLevel: 0.4 })] })).complete).toBe(false);
+  });
+  test("a token the tables cannot say stays as written and the row is not complete", () => {
+    const f = facts({ effects: [eff(11)] });
+    for (const t of ["$?s123[a][b]", "$ghe:she;", "${$<ticks>*$m1}", "$s9", "$t1"]) {
+      const r = run(t, f);
+      expect(r.complete).toBe(false);
+      expect(r.text).toContain("$");
+    }
+  });
+  test("another spell's text is put in, and a missing one is not", () => {
+    const w = { desc: (s: number) => (s === 2 ? "slows by $s1%" : null), name: () => null };
+    const look = (s: number) => (s === 2 ? facts({ effects: [eff(40)] }) : null);
+    expect(resolveText("It $@spelldesc2.", 1, look, w)).toEqual({ text: "It slows by 40%.", complete: true });
+    expect(resolveText("It $@spelldesc3.", 1, look, w).complete).toBe(false);
+  });
+});
+
+for (const game of ["classic", "forever"] as const) {
+  const built = existsSync(dbPath(game));
+  describe.skipIf(!built)(`spell info (${game}.db)`, () => {
+    const db = built ? openDb(game) : null!;
+    const one = (id: number) => db.query("SELECT * FROM spell_info WHERE spell_id = ?").get(id) as Record<string, any>;
+
+    test("Heroic Strike (rank 1) costs 15 rage, is instant, off the global cooldown, at 5 yards, any stance", () => {
+      expect(one(78)).toMatchObject({ power_type: 1, cost: 15, cast_ms: 0, gcd_ms: null, cooldown_ms: null, range_max: 5, school_mask: 1, passive: 0, stance_mask: null });
+    });
+    test("Berserker Rage: Berserker Stance only (form 19), 30 s, global cooldown 1.5 s, free", () => {
+      expect(one(18499)).toMatchObject({ cooldown_ms: 30000, gcd_ms: 1500, stance_mask: 1 << 18, cost: 0 });
+      expect(db.query("SELECT Name_lang n FROM client_SpellShapeshiftForm WHERE ID = 19").get()).toEqual({ n: "Berserker Stance" });
+    });
+    test("Whirlwind is Berserker, Charge is Battle, Taunt is Defensive; Cat Form's Claw needs form 1", () => {
+      expect([1680, 100, 355, 1082].map((s) => one(s).stance_mask)).toEqual([1 << 18, 1 << 16, 1 << 17, 1]);
+    });
+    test("Death Wish: 10 rage, 3 minutes; Sweeping Strikes 30 rage, 30 s", () => {
+      expect(one(12328)).toMatchObject({ cost: 10, cooldown_ms: 180000 });
+      expect(one(12292)).toMatchObject({ cost: 30, cooldown_ms: 30000 });
+    });
+    test("Claw is 45 energy, 1 s global cooldown; Ferocious Bite 35", () => {
+      expect(one(1082)).toMatchObject({ power_type: 3, cost: 45, gcd_ms: 1000 });
+      expect(one(22568)).toMatchObject({ power_type: 3, cost: 35 });
+    });
+    test("the icon path is the client's own, without its extension", () => {
+      expect(String(one(78).icon_path).toLowerCase()).toBe("interface\\icons\\ability_rogue_ambush");
+      expect(one(78).icon_file_id).toBe(132282);
+      expect(db.query("SELECT count(*) n FROM spell_info WHERE icon_path LIKE '%.blp'").get()).toEqual({ n: 0 });
+    });
+    test("no negative cost, and rage is in points not tenths (none above 100)", () => {
+      expect(db.query("SELECT count(*) n FROM spell_info WHERE cost < 0").get()).toEqual({ n: 0 });
+      expect(db.query("SELECT count(*) n FROM spell_info WHERE power_type = 1 AND cost > 100").get()).toEqual({ n: 0 });
+    });
+    test("a cooldown is the larger of the spell's own and its category's (Retaliation: 30 minutes on Classic, 15 on Forever)", () => {
+      expect(one(20230).cooldown_ms).toBe(game === "classic" ? 1800000 : 900000);
+    });
+    test("descriptions: Heroic Strike's $s1 is 11, Battle Shout's $d is 2 min; every row has a verdict", () => {
+      const t = (id: number) => (db.query("SELECT text, complete FROM spell_text WHERE spell_id = ? AND kind = 'description'").get(id) as Record<string, any>) ?? {};
+      expect(t(78)).toEqual({ text: "A strong attack that increases melee damage by 11 and causes a high amount of threat.", complete: 1 });
+      expect(t(6673).text).toContain(game === "classic" ? "Lasts 2 min." : "Lasts 3 min.");
+      expect(db.query("SELECT count(*) n FROM spell_text WHERE complete = 1 AND text LIKE '%$%'").get()).toEqual({ n: 0 });
+    });
+    test("Classic Era's points: a die adds one, none does not (Fire Ward absorbs 165, Heroic Strike adds 11)", () => {
+      if (game === "classic") expect((db.query("SELECT text FROM spell_text WHERE spell_id = 543 AND kind = 'description'").get() as Record<string, string>).text).toContain("Absorbs 165");
+    });
+    test("Faerie Fire (Feral) 16857 is named in English on both games", () => {
+      expect(db.query("SELECT name FROM name WHERE kind = 'spell' AND id = 16857 AND locale = 'enUS'").get()).toEqual({ name: "Faerie Fire (Feral)" });
+    });
+  });
+}

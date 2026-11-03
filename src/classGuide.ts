@@ -3,7 +3,7 @@
 // class has to learn, from the client's own tables in either game.
 import { Database } from "bun:sqlite";
 import { type Game } from "./pins";
-import { wago } from "./wago";
+import { LOCALES, wago } from "./wago";
 
 const num = (v: unknown) => (v === null || v === undefined || v === "" ? 0 : Number(v));
 const log = (s: string) => console.log(`  ${s}`);
@@ -226,9 +226,31 @@ async function classSpells(db: Database, game: Game) {
   log(`class_spell: ${Object.values(tally).reduce((a, b) => a + b, 0)} (${Object.entries(tally).map(([k, v]) => `${v} ${k}`).join(", ")})`);
 }
 
+// Forever's client has lost some of Classic's spells (the old ids its trainers and talents still
+// name: Faerie Fire (Feral) 16857, Tiger's Fury's later ranks). A class spell with no name of its
+// own takes Classic's, in each language, source `classic` (the trades' lessons do the same,
+// docs/sources.md): the name only, no level and no description, which Forever never had.
+async function classicNames(db: Database) {
+  const missing = new Set(
+    all(db, `SELECT DISTINCT c.spell_id id FROM class_spell c WHERE NOT EXISTS (SELECT 1 FROM name n WHERE n.kind = 'spell' AND n.id = c.spell_id AND n.locale = 'enUS')`).map((r) => num(r.id)),
+  );
+  if (!missing.size) return;
+  db.prepare("INSERT INTO source VALUES (?, ?, ?, ?)").run("classic", "the pinned Classic Era client's spell names", "https://wago.tools", "Blizzard's (Classic's name for an id Forever's client has lost)");
+  const insert = db.prepare("INSERT OR IGNORE INTO name VALUES ('spell', ?, ?, ?, NULL, 'classic')");
+  let n = 0;
+  for (const locale of ["enUS", ...LOCALES]) {
+    const rows = await wago("classic", "SpellName", locale);
+    db.transaction(() => {
+      for (const r of rows) if (missing.has(num(r.ID)) && r.Name_lang) n += insert.run(num(r.ID), locale, r.Name_lang).changes;
+    })();
+  }
+  log(`spell names from the Classic client: ${n} (${missing.size} spells)`);
+}
+
 export async function classGuide(db: Database, game: Game) {
   spellLevels(db);
   if (game === "classic") eraTalents(db);
   else foreverTalents(db);
   await classSpells(db, game);
+  if (game === "forever") await classicNames(db);
 }

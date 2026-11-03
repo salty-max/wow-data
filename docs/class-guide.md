@@ -1,7 +1,7 @@
 # The class guide's tables
 
 Built 3 November 2026 for the class guide addon (`ideas/class-guide.md`, M1).
-Primer's `scripts/guide.ts` reads them (3 November 2026). Four tables in both databases (schema.sql, "classes"),
+Primer's `scripts/guide.ts` reads them (3 November 2026). A spell's cost, cast time, cooldown, stance, school, passive flag, icon and resolved description are in `docs/spell-info.md`. Four tables in both databases (schema.sql, "classes"),
 all from the client's own tables on wago.tools at the pins (`src/classGuide.ts`,
 run after `teachings`); the client's tables they come from are in too, whole:
 `client_Talent`, `client_SpellLevels`, `client_SkillLineXTraitTree`,
@@ -121,6 +121,15 @@ Looking: `bun bin/card.ts talents Warrior --game forever --full` (or a tree:
 - Spells keep their *ranks* as separate ids, so a class's page names a
   family by its highest known rank; the card prints `Rank N` from
   `spell_subtext`.
+
+## A talent spell's own level is unreliable
+
+`spell_level` of a talent's spell is not when the talent is taken. Death Wish
+shows 1, Concussion Blow 30, Sweeping Strikes 1 on Classic Era and 30 on
+Forever (Death Wish 1 on both). **A consumer uses `talent.min_level`** (10 plus
+`req_points`) for a talent, and `spell_level` only for a spell a class buys or
+is given. The spell tables' cost, cooldown and stance for a talent spell are
+fine (`docs/spell-info.md`).
 
 ## What can stop the build
 

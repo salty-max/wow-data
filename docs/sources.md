@@ -153,6 +153,11 @@ else its parent zone's, which the build resolves) and `WMOAreaTable.ZoneMusic`
   Wendel Mathers (The Cook in the Cage), the Strange Orb, Illari's Loot
   Cache.
 
+## Names from the Classic client in Forever
+
+A Forever class spell whose id Forever's client has lost takes Classic's name,
+where Classic's client has one (`name.source` `classic`, spell names only, every language; `docs/spell-info.md`).
+
 ## The trades' recipes
 
 - The trades' recipes (the cookbook's ground, 19 October 2026): `item_spell`

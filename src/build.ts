@@ -13,6 +13,8 @@ import { gunzipSync } from "node:zlib";
 import { absent, CACHE } from "./cache";
 import { databaseTag } from "./dbRelease";
 import { classGuide } from "./classGuide";
+import { spellInfo } from "./spellInfo";
+import { spellText } from "./spellText";
 import { classicDump } from "./github";
 import { type Game, PINS, ROOT } from "./pins";
 import { loadPlayers, playerFacts } from "./players";
@@ -56,6 +58,21 @@ const CLIENT_TABLES = [
   "TraitNodeGroupXTraitCond",
   "TraitCond",
   "TraitEdge",
+  // (the spell tables, docs/spell-info.md: src/spellInfo.ts folds them into spell_info)
+  "SpellMisc",
+  "SpellPower",
+  "SpellCooldowns",
+  "SpellCategories",
+  "SpellCastTimes",
+  "SpellRange",
+  "SpellDuration",
+  "SpellRadius",
+  "SpellShapeshift",
+  "SpellShapeshiftForm",
+  "SpellAuraOptions",
+  "SpellTargetRestrictions",
+  "SpellEquippedItems",
+  "ManifestInterfaceData",
   "ChrSpecialization",
   "ChrClasses",
   "ChrRaces",
@@ -1935,6 +1952,8 @@ export async function build(game: Game, file: string) {
   clientGathering(db);
   await teachings(db, game);
   await classGuide(db, game);
+  spellInfo(db);
+  spellText(db);
   const shownLater = wowheadNames(db, game);
   if (game === "classic") tbcItems(db);
   wowheadRanks(db, game);
