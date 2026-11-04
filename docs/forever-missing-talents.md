@@ -1,4 +1,29 @@
-# Forever's talents the guides name and the tables lack
+# Forever's talents the guides name and the tables lacked
+
+**Update, 4 November 2026 (evening, three hours before launch): build 70790
+carries them.** `forever.db` is now built at `1.60.1.70790` (wowf, created 4
+Nov 18:08 UTC, version still 1.60.1 so the TOC interface stays 16001): 470 live
+trait nodes against 468, 467 `talent` rows against 465 (128 new to Forever
+against 125; 339 take Classic's id against 340). Of the 12 talents the notes
+name, **ten are in**: Reckless Swings (Warrior Fury, 1329555, node 113636, 1
+rank), Improved Whirlwind (1310315, 2 ranks, was Raging Blows), Blood Splatter,
+Flash of Steel (5 ranks), Composure, Quick Getaway (1310728, 2 ranks, was
+Quietus), Boot Knife (5), Death Mark, Coup de Grace and Efficient Strikes.
+**Still missing: Shank and Poised** (no spell, entry or node; Poised's spells
+are in `SpellName` since 70755 but nothing points at them). The five removed
+(Murder, Improved Distract, Quietus, Cutthroat, Thousand Cuts) are gone from
+the live trees. Also changed: Flurry 3 ranks, Improved Tactical Mastery 3,
+Bloodthrill 2, Seal Fate 3, Lethality 2, Camouflage 3, Opportunity 5, Lava
+Burst replaced by Call of Thunder (Shaman node 104760), Relentless Strikes and
+Dual Wield Specialization re-added as new nodes (113633, 113635), Mutilate and
+Venom moved. Two `talent` ids left (Murder 274, Improved Distract 110868),
+both retired by the rework, and no addon saves a talent id. `class_spell`
+lost Shaman's Lava Burst (408490, 408491, 1238299, 1238300, 1238373, 1238376),
+Priest's Binding Heal (401937, 1240770 to 1240773, in `class_spell` only) and
+Rogue's Venom 1310703 (the new Venom is 1329328): spell ids, so each addon's
+ids guard is the check. The build's stops
+(grid, points, unique cells) all passed unchanged. The text below is the
+analysis at 70755 and stays as the record of why the data lacked them.
 
 Looked into 4 November 2026 (launch eve), because launch-week guides count more
 talents than `forever.db` holds. Verdict: **the client's tables at the pinned

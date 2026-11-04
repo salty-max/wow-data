@@ -77,9 +77,9 @@ for (const game of ["classic", "forever"] as const) {
     });
 
     if (forever) {
-      test("Forever's trait trees: one live tree for each of nine classes, 125 talents new to it, the old ones off the window left out", () => {
-        expect(one("SELECT count(DISTINCT node_id) n FROM talent")).toEqual({ n: 465 });
-        expect(one("SELECT count(*) n FROM talent WHERE era_talent_id IS NULL")).toEqual({ n: 125 });
+      test("Forever's trait trees: one live tree for each of nine classes, 128 talents new to it, the old ones off the window left out", () => {
+        expect(one("SELECT count(DISTINCT node_id) n FROM talent")).toEqual({ n: 467 });
+        expect(one("SELECT count(*) n FROM talent WHERE era_talent_id IS NULL")).toEqual({ n: 128 });
         // (Lightning Reflexes' old node stood at x 102800: one remains, and Improved Serpent Sting, at y 39300, none)
         expect(one("SELECT count(*) n FROM talent WHERE spell_id = 19168")).toEqual({ n: 1 });
         expect(one("SELECT count(*) n FROM talent WHERE spell_id = 19464")).toEqual({ n: 0 });

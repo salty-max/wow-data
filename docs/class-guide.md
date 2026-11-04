@@ -32,7 +32,7 @@ Looking: `bun bin/card.ts talents Warrior --game forever --full` (or a tree:
     `talent_rank` has each rank's spell (1,357), `talent_prereq` the
     `PrereqTalent` with the rank (65). A talent is known when its highest
     rank's spell is.
-  - **Forever** (465 talents): retail's trait engine. `Talent` is still in the
+  - **Forever** (467 talents): retail's trait engine. `Talent` is still in the
     client with the same 432 rows but it is not what the window shows. The
     live tree of each class is named by `SkillLineXTraitTree` (nine rows). The
     client also carries older partial trees of the same classes (Mage 1058,
@@ -47,9 +47,9 @@ Looking: `bun bin/card.ts talents Warrior --game forever --full` (or a tree:
     the window (a coordinate past 20,000: Lightning Reflexes' old node at x
     102,800, Improved Serpent Sting at y 39,300, an old Holy Specialization at
     y 21,300) is left out. `id` is Classic's `Talent.ID` when the node's spell
-    is a Classic talent's rank 1 (340 of 465), else the trait node's id
+    is a Classic talent's rank 1 (339 of 467), else the trait node's id
     (100,000 and up, no clash); `node_id` and `entry_id` are what
-    `C_Traits.GetNodeInfo` and `GetEntryInfo` take. 125 talents are new to
+    `C_Traits.GetNodeInfo` and `GetEntryInfo` take. 128 talents are new to
     Forever, 11 moved to another tree (`era_tab_id` ≠ `tab_id`; Improved Slam,
     Fury → Arms). `talent_rank` is empty: the trait engine keeps a node's rank,
     and a rank spell of Classic's is not known to be what it grants.

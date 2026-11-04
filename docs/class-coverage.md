@@ -64,30 +64,30 @@ open** count `spell_text` descriptions with every `$` put in or not.
 
 | Class | Races | Spells (no runes) | Trainer | Quest | Talent | Start | Other | Level | Named | In spell_info | Icon | Text whole | Text open | Trainer rows | Talents | Ranks | Prereqs (no rank) | New | Moved | Talents in spell_info |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Warrior | 10 | 202 | 95 | 5 | 56 | 7 | 39 | 179 | 202 | 198 | 198 | 165 | 28 | 95 | 52 | 0 | 8 (0) | 12 | 2 | 52 |
+| Warrior | 10 | 203 | 95 | 5 | 57 | 7 | 39 | 179 | 203 | 199 | 199 | 166 | 28 | 95 | 53 | 0 | 8 (0) | 13 | 2 | 53 |
 | Paladin | 3 | 273 | 123 | 4 | 75 | 3 | 68 | 176 | 266 | 237 | 237 | 165 | 70 | 123 | 51 | 0 | 8 (0) | 22 | 2 | 51 |
 | Hunter | 8 | 415 | 155 | 6 | 71 | 5 | 178 | 322 | 412 | 385 | 385 | 307 | 25 | 155 | 50 | 0 | 8 (0) | 15 | 0 | 50 |
-| Rogue | 9 | 196 | 102 | 1 | 53 | 6 | 34 | 139 | 192 | 192 | 192 | 170 | 19 | 102 | 53 | 0 | 8 (0) | 9 | 2 | 53 |
-| Priest | 6 | 365 | 173 | 9 | 97 | 4 | 82 | 263 | 365 | 326 | 326 | 195 | 117 | 173 | 52 | 0 | 8 (0) | 15 | 0 | 52 |
-| Shaman | 5 | 284 | 152 | 3 | 72 | 3 | 54 | 215 | 284 | 265 | 265 | 160 | 102 | 152 | 50 | 0 | 7 (0) | 12 | 1 | 50 |
+| Rogue | 9 | 201 | 102 | 1 | 54 | 6 | 38 | 143 | 197 | 197 | 197 | 162 | 32 | 102 | 54 | 0 | 8 (0) | 11 | 2 | 54 |
+| Priest | 6 | 359 | 173 | 9 | 97 | 4 | 76 | 257 | 359 | 320 | 320 | 195 | 111 | 173 | 52 | 0 | 8 (0) | 15 | 0 | 52 |
+| Shaman | 5 | 280 | 152 | 3 | 72 | 3 | 50 | 211 | 280 | 261 | 261 | 162 | 96 | 152 | 50 | 0 | 7 (0) | 12 | 1 | 50 |
 | Mage | 6 | 312 | 158 | 2 | 109 | 2 | 41 | 244 | 312 | 254 | 253 | 120 | 132 | 158 | 53 | 0 | 7 (0) | 6 | 0 | 53 |
-| Warlock | 5 | 282 | 144 | 6 | 58 | 4 | 70 | 175 | 282 | 253 | 253 | 181 | 65 | 144 | 52 | 0 | 8 (0) | 19 | 0 | 52 |
+| Warlock | 5 | 282 | 144 | 6 | 58 | 4 | 70 | 175 | 282 | 253 | 253 | 180 | 66 | 144 | 52 | 0 | 8 (0) | 19 | 0 | 52 |
 | Druid | 4 | 310 | 179 | 5 | 62 | 4 | 60 | 228 | 305 | 286 | 286 | 186 | 92 | 179 | 52 | 0 | 10 (0) | 15 | 4 | 52 |
 
 | Class | Tree | Talents | Rows | Points | New | Moved | Prereqs |
 |---|---|---|---|---|---|---|---|
-| Warrior | Arms (161) | 17 | 7 | 47 | 3 | 1 | 4 |
+| Warrior | Arms (161) | 17 | 7 | 42 | 3 | 1 | 4 |
 | Warrior | Protection (163) | 18 | 7 | 50 | 5 | 1 | 2 |
-| Warrior | Fury (164) | 17 | 7 | 53 | 4 | 0 | 2 |
+| Warrior | Fury (164) | 18 | 7 | 53 | 5 | 0 | 2 |
 | Paladin | Retribution (381) | 17 | 7 | 44 | 5 | 1 | 2 |
 | Paladin | Holy (382) | 17 | 7 | 46 | 10 | 0 | 3 |
 | Paladin | Protection (383) | 17 | 7 | 49 | 7 | 1 | 3 |
 | Hunter | Beast Mastery (361) | 16 | 7 | 44 | 2 | 0 | 3 |
 | Hunter | Survival (362) | 18 | 7 | 52 | 6 | 0 | 2 |
 | Hunter | Marksmanship (363) | 16 | 7 | 52 | 7 | 0 | 3 |
-| Rogue | Combat (181) | 17 | 7 | 44 | 2 | 1 | 3 |
-| Rogue | Assassination (182) | 17 | 7 | 48 | 2 | 1 | 2 |
-| Rogue | Subtlety (183) | 19 | 7 | 47 | 5 | 0 | 3 |
+| Rogue | Combat (181) | 19 | 7 | 48 | 4 | 1 | 3 |
+| Rogue | Assassination (182) | 17 | 7 | 46 | 3 | 1 | 2 |
+| Rogue | Subtlety (183) | 18 | 7 | 43 | 4 | 0 | 3 |
 | Priest | Discipline (201) | 18 | 7 | 51 | 7 | 0 | 3 |
 | Priest | Holy (202) | 17 | 7 | 48 | 3 | 0 | 2 |
 | Priest | Shadow (203) | 17 | 7 | 49 | 5 | 0 | 3 |
@@ -163,7 +163,7 @@ only come from.
 
 ### Forever
 
-- **Talent rank spells** (`talent_rank` is empty, 0 of 465): the trait engine
+- **Talent rank spells** (`talent_rank` is empty, 0 of 467): the trait engine
   keeps one spell a node and scales it by rank (`TraitDefinitionEffectPoints`
   (653 rows at the pinned build on wago.tools, not imported), whose curves are in tables this repository does not import:
   Curve, CurvePoint). The node's `max_rank` is known; per-rank numbers in a

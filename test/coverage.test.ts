@@ -49,7 +49,7 @@ for (const game of ["classic", "forever"] as const) {
     });
     test("Forever's new talents and moved tabs are counted", () => {
       const sum = (k: string) => classes.reduce((n, c) => n + Number(c.talents[k]), 0);
-      expect(sum("new")).toBe(forever ? 125 : 0);
+      expect(sum("new")).toBe(forever ? 128 : 0);
       expect(sum("moved")).toBe(forever ? 11 : 0);
     });
     test("a requirement never stands below the talent it opens, and none runs both ways", () => {

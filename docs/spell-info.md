@@ -4,7 +4,7 @@ Built 3 November 2026 for Primer (the class guide), which fact-checks a
 rotation and draws spell icons. Two derived tables in both databases
 (schema.sql, "spells"), from the client's own tables on wago.tools at the
 pins; the tables they come from are in too, whole. All of them exist at both
-pinned builds (checked: Classic Era 1.15.9.70576, Forever 1.60.1.70755).
+pinned builds (checked: Classic Era 1.15.9.70576, Forever 1.60.1.70790).
 Nothing reads them yet except Primer's next generator.
 
 Looking: `bun bin/card.ts spell <id or exact name> [--game classic|forever]`.
