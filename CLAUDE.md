@@ -18,6 +18,7 @@ TypeScript (salty-max/wow-data). Read the family's CLAUDE.md
 | The class guide's tables (spell levels, talents, what a class learns), where each source is weak | `docs/class-guide.md` |
 | The spell tables (cost, cast, cooldown, stance, icon, resolved descriptions), where each is weak | `docs/spell-info.md` |
 | What the class guide holds per class and tree, and what stays open | `docs/class-coverage.md` (`bun bin/coverage.ts`) |
+| Forever's talents the guides name and the tables lack, and `bin/tree-diff.ts` for the next build | `docs/forever-missing-talents.md` |
 | The tables | `schema.sql` |
 | Where the databases are going (the plan, its steps) | `PLAN.md` |
 | Getting the data, for a person | `README.md` |
@@ -34,6 +35,7 @@ bun bin/get.ts [--tag db-<commit12>]            # the published databases instea
 bun bin/card.ts <npc|object|place|item|quest|class|talents|spell> <id or exact name> [--game classic|forever] [--full]
 bun bin/path.ts db <game>                       # a database's path (wago, repo, pin, tree: a cached file)
 bun bin/latest.ts                               # newer builds than the pins, told only (the UI source's too)
+bun bin/tree-diff.ts [FROM [TO]]                # Forever's talent trees node for node between two builds
 bun bin/latest.ts --json                        # the same as data, both games (Watchtower; the Markdown is what launch night parses)
 bun bin/ui.ts frame <Name.Key> | find <text> | texture <Interface\\path> | pins   # Blizzard's UI source, both games (docs/ui-source.md)
 bun run explore                                 # the explorer (explore:dev; bun run --cwd explorer check)
