@@ -1,11 +1,17 @@
 # Every day, and by hand: players' facts (what the game told the players who
 # said yes to the addons' opt-in, sent by Ravenpost to its inbox,
 # salty-max/ravenpost's inbox/) merged into data/players (bin/players.ts). When they changed, a
-# pull request, never merged by itself: once merged, the databases are built
-# again (db.yml) and each addon's daily job takes them. The pull request's
-# branch is merged into again while it waits, so nothing taken out of the
-# inbox is lost. Needs the variable INBOX_URL (the inbox's address) and the
-# secret INBOX_TOKEN (its token for wow-data, the same as on Vercel), both set.
+# pull request. With the variable PLAYERS_AUTOMERGE set to "true" it is read
+# first by bin/players-review.ts (the hard rejects, the tiers: free text
+# waits for a second player in data/players/<game>/held/, the size ceiling),
+# the dropped lines left out of the commit, and merged by itself once that and
+# the checks pass, like Pins, then the databases asked for (db.yml). Any other
+# value, or none: the old way, a pull request left for a hand, never merged
+# by itself. Either way, once merged the databases are built again and each
+# addon's daily job takes them. The pull request's branch is merged into again
+# while it waits, so nothing taken out of the inbox is lost. Needs the variable
+# INBOX_URL (the inbox's address) and the secret INBOX_TOKEN (its token for
+# wow-data, the same as on Vercel), both set.
 name: Players
 
 on:
@@ -23,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       INBOX_EVENTS_TOKEN: ${{ secrets.INBOX_EVENTS_TOKEN }}
+      # (the kill switch: only "true" turns the review and the merge on)
+      AUTOMERGE: ${{ vars.PLAYERS_AUTOMERGE }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -53,6 +61,24 @@ jobs:
           echo "pulled=true" >> "$GITHUB_OUTPUT"
       - run: bun run check
         if: steps.pull.outputs.pulled == 'true'
+      # (strangers' facts read before they reach the databases: the rejects
+      # dropped here, single-player text moved to held/, the rest left as the
+      # pull request's commit; the summary goes in its body)
+      - name: Review
+        id: review
+        if: steps.pull.outputs.pulled == 'true' && env.AUTOMERGE == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --depth=1 origin main:refs/remotes/origin/main
+          bun bin/get.ts all
+          bun bin/players-review.ts --base origin/main --apply --load-test --report "$RUNNER_TEMP/review.md" --json "$RUNNER_TEMP/review.json"
+          {
+            echo
+            echo "## Review"
+            echo
+            cat "$RUNNER_TEMP/review.md"
+          } | tee -a "$RUNNER_TEMP/body.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Pull request
         id: pr
         if: steps.pull.outputs.pulled == 'true'
@@ -79,9 +105,47 @@ jobs:
           INBOX_URL: ${{ vars.INBOX_URL }}
           INBOX_TOKEN: ${{ secrets.INBOX_TOKEN }}
         run: bun bin/players.ts "done"
-      # (strangers' facts: read by a hand before they reach the databases)
+      # (merged like Pins merges itself: when the review let it, and the
+      # checks above passed. The branch is looked at again as it stands on
+      # GitHub first. Squash, the branch deleted by the merge itself, never
+      # before; then the databases, asked for: a merge by this job's token
+      # sets off no push workflow. A pull request it can't merge waits for a
+      # hand and the owner is told why.)
+      - name: Merge, then the databases
+        id: merge
+        if: steps.pull.outputs.pulled == 'true' && env.AUTOMERGE == 'true' && steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pr.outputs.pull-request-number }}
+          URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: |
+          wait_for_a_hand() {
+            echo "#$PR waits for a hand: $1" >> "$GITHUB_STEP_SUMMARY"
+            bun bin/tell.ts --kind waiting --repo wow-data --url "$URL" --title "Players' facts wait for you" --body "$1 $(jq -r .headline "$RUNNER_TEMP/review.json")"
+            exit 0
+          }
+          if [ "$(jq -r .mergeable "$RUNNER_TEMP/review.json")" != "true" ]; then
+            wait_for_a_hand "Left for a hand: $(jq -r .stop "$RUNNER_TEMP/review.json")."
+          fi
+          git fetch origin main players
+          if ! bun bin/players-review.ts --base origin/main --head origin/players --verify > "$RUNNER_TEMP/verify.txt" 2>&1; then
+            wait_for_a_hand "The branch is not what the review left (it changed since, or holds lines the review drops)."
+          fi
+          for wait in 5 15 30 60; do
+            sleep "$wait"
+            if gh pr merge "$PR" -R "$GITHUB_REPOSITORY" --squash --delete-branch; then
+              gh workflow run db.yml -R "$GITHUB_REPOSITORY" --ref main
+              echo "Merged #$PR, the databases asked for." >> "$GITHUB_STEP_SUMMARY"
+              echo "merged=true" >> "$GITHUB_OUTPUT"
+              HELD="$(jq -r .textHeld "$RUNNER_TEMP/review.json")"
+              bun bin/tell.ts --kind merged --repo wow-data --url "$URL" --title "Players' facts merged" --body "$(jq -r .headline "$RUNNER_TEMP/review.json") Free text waits for $(jq -r .textMinSeen "$RUNNER_TEMP/review.json") players ($HELD held now)."
+              exit 0
+            fi
+          done
+          wait_for_a_hand "It could not be merged by itself."
+      # (the old way, the switch off: strangers' facts read by a hand before they reach the databases)
       - name: Waiting for a hand
-        if: steps.pull.outputs.pulled == 'true' && steps.pr.outputs.pull-request-number != ''
+        if: steps.pull.outputs.pulled == 'true' && steps.pr.outputs.pull-request-number != '' && env.AUTOMERGE != 'true'
         env:
           INBOX_URL: ${{ vars.INBOX_URL }}
           URL: ${{ steps.pr.outputs.pull-request-url }}

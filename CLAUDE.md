@@ -45,8 +45,8 @@ Hand tools, never run by a job: `bin/names.ts` (`--gaps`, `--readable`,
 `--ids`), `bin/wowhead-points.ts`, `bin/wowhead-pages.ts` (`queue --keys`,
 `pull`, `freeze`; the tab is `bin/wowhead-tab.js`), `bin/tbc-items.ts
 <ids>`, `bin/placements.ts` (a model's placements in the client's map
-files, for a `client-map` landmark). `bin/players.ts pull|done` is the
-players' facts job's.
+files, for a `client-map` landmark). `bin/players.ts pull|done` and
+`bin/players-review.ts` are the players' facts job's.
 
 ## Hard rules
 
@@ -65,7 +65,11 @@ players' facts job's.
 - Season of Discovery leaves Forever except where Forever shows it (the
   user's rule, 20 October 2026: the evidence list in `docs/sources.md`).
 - Players' sightings go to `creature_sighting`, never `spawn`, and never
-  resolve a riddle's exact spot. Their pull requests are merged by hand.
+  resolve a riddle's exact spot. Their pull requests are read by `bin/players-review.ts`
+  and merged by `players.yml` itself while the repository variable
+  `PLAYERS_AUTOMERGE` is `true` (else by hand): hard rejects dropped, free text
+  held until `TEXT_MIN_SEEN` players saw it (`docs/sources.md`). Never loosen
+  one of those rules to let a line through.
 - `bin/card.ts` before any query by hand. `bin/ui.ts` before any claim about a Blizzard frame, texture path or icon. The UI source's pins are `ui-pins.json` (not `pins.json`: no database is made of them, so moving one is no new database).
 - An explorer change: render the page and look at it before calling it done
   (headless Chrome when the browser pane is hidden).

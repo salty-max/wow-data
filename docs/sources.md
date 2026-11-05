@@ -262,13 +262,14 @@ where Classic's client has one (`name.source` `classic`, spell names only, every
   players link it with Battle.net from Ravenpost, one account one voice) and
   merged from it daily by `bin/players.ts` (`pull`, then `done` once the pull
   request holds them; `INBOX_URL`, `INBOX_TOKEN`), run by
-  `.github/workflows/players.yml` (a pull request, never merged by itself:
-  strangers' facts are read by a hand first, the owner's phone told; its
-  waiting branch merged into again). Each fact keeps who saw it, a hash
+  `.github/workflows/players.yml` (a pull request; with `PLAYERS_AUTOMERGE`
+  `true`, reviewed and merged by itself, see "The review" below, else read
+  and merged by a hand, the owner's phone told either way; a waiting branch
+  is merged into again). Each fact keeps who saw it, a hash
   of the account and the fact (no one's facts tied together), 20 at most.
   `src/players.ts` loads them last, as source `players`, where no other
   source has the fact: the value most players saw (`MIN_SEEN`: one is
-  enough while they are few), a level the range of all seen, NPCs' lines in
+  enough for a mechanical fact; free text needs `TEXT_MIN_SEEN`, below), a level the range of all seen, NPCs' lines in
   `npc_line`, loot only for a creature or an object no source gives any.
   NPC positions go to `creature_sighting` as observer coordinates, even
   when a creature already has known spawns. They never add to `spawn` and
@@ -277,3 +278,62 @@ where Classic's client has one (`name.source` `classic`, spell names only, every
   player-controlled units and purging its older unchecked NPC cache. The
   inbox rejects unchecked legacy NPC entries and keeps type/family ids.
   Dashboard merge counts are new archived observations, not database gaps.
+
+### The review (since 5 November 2026)
+
+The user's call: the players' facts pull request is reviewed and merged by the
+job, not by a person (`bin/players-review.ts`, logic in
+`src/players-review.ts`, the same code `addon-kit/data-prs.ts facts` reads
+with). It runs only while the repository variable `PLAYERS_AUTOMERGE` is
+`true` (GitHub compares case-blind, so `TRUE` counts too): the kill switch, any other value or none leaves the old way (a pull
+request a person reads and merges). This is the one path from strangers'
+uploads, through the databases and each addon's daily Game data job (which
+merges itself), to players' screens. Keep these rules strict.
+
+- **Hard rejects** (the line is dropped before the pull request's commit,
+  never merged, kept nowhere; the report counts them by reason and quotes
+  the first three as code): a broken shape or a field the build doesn't know,
+  a value out of bounds or a malformed level (the build's own `factProblem`),
+  a link or domain (http, www, .com .net .gg …, discord), the game's escape
+  codes (`|c`, `|H`, `|T`, `|r`), markup or script-like text (the game's own
+  NPC emote, a whole line in angle brackets that is a sentence, passes),
+  control and zero-width characters (a line feed and a carriage return are
+  the game's own and pass: the build turns them into `$B`), a name over 100
+  characters, text over 4000, and a line that speaks to a reader as an order
+  (`orderProblem`: a short phrase list, **a heuristic, not a proof**: it
+  catches "ignore previous instructions", a plea to approve or merge, a slash
+  command, a download or visit order, an advert, a request for silence, and
+  nothing cleverer). In Classic Era a new id (a creature, quest, object or
+  item no source has) is dropped too: every id there is long known. In
+  Forever a new id is expected and kept.
+- **Left to a hand** (the pull request stays open and the owner is told why;
+  the hard rejects and the held text are still taken out of the commit, and
+  the report then lists every dropped line, since the inbox forgets them): it touches a file outside `data/players/`, a file under it
+  the review doesn't take, a fact main holds gone, more than `MAX_ADDED`
+  (1500; the history's largest is 447) lines added, or the build would stop
+  on the result (a trial load into a copy of each database).
+- **Tiers.** Mechanical facts (sightings, levels, ranks, types, reaction,
+  loot rows, a name for an id, a quest's giver and ender) merge. **Free text**
+  (a gossip or an NPC line, a quest's title, details, objectives, request and
+  reward) no file had before waits until `TEXT_MIN_SEEN` (2) different players
+  (the `who` hashes) saw it: until then it sits in
+  `data/players/<game>/held/<locale>.json`, which the build never loads (it
+  only reads `<game>/<locale>.json`) and the next day's second player finds.
+  Text already in a loaded file stays loaded (the 45 Classic facts and what
+  was merged by hand are grandfathered, they were read by a person). With
+  today's handful of sharers this holds back almost all text, which is the
+  intended safe default: `MIN_SEEN` stays 1 for what fixes nothing else's
+  row, and the build still fills only what no other source has.
+- **Sightings** stay sightings (`creature_sighting`), a far one is told, never
+  a spawn, never a riddle's exact spot.
+- **The merge** copies Pins: the job's own `bun run check` (on the code, run
+  before the review rewrites the data files), the review's trial load of the
+  cleaned files into a copy of each database (the gate for the data itself), then the branch looked at once more as it stands on GitHub
+  (`players-review.ts --head origin/players --verify`), `gh pr merge --squash
+  --delete-branch` (the branch goes only with the merge), and `db.yml` asked
+  for (a job's own token starts no workflow). A failed merge or a stop tells
+  the owner "Players' facts wait for you" with the reason.
+- **The report** is the pull request's body and the run's summary (counts,
+  what was dropped and why, what is held and its player count), and the
+  merged or waiting entry in Ravenpost's activity feed (counts only, never a
+  stranger's words).

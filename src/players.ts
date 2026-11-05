@@ -20,10 +20,17 @@ import { type Game, ROOT } from "./pins";
 /** One fact, its language and how many players saw it. */
 export type PlayerFact = [locale: string, kind: string, entity: string, field: string, value: string, build: string | null, seen: number];
 
-// A fact one player alone sent is taken: the opt-in is new and its players
-// few. Each is a Battle.net account (the inbox signs them in), so agreement
+// A mechanical fact one player alone sent is taken: the opt-in is new and its
+// players few (free text needs TEXT_MIN_SEEN, below). Each is a Battle.net account (the inbox signs them in), so agreement
 // can't be faked without accounts. Raise it when players are many.
 export const MIN_SEEN = 1;
+
+// Free text (a gossip or an NPC line, a quest's title and texts) no database
+// row has yet enters the files the build loads only when this many players
+// saw it (src/players-review.ts, the daily job's review): one player's text
+// waits in data/players/<game>/held/. Sightings, levels, ranks, loot and the
+// rest stay at MIN_SEEN. Nothing here overrides a row another source has.
+export const TEXT_MIN_SEEN = 2;
 
 // UnitClassification's words, as creature.rank.
 const RANKS: Record<string, number> = { normal: 0, trivial: 0, minus: 0, elite: 1, rareelite: 2, worldboss: 3, rare: 4 };

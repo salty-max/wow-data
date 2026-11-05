@@ -19,6 +19,7 @@ import { fetchRetry } from "../src/fetch";
 import { CACHE } from "../src/cache";
 import { type Game, ROOT } from "../src/pins";
 import { uploadBuild, uploadProblem } from "../src/players";
+import { keyOf, order } from "../src/players-review";
 
 const server = (process.env.INBOX_URL ?? "").replace(/\/$/, "");
 const token = process.env.INBOX_TOKEN;
@@ -40,11 +41,6 @@ async function api<T>(p: string, body?: unknown): Promise<T> {
 }
 
 const dir = (game: Game) => path.join(ROOT, "data", "players", game);
-const keyOf = (l: Line) => `${l[0]}\u0000${l[1]}\u0000${l[2]}\u0000${l[3]}`;
-const entityOrder = (s: string) => Number(s.replace(/^\D+/, ""));
-const order = (a: Line, b: Line) =>
-  a[0].localeCompare(b[0]) || entityOrder(a[1]) - entityOrder(b[1]) || a[1].localeCompare(b[1]) || a[2].localeCompare(b[2]) || (a[3] < b[3] ? -1 : a[3] > b[3] ? 1 : 0);
-
 /** A game's facts as the repository has them, by language. */
 function load(game: Game): Map<string, Map<string, Line>> {
   const out = new Map<string, Map<string, Line>>();
