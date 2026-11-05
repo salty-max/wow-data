@@ -130,8 +130,8 @@ comes from, and the rules for them: `docs/sources.md`.
 - A pull request a job opens (pins, players, an addon's game data) gets a
   `pull_request` run with no jobs, which fails: GitHub runs nothing for a
   job's own token. The job dispatches ci.yml on its branch instead
-  (`actions: write`), so the pull request shows its checks. Pins and
-  players only ask for it; addon-data.yml waits for it and merges only
+  (`actions: write`), so the pull request shows its checks. Pins only
+  asks for it; players and addon-data.yml wait for it and merge only
   once it passes.
 - `.github/workflows/addon-data.yml`: an addon's game data built again,
   called by each addon's daily `game-data.yml` (Hearthtale, the Codex,

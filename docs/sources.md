@@ -329,7 +329,9 @@ merges itself), to players' screens. Keep these rules strict.
 - **The merge** copies Pins: the job's own `bun run check` (on the code, run
   before the review rewrites the data files), the review's trial load of the
   cleaned files into a copy of each database (the gate for the data itself), then the branch looked at once more as it stands on GitHub
-  (`players-review.ts --head origin/players --verify`), `gh pr merge --squash
+  (`players-review.ts --head origin/players --verify`), then the CI run on the branch's head
+  (asked for earlier in the job) waited for, up to 15 minutes, and it has to pass (Pins does not wait
+  for it: strangers' data is held to more), `gh pr merge --squash
   --delete-branch` (the branch goes only with the merge), and `db.yml` asked
   for (a job's own token starts no workflow). A failed merge or a stop tells
   the owner "Players' facts wait for you" with the reason.

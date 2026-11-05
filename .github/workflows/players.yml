@@ -24,6 +24,11 @@ permissions:
   pull-requests: write
   actions: write
 
+# (one run at a time and none cancelled: the merge step waits minutes for the branch's CI, and a second run must not move the branch under it)
+concurrency:
+  group: players
+  cancel-in-progress: false
+
 jobs:
   players:
     runs-on: ubuntu-latest
@@ -91,7 +96,7 @@ jobs:
           body-path: ${{ runner.temp }}/body.md
           add-paths: data/players
       # (its checks on the pull request: GitHub gives this job's own token a pull_request run with no jobs)
-      # (asked for, not waited on: a hiccup of GitHub's API never stops the rest)
+      # (asked for here, waited for in the merge step: a hiccup of GitHub's API never stops the rest)
       - name: Its checks
         if: steps.pr.outputs.pull-request-number != ''
         continue-on-error: true
@@ -105,8 +110,8 @@ jobs:
           INBOX_URL: ${{ vars.INBOX_URL }}
           INBOX_TOKEN: ${{ secrets.INBOX_TOKEN }}
         run: bun bin/players.ts "done"
-      # (merged like Pins merges itself: when the review let it, and the
-      # checks above passed. The branch is looked at again as it stands on
+      # (merged like Pins merges itself: when the review let it, the
+      # checks above passed and the CI run on the branch passed too. The branch is looked at again as it stands on
       # GitHub first. Squash, the branch deleted by the merge itself, never
       # before; then the databases, asked for: a merge by this job's token
       # sets off no push workflow. A pull request it can't merge waits for a
@@ -131,9 +136,23 @@ jobs:
           if ! bun bin/players-review.ts --base origin/main --head origin/players --verify > "$RUNNER_TEMP/verify.txt" 2>&1; then
             wait_for_a_hand "The branch is not what the review left (it changed since, or holds lines the review drops)."
           fi
+          # (its checks, the CI run asked for above on the branch's head: waited for, up to 15 minutes, and it has to
+          # pass, else the pull request waits for a hand. A run that was never started says "none" and waits the same.)
+          HEAD_SHA="$(git rev-parse origin/players)"
+          since="$(date -u -d '-40 minutes' +%Y-%m-%dT%H:%M:%SZ)"
+          ci=none
+          for _ in $(seq 1 30); do
+            ci="$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --branch players --event workflow_dispatch --commit "$HEAD_SHA" --created ">=$since" --json headSha,status,conclusion --jq "[.[] | select(.headSha == \"$HEAD_SHA\")][0] | if . == null then \"none\" elif .status != \"completed\" then \"running\" else .conclusion end")" || ci=error
+            [ "$ci" = success ] && break
+            case "$ci" in failure | cancelled | timed_out | action_required | startup_failure) break ;; esac
+            sleep 30
+          done
+          if [ "$ci" != success ]; then
+            wait_for_a_hand "Its checks did not pass in time (the CI run on the branch said: $ci)."
+          fi
           for wait in 5 15 30 60; do
             sleep "$wait"
-            if gh pr merge "$PR" -R "$GITHUB_REPOSITORY" --squash --delete-branch; then
+            if gh pr merge "$PR" -R "$GITHUB_REPOSITORY" --squash --delete-branch --match-head-commit "$HEAD_SHA"; then
               gh workflow run db.yml -R "$GITHUB_REPOSITORY" --ref main
               echo "Merged #$PR, the databases asked for." >> "$GITHUB_STEP_SUMMARY"
               echo "merged=true" >> "$GITHUB_OUTPUT"
