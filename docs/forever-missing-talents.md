@@ -1,5 +1,55 @@
 # Forever's talents the guides name and the tables lacked
 
+**Hotfix feed checked, 5 November 2026 (launch day): it adds nothing, and Shank
+and Poised are not talents.** wago.tools' hotfixes (https://wago.tools/hotfixes,
+an Inertia page: the rows are JSON in the `data-page` attribute, props
+`hotfixes`, 25 a page) were read for the question "does the server push the
+trait wiring the client tables lack". It does not, so no build step was added.
+What was checked, so nobody retraces it:
+
+- **The filter.** `filter[table_name]=` does nothing (20.8 million rows). The
+  page's one filter is a free-text box, query `search=`, matched against each
+  row's `search_text` (`<locale> <push> <record> <build> <table> <data json>`,
+  lower case), every word must match: `search=70790 traitnodeentry`,
+  `search=1329283`. The site has no API route for hotfixes (only the page);
+  rows carry `data` as a positional array with no column names. `status` is 1
+  added, 2 deleted, 3 invalidate, 4 not public.
+- **Coverage.** The feed holds Forever's builds 70707, 70755 and 70790, regions
+  91, 93 and 95 (locales enUS, esMX, frFR, zhCN), all created at each build's
+  ingest (70790: 4 Nov 2026 23:15 to 23:43 UTC). No trait row is newer than
+  70790: these are the hotfix records the build ships, not a later server push.
+- **Trait tables.** 2,585 rows for `70790 trait` (TraitNode, TraitNodeEntry,
+  TraitDefinition, TraitNodeXTraitNodeEntry, TraitNodeGroupXTraitNode,
+  TraitEdge, TraitCond, TraitDefinitionEffectPoints and others);
+  `SkillLineXTraitTree` has 13 rows, none Forever's (last build 65300). Every
+  added row of region 91, enUS (150 definitions, 395 nodes, 165 entries, 30
+  node-entry links, 661 group links, 57 edges) **is already in the cached
+  70790 table with the same values**, and every deletion names a record the
+  table already lacks. wago.tools' tables at the pinned build already contain
+  the hotfixes: applying them changes no row, and `bin/tree-diff.ts` would see
+  the same trees. Reckless Swings (TraitDefinition 145966, spell 1329555, node
+  113636) came through them and is in `forever.db`.
+- **Shank and Poised.** Their spell ids (1329283, 1329549, 1328825 to 1328829)
+  occur in the feed only in spell tables (Spell, SpellName, SpellEffect,
+  SpellMisc, SpellLevels, SkillLineAbility, ...), at builds 70707, 70755 and
+  70790, **in no trait table**. They are not missing talents: `SkillLineAbility`
+  59899 teaches the Rogue (class mask 8) Shank at level 24, 59900 its second
+  rank (1329549, superseding 1329283) at 44, 59888 Poised, a passive, at 18
+  (59889: a Druid variant, 1328829, at 32). `class_spell` holds all four
+  (kind `other`). Blizzard's launch notes call them talents; the game files
+  teach them as spells, so a guide that counts them as talents counts more than
+  any trait tree holds.
+- **Warrior.** Every `SkillLineAbility` spell of the Warrior and Rogue masks
+  is in `class_spell` (none left out). `forever.db` has 53 Warrior `talent`
+  rows (Reckless Swings among them) and the guides count 54: no trait row,
+  spell or hotfix in the files explains the one more. It stays unnamed. Treat
+  it like Hunter's 51st below, a guide's miscount (or an ability counted as a
+  talent, as with Shank) until the game says otherwise; the probe that settles
+  it is `C_Traits.GetTreeNodes` and `GetNodeInfo` in the live client.
+- **Result.** Nothing known to be missing: of the 12 talents the notes name,
+  ten are talent nodes (see below) and Shank and Poised are class spells, all
+  in the data.
+
 **Update, 4 November 2026 (evening, three hours before launch): build 70790
 carries them.** `forever.db` is now built at `1.60.1.70790` (wowf, created 4
 Nov 18:08 UTC, version still 1.60.1 so the TOC interface stays 16001): 470 live
