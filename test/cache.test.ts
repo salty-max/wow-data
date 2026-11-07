@@ -97,6 +97,16 @@ describe("the names' floor", () => {
   });
   test("stops a language short or missing", () => {
     expect(() => nameFloor("area", "classic", { enUS: 1000, ...all(1000), frFR: 900 })).toThrow("frFR 900");
+    // a tiny table: one or two rows behind is the client's, not a bad download (Forever's Languages at 70862: 16 and 15)
+    expect(() => nameFloor("language", "forever", { enUS: 16, ...all(15) })).not.toThrow();
+    expect(() => nameFloor("language", "forever", { enUS: 16, ...all(14) })).not.toThrow();
+    expect(() => nameFloor("language", "forever", { enUS: 16, ...all(15), frFR: 12 })).toThrow("frFR 12");
+    expect(() => nameFloor("language", "forever", { enUS: 16, ...all(15), frFR: 0 })).toThrow("frFR 0");
+    // the edge: a table of 39 rows tolerates 2 behind, one of 41 does not
+    expect(() => nameFloor("x", "forever", { enUS: 39, ...all(39), frFR: 37 })).not.toThrow();
+    expect(() => nameFloor("x", "forever", { enUS: 41, ...all(41), frFR: 38 })).toThrow("frFR 38");
+    // a big table still trips on a few percent, however few rows that is
+    expect(() => nameFloor("area", "classic", { enUS: 1000, ...all(1000), frFR: 940 })).toThrow("frFR 940");
     const { koKR: _, ...noKorean } = all(1000);
     expect(() => nameFloor("item", "forever", { enUS: 1000, ...noKorean })).toThrow("koKR missing");
   });

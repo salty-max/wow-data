@@ -216,7 +216,7 @@ async function clientNames(db: Database, game: Game) {
     } catch (e) {
       // (a short language's download out of the cache, named: the next run
       // fetches it again instead of failing on the same file)
-      const gone = LOCALES.filter((l) => (per[l] ?? 0) < (per.enUS ?? 0) * 0.95).map((l) =>
+      const gone = shortLocales(per).map((l) =>
         path.join(CACHE, "wago", game, PINS.builds[game].build, `${n.table}-${l}.csv`),
       );
       for (const f of gone) rmSync(f, { force: true });
@@ -228,10 +228,19 @@ async function clientNames(db: Database, game: Game) {
 // Every language of a client table holds as many names as English, give or
 // take (99.9% at least on 23 October 2026, every kind, both games): one well
 // short is a download that went wrong, and its names would leave every addon.
+// "Well short" is both under the floor AND more than NAME_GAP rows behind: on a
+// 16-row table (Forever's Languages at 70862, English 16 and every other
+// language 15) one row is 93.75% and Blizzard simply had not translated it yet.
+export const NAME_GAP = 2;
+export function shortLocales(per: Record<string, number>, floor = 0.95): string[] {
+  const english = per.enUS;
+  if (!english) return [];
+  return LOCALES.filter((l) => (per[l] ?? 0) < english * floor && english - (per[l] ?? 0) > NAME_GAP);
+}
 export function nameFloor(kind: string, game: Game, per: Record<string, number>, floor = 0.95) {
   const english = per.enUS;
   if (!english) return;
-  const short = LOCALES.filter((l) => (per[l] ?? 0) < english * floor);
+  const short = shortLocales(per, floor);
   if (short.length)
     throw new Error(
       `names ${kind} in ${game}: ${short.map((l) => `${l} ${per[l] ?? "missing"}`).join(", ")} against enUS ${english}`,
