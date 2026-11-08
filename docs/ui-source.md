@@ -9,7 +9,7 @@ likes. Added 28 October 2026.
 | Pin | Repository, branch | Carries | Sure? |
 |---|---|---|---|
 | `ui-classic` | Gethe/wow-ui-source `classic_era` | 1.15.9 (70576) | exact: the client pinned in `pins.json` is 70576 |
-| `ui-forever` | Gethe/wow-ui-source `forever` | 1.60.1 (70532), 22 October | the nearest: the client is 70658, Gethe's branch had not caught up. The Camelot UI moves little in a few days, but a frame added in those builds is not here |
+| `ui-forever` | Gethe/wow-ui-source `forever` | 1.60.1 (70862), 7 November | exact: the client pinned in `pins.json` is 70862 (moved from 70532, 22 October, on 8 November 2026). Gethe's branch can fall behind the client again, `latest.ts` says; the Camelot UI moves little in a few days, but a frame added in those builds is not here |
 | `ui-textures-classic` | Gethe/wow-ui-textures `classic` | 1.13.5 (34911), 2020 | art only, old: the last commit of the branch |
 | `ui-textures-live` | Gethe/wow-ui-textures `live` | 9.2.7 (45114), 2022 | art only, old, and GitHub cuts its file list short (about 67,000 of the files) |
 

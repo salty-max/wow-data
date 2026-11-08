@@ -9,8 +9,8 @@
     "ui-forever": {
       "repo": "Gethe/wow-ui-source",
       "branch": "forever",
-      "commit": "ca8368f2f2380cbe696854f7f2646387c278a61b",
-      "build": "1.60.1.70532"
+      "commit": "9dc84f0d3bbae1768ac3405b3716000bd93eda06",
+      "build": "1.60.1.70862"
     },
     "ui-textures-classic": {
       "repo": "Gethe/wow-ui-textures",
