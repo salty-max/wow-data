@@ -58,7 +58,8 @@ on:
 
 jobs:
   data:
-    runs-on: ubuntu-latest
+    # (pinned after the 11 Nov 2026 failure: apt exit 100 at the luajit install; the cause is not proven, a moved image or a stale apt index are the two guesses)
+    runs-on: ubuntu-24.04
     # (one day's run at a time in each addon: two would push the same branch)
     concurrency:
       group: addon-data-${{ github.repository }}
@@ -107,7 +108,7 @@ jobs:
             addon-data-
       - name: Lua (LuaJIT, StyLua, selene)
         run: |
-          sudo apt-get install -y -qq luajit
+          sudo apt-get update -qq && sudo apt-get install -y -qq luajit
           mkdir -p "$HOME/bin" && cd "$HOME/bin"
           curl -sSLo stylua.zip https://github.com/JohnnyMorganz/StyLua/releases/download/v2.5.2/stylua-linux-x86_64.zip
           curl -sSLo selene.zip https://github.com/Kampfkarren/selene/releases/download/0.32.0/selene-0.32.0-linux.zip
