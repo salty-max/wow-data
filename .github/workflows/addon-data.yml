@@ -238,8 +238,17 @@ jobs:
           done
           [ -n "$run" ] || held "The CI run asked for on game-data wasn't found in two minutes."
           url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$run"
-          timeout 1800 gh run watch "$run" -R "$GITHUB_REPOSITORY" --exit-status --interval 20 > /dev/null || true
-          read -r status conclusion head < <(gh run view "$run" -R "$GITHUB_REPOSITORY" --json status,conclusion,headSha --jq '"\(.status) \(.conclusion) \(.headSha)"') || true
+          # (polled, not watched: GitHub's API answers a 500 now and then, and one such answer
+          # made a passing run "not seen to end", 12 November 2026, yours-truly #10)
+          status=""; conclusion=""; head=""
+          deadline=$((SECONDS + 1800))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if line=$(timeout 60 gh run view "$run" -R "$GITHUB_REPOSITORY" --json status,conclusion,headSha --jq '[.status,.conclusion,.headSha]|join("|")' 2>/dev/null); then
+              IFS='|' read -r status conclusion head <<< "$line"
+              [ "$status" = completed ] && break
+            fi
+            sleep 20
+          done
           [ "${status:-}" = completed ] || held "Its CI run ($url) wasn't seen to end (30 minutes at most)."
           [ "${conclusion:-}" = success ] || held "Its CI run ($url) ended ${conclusion:-without a verdict}."
           [ "${head:-}" = "$SHA" ] || held "Its CI run ($url) checked ${head:-another commit}, not the pull request's head $SHA."
