@@ -1,0 +1,8 @@
+{"facts":[
+["gossip","916","text","What kin I do for ye, $N?",null,["8f631063"]],
+["quest","3109","details","While you were helping me out, this rune was given to me to pass on to you. Take some time to read it when you have a chance. I'm thinkin' it came from the $c{rogue} trainer Solm. Take a gander at it and go find him inside Anvilmar when you've a chance.","70938",["ec27ed6d"]],
+["quest","3109","objectives","Read the Encrypted Rune and speak to Solm Hargrin in Coldridge Valley.","70938",["4829d5d2"]],
+["quest","3109","request","You made it! Great!\n\nWe've got an influx of activity lately, so I'm glad to count another of the Ironforge clan among our numbers. Nothin' like a cold blade in your hand and a shadow to keep you one step ahead, and if you're here, you know exactly what I mean!","70938",["2cdd3e0f"]],
+["quest","3109","reward","Anyway, as you start peekin' around Coldridge you'll probably have need of training at some point. You just come back to me whenever you feel you need it and I'll teach you what I know--a trick here, a maneuver there. You know, the stuff that keeps you alive and makin' a little extra coin.\n\nKeep an eye out on our gnomish friends too... they kinda got the short end of the stick what with Gnomeregan being... destroyed. They'll need our help to feel welcome.","70938",["19490829"]],
+["quest","3109","title","Encrypted Rune","70938",["4c01a7bf"]]
+]}
